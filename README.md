@@ -49,7 +49,11 @@ Add a key in Settings (or `.env`) and the pinned muse models take over.
 13. **Bounded prompts and paced turns.** A 1800-char token sheet, 24 tool calls
     per turn, ≥4000 ms pacing, capped rail history.
 14. **No code from the user, ever.** Logic is WHEN/THEN chips, not JavaScript.
-15. **Clean room.** Built from the written specification alone. The reference
+15. **Media stays portable.** Local media import remains forbidden while validation
+    allows only HTTPS video and HTTPS or data-image sources. If local video is
+    ever supported, it ships only as relative assets in a folder zip, never as
+    a huge base64 video inside a single HTML file. HTTPS media needs internet.
+16. **Clean room.** Built from the written specification alone. The reference
     repository was read for ideas only; no code, comments, strings, class names
     or assets were copied, and the product contains no trace of it.
 

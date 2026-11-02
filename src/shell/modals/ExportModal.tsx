@@ -3,7 +3,10 @@ import { Check, Copy, Download, FileCode2 } from 'lucide-react';
 import { Modal, Button } from '../../components/ui';
 import { useProject } from '../../store/useProject';
 import { useUi } from '../../store/useUi';
-import { downloadZip, downloadTextFile } from '../../export/zip';
+import { downloadZip, downloadTextFile, downloadHtmlFolder } from '../../export/zip';
+import { buildSingleHtml } from '../../export/singleFile';
+import { assetCensus } from '../../export/assets';
+import { PublishGuide } from './PublishGuide';
 import { downloadScreenshots } from '../../export/screenshots';
 import { installInstructions, manifestFor, serviceWorkerTemplate } from '../../export/pwa';
 
@@ -28,6 +31,7 @@ export function ExportModal({ onClose }: { onClose: () => void }) {
   const [capturing, setCapturing] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const install = useMemo(() => installInstructions(doc), [doc]);
+  const census = useMemo(() => assetCensus(doc), [doc]);
   // §6.1 legal guard: contributor-tier output trades training consent for a 20x
   // discount, so a production build refuses to export a project shaped by it.
   const blocked = Boolean(doc.builtWithContributor) && !import.meta.env.DEV;
@@ -102,6 +106,63 @@ export function ExportModal({ onClose }: { onClose: () => void }) {
           </p>
         </div>
       )}
+      <div className="insp-section">
+        <div className="insp-section-head">
+          <span className="eyebrow">HTML exports</span>
+        </div>
+        <p className="field-hint">
+          {census.inline} images embedded · {census.remote} media load from the internet
+          {census.missing ? ` · ${census.missing} missing or placeholder` : ''}
+        </p>
+        <div className="mw-detail-13">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={blocked || !doc.screens.length}
+            onClick={() => {
+              try {
+                const html = buildSingleHtml(doc);
+                if (new TextEncoder().encode(html).length > 2 * 1024 * 1024)
+                  toast('This HTML exceeds 2 MB; consider the HTML folder zip.', 'warn');
+                downloadTextFile('index.html', html, 'text/html');
+              } catch (err) {
+                toast(err instanceof Error ? err.message : 'HTML export failed', 'warn');
+              }
+            }}
+          >
+            <Download size={12} /> Single-file HTML
+          </Button>
+          <span className="field-hint">
+            Runs anywhere — no install
+            {census.remoteVideo ? ' · needs internet for video' : ''} · rename only if you
+            add other pages
+          </span>
+        </div>
+        <div className="mw-detail-13">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={blocked || !doc.screens.length}
+            onClick={async () => {
+              try {
+                await downloadHtmlFolder(doc);
+                toast('HTML folder downloaded', 'ok');
+              } catch (err) {
+                toast(
+                  err instanceof Error ? err.message : 'HTML folder export failed',
+                  'warn',
+                );
+              }
+            }}
+          >
+            <Download size={12} /> HTML folder (zip)
+          </Button>
+          <span className="field-hint">
+            A page and its large embedded images, ready to host.
+          </span>
+        </div>
+      </div>
+      <PublishGuide />
       <div className="insp-section">
         <div className="insp-section-head">
           <span className="eyebrow">What ships</span>

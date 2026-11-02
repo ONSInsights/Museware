@@ -9,7 +9,8 @@ import { dirname, join } from 'node:path';
 import { createProject } from '../src/store/useProject';
 import { applyOps } from '../src/ops/apply';
 import { TEMPLATES, buildScreensFor } from '../src/muse/demo/build';
-import { generateProjectFiles } from '../src/export/reactCodegen';
+import { buildExportFiles } from '../src/export/zip';
+import { buildSingleHtml } from '../src/export/singleFile';
 import { manifestFor, serviceWorkerTemplate } from '../src/export/pwa';
 import type { ProjectDoc } from '../src/types/tree';
 
@@ -30,6 +31,13 @@ function demoDoc(): ProjectDoc {
     doc = res.doc;
   }
   doc.screens[0].root.children.push(
+    {
+      id: 'large_image',
+      type: 'image',
+      props: { src: `data:image/png;base64,${Buffer.alloc(103000).toString('base64')}` },
+      styles: {},
+      children: [],
+    },
     {
       id: 'data_list',
       type: 'list',
@@ -104,10 +112,12 @@ function demoDoc(): ProjectDoc {
   return data.doc;
 }
 
+const doc = demoDoc();
 const files = {
-  ...generateProjectFiles(demoDoc()),
-  'public/manifest.webmanifest': manifestFor(demoDoc()),
+  ...(await buildExportFiles(doc)),
+  'public/manifest.webmanifest': manifestFor(doc),
   'public/sw.js': serviceWorkerTemplate(),
+  'standalone.html': buildSingleHtml(doc),
 };
 
 rmSync(OUT, { recursive: true, force: true });
@@ -136,6 +146,19 @@ function run(label: string, bin: string, args: string[]) {
   }
 }
 
+run('typecheck the standalone runtime', join(repo, 'node_modules/.bin/tsc'), [
+  '--noEmit',
+  '--target',
+  'ES2022',
+  '--module',
+  'ESNext',
+  '--moduleResolution',
+  'bundler',
+  '--lib',
+  'ES2022,DOM,DOM.Iterable',
+  '--skipLibCheck',
+  join(repo, 'src/export/siteRuntime.ts'),
+]);
 run('typecheck the export', join(repo, 'node_modules/.bin/tsc'), ['--noEmit', '-p', '.']);
 run('build the export', join(repo, 'node_modules/.bin/vite'), ['build']);
 console.log('✓ export: the generated project typechecks and builds');

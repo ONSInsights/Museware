@@ -1,4 +1,6 @@
+// Exported local paths must be relative, never absolute /paths: subpath hosting is supported.
 import motionSource from '../canvas/motion.js?raw';
+import { auditCodegen } from './auditCodegen';
 import type { ComponentNode, ProjectDoc, ScreenDoc, Action } from '../types/tree';
 import { materializeCss, screenLookVariables } from '../design/materialize';
 import { generateFullCss, nodeClass } from '../canvas/cssGen';
@@ -620,7 +622,7 @@ if ('serviceWorker' in navigator) {
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
 `;
@@ -648,7 +650,7 @@ if ('serviceWorker' in navigator) {
   files['vite.config.ts'] = `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({ plugins: [react()], build: { target: 'es2022' } });
+export default defineConfig({ base: './', plugins: [react()], build: { target: 'es2022' } });
 `;
   files['tsconfig.json'] = `${JSON.stringify(
     {
@@ -679,6 +681,12 @@ npm install
 npm run dev
 \`\`\`
 
+## Publish on GitHub Pages
+
+1. Create a repository at https://github.com/new and upload the extracted React zip contents, including the hidden .github folder.
+2. In the repository, open Settings → Pages and set Source to **GitHub Actions**.
+3. The included workflow builds and publishes the site on every push to main. GitHub shows the site URL under Pages when deployment finishes.
+
 ## Install as an app
 
 The bundle ships a manifest and a one-file service worker. Deploy the build
@@ -693,6 +701,45 @@ out of demo scope but the tree is portable.
 - \`src/screens/\` — one component per screen, rendered from the same tree.
 - \`src/runtime.tsx\` — the 40-line action runtime (navigate / state / toast / when).
 `;
+
+  files['.github/workflows/deploy.yml'] = [
+    'name: Deploy to GitHub Pages',
+    'on:',
+    '  push:',
+    '    branches: [main]',
+    '  workflow_dispatch:',
+    'permissions:',
+    '  contents: read',
+    '  pages: write',
+    '  id-token: write',
+    'concurrency:',
+    '  group: pages',
+    '  cancel-in-progress: false',
+    'jobs:',
+    '  build:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - uses: actions/checkout@v4',
+    '      - uses: actions/setup-node@v4',
+    '        with:',
+    '          node-version: 20',
+    '      - run: npm install',
+    '      - run: npm run build',
+    '      - uses: actions/configure-pages@v5',
+    '      - uses: actions/upload-pages-artifact@v3',
+    '        with:',
+    '          path: ./dist',
+    '  deploy:',
+    '    needs: build',
+    '    runs-on: ubuntu-latest',
+    '    environment:',
+    '      name: github-pages',
+    '      url: ${{ steps.deployment.outputs.page_url }}',
+    '    steps:',
+    '      - id: deployment',
+    '        uses: actions/deploy-pages@v4',
+    '',
+  ].join('\n');
 
   files['icon.svg'] =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="${doc.tokens.openuiTheme.brand_color}"/><path d="M26 66V30h9l13 22 13-22h9v36h-8V44L50 66h-4L34 44v22z" fill="#fff"/></svg>`;
@@ -718,5 +765,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 `;
+  for (const [path, source] of Object.entries(files))
+    if (path.startsWith('src/screens/') && path.endsWith('.tsx')) auditCodegen(source);
   return files;
 }

@@ -1,5 +1,7 @@
 import {
   useState,
+  createContext,
+  useContext,
   type CSSProperties,
   type ReactNode,
   type MouseEvent as ReactMouseEvent,
@@ -17,6 +19,9 @@ import { useAgent } from '../store/useAgent';
 import { useProject } from '../store/useProject';
 
 type Mode = 'edit' | 'run';
+
+/** Static export renders all tab panels so the standalone runtime can switch them. */
+export const StaticExportContext = createContext(false);
 
 interface Props {
   node: ComponentNode;
@@ -119,6 +124,7 @@ function sampleFrame(content: ReactNode, sample: boolean): ReactNode {
 
 export function NodeBody({ node, doc, mode, screenId, row }: Props) {
   const runtime = useRuntime();
+  const staticExport = useContext(StaticExportContext);
   const epoch = useProject((s) => s.documentEpoch);
   const painting = useAgent(
     (s) => s.assetDocumentEpoch === epoch && s.assetsPending.has(node.id),
@@ -199,6 +205,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
                 type="button"
                 className="mw-tab"
                 data-active={i === tab}
+                {...(staticExport ? { 'data-site-tab': i } : {})}
                 onClick={(e) => {
                   // Run mode keeps the tap to itself; edit mode lets the click
                   // bubble so the canvas selects the tabs node (and the panel
@@ -213,16 +220,22 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
               </button>
             ))}
           </div>
-          {items.length === panels.length
-            ? panels[tab] && (
-                <NodeBody
-                  node={panels[tab]}
-                  doc={doc}
-                  mode={mode}
-                  screenId={activeScreen}
-                />
-              )
-            : renderChildren()}
+          {staticExport && items.length === panels.length
+            ? panels.map((panel, i) => (
+                <div key={panel.id} data-site-panel={i} hidden={i !== 0}>
+                  <NodeBody node={panel} doc={doc} mode={mode} screenId={activeScreen} />
+                </div>
+              ))
+            : items.length === panels.length
+              ? panels[tab] && (
+                  <NodeBody
+                    node={panels[tab]}
+                    doc={doc}
+                    mode={mode}
+                    screenId={activeScreen}
+                  />
+                )
+              : renderChildren()}
         </div>
       );
     }

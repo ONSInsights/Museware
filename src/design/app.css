@@ -6308,3 +6308,45 @@ button.how-card .field-hint {
   color: var(--openui-text-secondary);
   font-size: var(--type-caption);
 }
+
+.publish-decider,
+.publish-grid,
+.publish-card-head,
+.publish-copy {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mw-space-2);
+}
+.publish-grid {
+  align-items: flex-start;
+}
+.publish-card {
+  flex: 1 1 40%;
+  min-width: 0;
+  border: 1px solid var(--mw-border);
+  border-radius: var(--mw-radius-md);
+  padding: var(--mw-space-2);
+}
+.publish-card-head {
+  justify-content: space-between;
+}
+.publish-details {
+  overflow-wrap: anywhere;
+}
+.publish-details ol {
+  padding-inline-start: var(--mw-space-5);
+}
+.publish-copy {
+  display: inline-flex;
+  gap: 0;
+}
+@media (max-width: 600px) {
+  .publish-card {
+    flex-basis: 100%;
+  }
+}
+
+.publish-details h4[data-selected='true'] {
+  color: var(--mw-accent);
+}
