@@ -13,7 +13,6 @@ import { MUSEWARE_DEFAULT_THEME, cloneTheme } from '../design/starter';
 import { applyOps, type ApplyResult } from '../ops/apply';
 import { clone } from '../ops/treeUtils';
 import { collectIds } from '../ops/ids';
-import { mockRowsSchema } from '../persist/schema';
 import { seedProjectTheme } from '../design/themeLibrary';
 
 const RAIL_CAP = 400;
@@ -234,28 +233,9 @@ export const useProject = create<ProjectStore>((set, get) => ({
     return '';
   },
 
-  setDataRows: (screenId, key, rows) => {
-    const parsed = mockRowsSchema.safeParse(rows);
-    const state = get();
-    if (
-      !parsed.success ||
-      !key.trim() ||
-      ['__proto__', 'constructor', 'prototype'].includes(key) ||
-      !state.doc.screens.some((s) => s.id === screenId)
-    )
-      return false;
-    const screens = state.doc.screens.map((screen) =>
-      screen.id === screenId
-        ? { ...screen, mockData: { ...screen.mockData, [key]: parsed.data } }
-        : screen,
-    );
-    set({
-      doc: { ...state.doc, screens, updatedAt: Date.now() },
-      undoStack: [...state.undoStack, snapshotOf(state.doc)].slice(-50),
-      redoStack: [],
-    });
-    return true;
-  },
+  setDataRows: (screenId, key, rows) =>
+    get().applyBatch([{ op: 'setMockData', screenId, key, rows }], { source: 'user' })
+      .errors.length === 0,
 
   applyBatch: (rawOps, opts) => {
     const state = get();

@@ -73,7 +73,10 @@ export function buildProjectIndex(
     if (screen.mockData && Object.keys(screen.mockData).length) {
       lines.push(
         `  mockData: ${Object.entries(screen.mockData)
-          .map(([k, v]) => `${k}(${v.length})`)
+          .map(
+            ([k, v]) =>
+              `${k}(${v.length} rows${v.length ? `; first row ${JSON.stringify(v[0]).slice(0, 200)}` : ''})`,
+          )
           .join(' ')}`,
       );
     }

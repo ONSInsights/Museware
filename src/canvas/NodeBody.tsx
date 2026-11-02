@@ -1,6 +1,7 @@
 import {
   useState,
   type CSSProperties,
+  type ReactNode,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
@@ -61,7 +62,7 @@ function dataRows(
   const screen = doc.screens.find((s) => s.id === screenId);
   const key = asText(node.props.dataKey) || asText(node.props.bindKey);
   const stored = key && screen?.mockData ? screen.mockData[key] : undefined;
-  if (stored && stored.length) return stored as Record<string, unknown>[];
+  if (Array.isArray(stored) && stored.length) return stored as Record<string, unknown>[];
   return [];
 }
 
@@ -88,6 +89,7 @@ function chartPoints(
   node: ComponentNode,
   doc: ProjectDoc,
   screenId: string,
+  mode: Mode,
 ): Array<{ label: string; value: number }> {
   const rows = dataRows(node, doc, screenId);
   if (rows.length) {
@@ -99,7 +101,20 @@ function chartPoints(
       value: valueKey ? Number(r[valueKey]) : 0,
     }));
   }
-  return [42, 58, 36, 71, 64, 88, 54].map((v, i) => ({ label: `P${i + 1}`, value: v }));
+  return mode === 'edit'
+    ? [42, 58, 36, 71, 64, 88, 54].map((v, i) => ({ label: `P${i + 1}`, value: v }))
+    : [];
+}
+
+function sampleFrame(content: ReactNode, sample: boolean): ReactNode {
+  return sample ? (
+    <div className="mw-sample-wrap">
+      {content}
+      <span className="mw-sample">Sample rows — add real data</span>
+    </div>
+  ) : (
+    content
+  );
 }
 
 export function NodeBody({ node, doc, mode, screenId, row }: Props) {
@@ -603,8 +618,9 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       );
     case 'list': {
       const rows = dataRows(node, doc, activeScreen);
-      const items = (rows.length ? rows : fallbackRows(node)).slice(0, 5);
-      return (
+      const sample = mode === 'edit' && !rows.length;
+      const items = (sample ? fallbackRows(node) : rows).slice(0, 5);
+      return sampleFrame(
         <div className={`${cls}${p.divider ? ' mw-list-divided' : ''}`} {...tapProps}>
           {items.map((r, i) => {
             const keys = Object.keys(r);
@@ -656,16 +672,18 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
               </div>
             );
           })}
-          {!items.length && <div className="mw-empty">No rows yet.</div>}
-        </div>
+          {!items.length && <div className="mw-empty">No data yet</div>}
+        </div>,
+        sample,
       );
     }
     case 'table': {
       const columns = asList(p.columns);
       const rows = dataRows(node, doc, activeScreen);
-      const items = (rows.length ? rows : fallbackRows(node, 3)).slice(0, 10);
+      const sample = mode === 'edit' && !rows.length;
+      const items = (sample ? fallbackRows(node, 3) : rows).slice(0, 10);
       const cols = columns.length ? columns : ['Name', 'Value', 'Status'];
-      return (
+      return sampleFrame(
         <div className={cls} {...tapProps}>
           <div className="mw-table-head">
             {cols.map((c) => (
@@ -687,7 +705,9 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
               })}
             </div>
           ))}
-        </div>
+          {!items.length && <div className="mw-empty">No data yet</div>}
+        </div>,
+        sample,
       );
     }
     case 'stat':
@@ -716,7 +736,14 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
         </div>
       );
     case 'chart': {
-      const points = chartPoints(node, doc, activeScreen);
+      const sample = mode === 'edit' && !dataRows(node, doc, activeScreen).length;
+      const points = chartPoints(node, doc, activeScreen, mode);
+      if (!points.length)
+        return (
+          <div className={cls}>
+            <div className="mw-empty">No data yet</div>
+          </div>
+        );
       const max = Math.max(...points.map((pt) => pt.value), 1);
       if (asText(p.kind) === 'line' || asText(p.kind) === 'spark') {
         const w = 240;
@@ -728,7 +755,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
               `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)},${(h - (pt.value / max) * (h - 8) - 4).toFixed(1)}`,
           )
           .join(' ');
-        return (
+        return sampleFrame(
           <svg
             className={cls}
             viewBox={`0 0 ${w} ${h}`}
@@ -750,10 +777,11 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
                 opacity="0.14"
               />
             )}
-          </svg>
+          </svg>,
+          sample,
         );
       }
-      return (
+      return sampleFrame(
         <div className={cls} {...tapProps}>
           <div className="mw-chart">
             {points.map((pt, i) => (
@@ -765,7 +793,8 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
               />
             ))}
           </div>
-        </div>
+        </div>,
+        sample,
       );
     }
     case 'hero': {
@@ -950,6 +979,9 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
               alt={asText(p.title, 'Card image')}
               draggable={false}
             />
+          )}
+          {Boolean(p.eyebrow) && (
+            <span className="mw-sec-eyebrow">{subst(p.eyebrow, row)}</span>
           )}
           {Boolean(p.title) && (
             <div

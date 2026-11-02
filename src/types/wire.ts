@@ -33,6 +33,7 @@ export const OP_NAMES = [
   'setProps',
   'setStyles',
   'setText',
+  'setMockData',
   'rename',
   'addScreen',
   'removeScreen',

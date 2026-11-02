@@ -197,6 +197,7 @@ export type Op =
   | { op: 'setProps'; id: NodeId; props: Record<string, unknown> }
   | { op: 'setStyles'; id: NodeId; styles: StyleSet }
   | { op: 'setText'; id: NodeId; text: string }
+  | { op: 'setMockData'; screenId: string; key: string; rows: MockRow[] }
   | { op: 'rename'; id: NodeId; name: string }
   | { op: 'addScreen'; screen: ScreenDoc }
   | { op: 'removeScreen'; id: string }

@@ -7,6 +7,7 @@ import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { buildTokenSheet } from './tokenSheet';
 import { buildProjectIndex } from './projectIndex';
+import { BUILDER_PROPS_PRIMER } from './propsPrimer';
 import { canvasOutline, subtreeOutline } from './canvasOutline';
 import { parseBlueprint, blueprintScreenSections } from './blueprintParse';
 import { parseTypedOptions } from './typedOptions';
@@ -53,14 +54,15 @@ const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   edit_canvas:
     'Apply a batch of ops to the canvas. Add parents before children and split large screens into ordered batches of at most 12 ops. Each batch is all-or-nothing; the hard limit is 40 ops. ' +
     'Each op = {op:"add",parentId,node:{type,id?,props?,styles?,children?}} | {op:"remove",id} | {op:"move",id,parentId} | ' +
-    '{op:"setProps",id,props} | {op:"setStyles",id,styles} | {op:"setText",id,text} | {op:"rename",id,name} | ' +
+    '{op:"setProps",id,props} | {op:"setStyles",id,styles} | {op:"setText",id,text} | {op:"setMockData",screenId,key,rows} | {op:"rename",id,name} | ' +
     '{op:"addScreen",screen:{id,name,root}} | {op:"removeScreen",id} | {op:"renameScreen",id,name} | {op:"setEntry",id} | ' +
     '{op:"setTokens",patch} | {op:"saveComponent",name,description,root} | {op:"placeComponent",name,parentId}. ' +
     'Nest at most 3 levels inside one add node; deeper structure is more add ops with parentId in the same call. ' +
     'Events ride on setProps: {events:{tap:[{type:"navigate",to:"home"}]}} — types navigate, setState, toggle, toast, openUrl, when. ' +
     'styles keys: gap, align(start|center|end|stretch = align children), justify(start|center|end|space-between = distribute), wrap, grow(1 = fill leftover space), selfAlign, padding, width/height ("match"|"hug"|length), background, color, fontSize, fontWeight, textAlign, borderRadius, boxShadow, opacity. ' +
     'styles also include colSpan(1–4|full), rowSpan(1–3), backdropBlur(none|sm|md|lg), aspectRatio(auto|1/1|4/3|16/9|4/5|21/9), position(static|relative|sticky). ' +
-    'props are per-type: button{text,variant,icon,disabled}, input{placeholder,bindKey,inputType}, list{dataKey}, grid{columns}, section{eyebrow,title,subtitle,align,surface,bleed}, marquee{label,items comma string,variant,speed}, accordion{items Question | Answer lines or dataKey}, navbar{variant}, scene3d{preset,speed,interactive,title,subtitle}, video{src,poster,autoplayMuted,caption}. Video src must be in the user prompt; leave it empty for a procedural reel. ' +
+    `WIDGET PROPS from the library (source of truth):\n${BUILDER_PROPS_PRIMER}\n` +
+    'Fill every list/table/chart dataKey with setMockData: 5–20 realistic rows matching the brief; a dataKey without rows ships an empty section. setMockData replaces all rows at that screen/key, so preserve existing data unless replacement is intended. Video src must be in the user prompt; leave it empty for a procedural reel. ' +
     'Long batches: split them into several edit_canvas calls of at most 12 ops each. An oversized call can be cut off mid-JSON and dropped without being applied.',
   illustrate_images:
     'Generate images for up to six existing hero, image or card nodes: targets [{id, prompt?}]. One image per target, with palette-aware prompts.',
@@ -1821,7 +1823,7 @@ export async function runScopedAction(
       messages: [
         {
           role: 'system',
-          content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? '' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles only on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} Design law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
+          content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? '' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles only on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${BUILDER_PROPS_PRIMER}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
         },
         {
           role: 'user',

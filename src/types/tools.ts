@@ -147,7 +147,9 @@ const screenSchema = z.object({
   root: nodeSchema,
   entry: z.boolean().optional(),
   mockData: z
-    .record(z.array(z.record(z.union([z.string(), z.number(), z.boolean()]))).max(20))
+    .record(
+      z.array(z.record(z.union([z.string(), z.number().finite(), z.boolean()]))).max(100),
+    )
     .optional(),
 });
 
@@ -168,6 +170,14 @@ export const opSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setProps'), id: idSchema, props: z.record(z.unknown()) }),
   z.object({ op: z.literal('setStyles'), id: idSchema, styles: styleSchema }),
   z.object({ op: z.literal('setText'), id: idSchema, text: z.string().max(2000) }),
+  z.object({
+    op: z.literal('setMockData'),
+    screenId: screenIdSchema,
+    key: stateKey,
+    rows: z
+      .array(z.record(z.union([z.string(), z.number().finite(), z.boolean()])))
+      .max(100),
+  }),
   z.object({ op: z.literal('rename'), id: idSchema, name: z.string().min(1).max(40) }),
   z.object({ op: z.literal('addScreen'), screen: screenSchema }),
   z.object({ op: z.literal('removeScreen'), id: screenIdSchema }),

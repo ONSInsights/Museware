@@ -175,6 +175,8 @@ describe('scoped edits that listen', () => {
     await runScopedAction('text_aaa', 'Change the label to Shop now', true);
     const sent = vi.mocked(chatStream).mock.calls[0][0].messages;
     expect(sent[0].content).toContain('Design law: colors ONLY');
+    expect(sent[0].content).toContain('WIDGET PROPS from the library:');
+    expect(sent[0].content).toContain('chart{');
     expect(sent[0].content).toContain('fontWeight stays on the 500/600/700 scale');
     expect(sent[0].content).toContain('setStyles MERGES');
     expect(sent[1].content).toContain('CURRENT STATE: props={"text":"text_aaa"} styles={}');

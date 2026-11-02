@@ -219,6 +219,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
         options: ['elevated', 'sunk', 'glass', 'outline', 'spotlight', 'accent'],
       }),
       p('icon', 'Icon', 'icon', 'Content', 'Optional icon badge.'),
+      p('eyebrow', 'Eyebrow', 'text', 'Content', 'Optional label above the card title.'),
     ],
   },
   {

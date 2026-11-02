@@ -39,7 +39,7 @@ export function NodeView({
             <NodeBody node={screen.root} doc={doc} mode="run" screenId={screen.id} />
           </RuntimeContext.Provider>
         ) : (
-          <NodeBody node={screen.root} doc={doc} mode="edit" screenId={screen.id} />
+          <NodeBody node={screen.root} doc={doc} mode={mode} screenId={screen.id} />
         )}
       </div>
     </div>

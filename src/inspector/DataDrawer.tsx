@@ -16,10 +16,14 @@ export function DataDrawer({
   const rows = useProject(
     (s) => s.doc.screens.find((screen) => screen.id === screenId)?.mockData?.[dataKey],
   );
-  const save = useProject((s) => s.setDataRows);
+  const applyBatch = useProject((s) => s.applyBatch);
   const [fieldNames, setFieldNames] = useState<Record<number, string>>({});
   const write = (next: MockRow[]) => {
-    if (!save(screenId, dataKey, next))
+    if (
+      applyBatch([{ op: 'setMockData', screenId, key: dataKey, rows: next }], {
+        source: 'user',
+      }).errors.length
+    )
       useUi.getState().toast('Could not save those rows.', 'warn');
   };
   const data = rows || [];

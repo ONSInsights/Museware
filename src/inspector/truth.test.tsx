@@ -46,6 +46,9 @@ afterEach(cleanup);
 describe('inspector tells the truth', () => {
   it('edits, duplicates, deletes and saves screen-local data rows with undo', async () => {
     render(<Inspector />);
+    expect(
+      screen.getByText(/Renaming this key orphans its rows and bindings/),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Rows: 1 · View' }));
     fireEvent.change(screen.getByLabelText('Row 1 label'), { target: { value: 'Coffee' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
@@ -57,6 +60,12 @@ describe('inspector tells the truth', () => {
     expect(useProject.getState().doc.screens[0].mockData?.items).toHaveLength(3);
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1]);
     expect(useProject.getState().doc.screens[0].mockData?.items).toHaveLength(2);
+    expect(
+      useProject
+        .getState()
+        .doc.opLog.slice(-4)
+        .map((entry) => entry.batch[0].op),
+    ).toEqual(['setMockData', 'setMockData', 'setMockData', 'setMockData']);
     expect(
       useProject.getState().setDataRows('home', 'items', [{ invalid: null }] as never),
     ).toBe(false);

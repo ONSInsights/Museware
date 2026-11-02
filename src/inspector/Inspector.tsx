@@ -500,7 +500,11 @@ export function Inspector() {
                             <div key={def.key}>
                               <TextField
                                 label={def.label}
-                                hint={def.hint}
+                                hint={
+                                  def.key === 'dataKey'
+                                    ? `${def.hint} Renaming this key orphans its rows and bindings — the export reads by key.`
+                                    : def.hint
+                                }
                                 value={String(value)}
                                 onCommit={(next) => writeProps({ [def.key]: next })}
                               />

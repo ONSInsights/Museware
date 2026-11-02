@@ -66,12 +66,15 @@ function renderLeaf(
   const tap = attrEvents(node, 'tap');
   const change = attrEvents(node, 'change');
   const bind =
-    typeof p.dataKey === 'string'
+    typeof p.dataKey === 'string' && p.dataKey
       ? p.dataKey
       : typeof p.bindKey === 'string'
         ? p.bindKey
         : '';
-  const data = bind && screen.mockData ? screen.mockData[bind] : undefined;
+  const data =
+    bind && screen.mockData && Object.hasOwn(screen.mockData, bind)
+      ? screen.mockData[bind]
+      : undefined;
   switch (node.type) {
     case 'heading':
       return `${pad}<h${Math.min(6, Math.max(1, Number(p.level) || 2))} className={${str(cls)}}>${jsxText(p.text)}</h${Math.min(
@@ -194,12 +197,19 @@ ${pad}    <div className="mw-row-main"><div className="mw-row-title">${jsxText(t
 ${pad}  </div>`;
   })
   .join('\n')}
+${!items.length ? `${pad}  <div className="mw-empty">No data yet</div>` : ''}
 ${pad}</div>`;
     }
     case 'table': {
-      const columns = Array.isArray(p.columns)
+      const configured = Array.isArray(p.columns)
         ? (p.columns as unknown[]).map(String)
-        : ['Name', 'Value'];
+        : typeof p.columns === 'string'
+          ? p.columns
+              .split(',')
+              .map((v) => v.trim())
+              .filter(Boolean)
+          : ['Name', 'Value'];
+      const columns = configured.length ? configured : ['Name', 'Value', 'Status'];
       const rows = ((data as Array<Record<string, unknown>> | undefined) || []).slice(
         0,
         10,
@@ -210,15 +220,15 @@ ${rows
   .map(
     (row) =>
       `${pad}  <div className="mw-table-row">${columns
-        .map(
-          (c) =>
-            `<span className="mw-table-cell">{String(${JSON.stringify(row)}[${str(
-              c.toLowerCase().replace(/\s+/g, '_'),
-            )}] ?? '')}</span>`,
-        )
+        .map((c, ci) => {
+          const key = c.toLowerCase().replace(/\s+/g, '_');
+          const value = row[key] ?? row[c] ?? row[Object.keys(row)[ci] ?? ''] ?? '';
+          return `<span className="mw-table-cell">${jsxText(String(value))}</span>`;
+        })
         .join('')}</div>`,
   )
   .join('\n')}
+${!rows.length ? `${pad}  <div className="mw-empty">No data yet</div>` : ''}
 ${pad}</div>`;
     }
     case 'stat':
@@ -231,7 +241,9 @@ ${pad}</div>`;
         ? rows
             .slice(0, 12)
             .map((r) => Number(Object.values(r).find((v) => typeof v === 'number') ?? 0))
-        : [42, 58, 36, 71, 64, 88, 54];
+        : [];
+      if (!values.length)
+        return `${pad}<div className={${str(cls)}}><div className="mw-empty">No data yet</div></div>`;
       const max = Math.max(...values, 1);
       return `${pad}<div className={${str(cls)}}><div className="mw-chart">${values
         .map(
@@ -316,6 +328,9 @@ function renderNode(
       const title = p.title
         ? `<div style={{ fontSize: ${node.type === 'card' ? 15 : 16}, fontWeight: 700, color: 'var(--openui-text-primary)' }}>${jsxText(p.title)}</div>`
         : '';
+      const eyebrow = p.eyebrow
+        ? `<span className="mw-sec-eyebrow">${jsxText(p.eyebrow)}</span>`
+        : '';
       const image =
         node.type === 'card' && (p.image || p.src)
           ? `<img className="mw-hero-img" src=${str(p.image || p.src)} alt=${str(p.title || 'Card image')} />`
@@ -329,7 +344,7 @@ function renderNode(
           ? `<span className="mw-card-icon"><Icon name=${str(iconName(node))} size={20} /></span>`
           : '';
       return wrap(
-        `<${tag} className={${str(node.type === 'card' ? `${cls} mw-card` : cls)}}${cardAttrs}${tap ? ` onClick={() => ${tap}}` : ''}>\n${icon}\n${image}\n${title}\n${children}\n${pad}</${tag}>`,
+        `<${tag} className={${str(node.type === 'card' ? `${cls} mw-card` : cls)}}${cardAttrs}${tap ? ` onClick={() => ${tap}}` : ''}>\n${icon}\n${image}\n${eyebrow}\n${title}\n${children}\n${pad}</${tag}>`,
       );
     }
     case 'tabs': {

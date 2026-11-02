@@ -31,6 +31,28 @@ function demoDoc(): ProjectDoc {
   }
   doc.screens[0].root.children.push(
     {
+      id: 'data_list',
+      type: 'list',
+      props: { dataKey: 'tea_picks' },
+      styles: {},
+      children: [],
+    },
+    {
+      id: 'data_table',
+      type: 'table',
+      props: { dataKey: 'tea_picks', columns: ['Name', 'Price'] },
+      styles: {},
+      children: [],
+    },
+    {
+      id: 'data_chart',
+      type: 'chart',
+      props: { dataKey: 'tea_picks' },
+      styles: {},
+      children: [],
+    },
+    { id: 'empty_list', type: 'list', props: {}, styles: {}, children: [] },
+    {
       id: 'motion_scene',
       type: 'scene3d',
       props: { preset: 'globe', title: 'Tea' },
@@ -66,7 +88,20 @@ function demoDoc(): ProjectDoc {
       children: [],
     },
   );
-  return doc;
+  const data = applyOps(
+    [
+      {
+        op: 'setMockData',
+        screenId: doc.screens[0].id,
+        key: 'tea_picks',
+        rows: [{ name: 'Hojicha', price: 12, available: true }],
+      },
+    ],
+    doc,
+    { source: 'agent' },
+  );
+  if (data.errors.length) throw new Error(data.errors[0].message);
+  return data.doc;
 }
 
 const files = {

@@ -419,6 +419,15 @@ function applyOne(
       screen.name = op.name.slice(0, 40);
       break;
     }
+    case 'setMockData': {
+      const screen = doc.screens.find((s) => s.id === op.screenId);
+      if (!screen)
+        return [
+          error('E_SCREEN_MISSING', `no screen with id ${op.screenId}`, undefined, index),
+        ];
+      screen.mockData = { ...screen.mockData, [op.key]: clone(op.rows) };
+      break;
+    }
     case 'setEntry': {
       const screen = doc.screens.find((s) => s.id === op.id);
       if (!screen) {
@@ -643,6 +652,7 @@ export function summarize(batch: Op[]): string {
   if (counts.setStyles) parts.push(`style ${counts.setStyles}`);
   if (counts.setProps) parts.push(`props ${counts.setProps}`);
   if (counts.setText) parts.push(`text ${counts.setText}`);
+  if (counts.setMockData) parts.push(`data ${counts.setMockData}`);
   if (counts.remove) parts.push(`remove ${counts.remove}`);
   if (counts.move) parts.push(`move ${counts.move}`);
   if (counts.setTokens) parts.push('design tokens');

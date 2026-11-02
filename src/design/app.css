@@ -6038,3 +6038,20 @@ button.how-card .field-hint {
 .run-bindings .bindings-section {
   padding: var(--mw-space-2);
 }
+
+/* Editor-only indicator: generated previews are not project data or export content. */
+.mw-sample-wrap {
+  position: relative;
+}
+.mw-sample {
+  position: absolute;
+  top: var(--mw-space-1);
+  right: var(--mw-space-1);
+  z-index: var(--mw-z-canvas-overlay);
+  padding: var(--mw-space-half) var(--mw-space-1);
+  border-radius: var(--mw-radius-sm);
+  background: var(--mw-surface);
+  color: var(--mw-ink-2);
+  font-size: var(--mw-fs-10);
+  pointer-events: none;
+}
