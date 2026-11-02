@@ -13,6 +13,8 @@ A request like 'this <widget>' or 'make it …' refers to the user's SELECTED no
 
 ${COMPOSITION_PRIMER}
 
+When asked to delete a picture, remove it AND mend the hole: change a split hero to centered when its media is gone; card grids re-close automatically. Children on the picture are deleted with it; siblings are never touched. If overlay captions contain words the user wants to keep, rebuild them as section-level copy.
+
 Fill every list/table/chart dataKey with setMockData — 5–20 realistic rows matching the brief; a dataKey without rows ships an empty section.
 WIDGET PROPS (library source of truth):\n${BUILDER_PROPS_PRIMER}
 

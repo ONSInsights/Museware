@@ -34,7 +34,7 @@ import type { Action, OpError, ProjectDoc, ScreenDoc } from '../types/tree';
 import { entryScreen, findNodeInDoc, clone, walk } from '../ops/treeUtils';
 import { applyOps } from '../ops/apply';
 import { filterScopedOps } from './scope';
-import { lintScreen, type LintFinding } from './qualityLint';
+import { lintScreen, lintRemovedImageVoids, type LintFinding } from './qualityLint';
 import {
   autoIllustrate,
   illustrateTargets,
@@ -1208,12 +1208,18 @@ async function reviewer(
   }
 }
 
-function findingsFor(doc: ProjectDoc, screenIds: string[]): LintFinding[] {
+function findingsFor(
+  doc: ProjectDoc,
+  screenIds: string[],
+  before?: ProjectDoc,
+): LintFinding[] {
   let compositionCount = 0;
-  return doc.screens
+  const findings = doc.screens
     .filter((screen) => screenIds.includes(screen.id))
-    .flatMap((screen) => lintScreen(screen, doc.tokens, new Set(), doc.kind))
-    .filter((finding) => finding.code !== 'composition' || ++compositionCount <= 4);
+    .flatMap((screen) => lintScreen(screen, doc.tokens, new Set(), doc.kind));
+  return [...(before ? lintRemovedImageVoids(before, doc) : []), ...findings].filter(
+    (finding) => finding.code !== 'composition' || ++compositionCount <= 4,
+  );
 }
 
 function formatFindings(findings: LintFinding[]): string {
@@ -1343,9 +1349,10 @@ export async function verifyGate(
   doc: ProjectDoc,
   screenIds: string[],
   imageBudget: ImageBudget = projectImageBudget(),
+  before?: ProjectDoc,
 ): Promise<void> {
   useAgent.getState().setVerification('running');
-  let findings = findingsFor(doc, screenIds);
+  let findings = findingsFor(doc, screenIds, before);
   const blocking = findings.filter((f) => f.severity === 'block');
   if (blocking.length) {
     useAgent.getState().setVerification('problems', formatFindings(blocking));
@@ -1388,11 +1395,11 @@ export async function verifyGate(
     }
     repairSummary(flaggedImages);
     doc = useProject.getState().doc;
-    findings = findingsFor(doc, screenIds);
+    findings = findingsFor(doc, screenIds, before);
   }
   await repairResponsive(doc, screenIds, imageBudget);
   doc = useProject.getState().doc;
-  findings = findingsFor(doc, screenIds);
+  findings = findingsFor(doc, screenIds, before);
   if (controller?.signal.aborted) {
     publishImageWarnings(doc, findings);
     useAgent
@@ -1474,7 +1481,7 @@ export async function verifyGate(
   }
   repairSummary(flaggedImages);
   const after = useProject.getState().doc;
-  findings = findingsFor(after, screenIds);
+  findings = findingsFor(after, screenIds, before);
   publishImageWarnings(after, findings);
   if (findings.some((f) => f.severity === 'block')) {
     useAgent.getState().setVerification('problems', formatFindings(findings));
@@ -1753,6 +1760,7 @@ export async function runAgentTurn(
         useProject.getState().doc,
         ids.length ? ids : doc.screens.map((screen) => screen.id),
         imageBudget,
+        before,
       );
     }
     const entryBefore = before.screens.find((screen) => screen.entry);

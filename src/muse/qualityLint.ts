@@ -1,7 +1,8 @@
 import { SCAFFOLD_STRINGS } from '../types/library';
 import { marqueeItems } from '../types/editorial';
 import type { DesignTokens } from '../types/tokens';
-import type { ComponentNode, ScreenDoc } from '../types/tree';
+import type { ComponentNode, ProjectDoc, ScreenDoc } from '../types/tree';
+import { findNodeInDoc, findParent, walk } from '../ops/treeUtils';
 
 export interface LintFinding {
   severity: 'block' | 'warn';
@@ -117,6 +118,37 @@ export function lintComposition(screen: ScreenDoc): LintFinding[] {
   };
   visit(screen.root);
   return hints;
+}
+
+/** Only a picture removed in this turn can identify the newly opened hole. */
+export function lintRemovedImageVoids(
+  before: ProjectDoc,
+  after: ProjectDoc,
+): LintFinding[] {
+  const findings: LintFinding[] = [];
+  for (const screen of before.screens)
+    walk(screen.root, (node) => {
+      if (node.type !== 'image' || findNodeInDoc(after, node.id)) return;
+      const parent = findParent(screen.root, node.id)?.parent;
+      if (!parent || parent.type !== 'hero') return;
+      const current = findNodeInDoc(after, parent.id)?.node;
+      if (
+        !current ||
+        String(current.props.layout || 'split') !== 'split' ||
+        current.props.image ||
+        current.props.src ||
+        current.children.some((child) => child.type === 'image' || child.type === 'card')
+      )
+        return;
+      findings.push({
+        severity: 'warn',
+        code: 'composition',
+        nodeId: current.id,
+        message:
+          'A removed image left a split hero without media: setProps layout to centered to mend the hole.',
+      });
+    });
+  return findings.slice(0, 4);
 }
 
 /** Deterministic facts, independent of the reviewer and safe on old documents. */

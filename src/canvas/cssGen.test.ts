@@ -302,7 +302,7 @@ describe('responsive defaults and image shape', () => {
         { assetAspectWidth: 1200, assetAspectHeight: 640, assetWidth: 900 },
       ),
     );
-    expect(ruleFor(css, 'img_a')).toContain('aspect-ratio:1200 / 640');
+    expect(css).toContain(':where(.n-img_a){aspect-ratio:1200 / 640}');
     expect(ruleFor(css, 'img_a')).toContain('max-width:900px');
   });
 });

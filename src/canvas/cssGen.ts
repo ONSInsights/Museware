@@ -157,7 +157,6 @@ function baseDeclarations(node: ComponentNode): string[] {
       d.push(
         'display:block',
         'width:100%',
-        `aspect-ratio:${Number(p.assetAspectWidth) > 0 && Number(p.assetAspectHeight) > 0 ? `${Number(p.assetAspectWidth)} / ${Number(p.assetAspectHeight)}` : '16 / 10'}`,
         ...(Number(p.assetWidth) > 0
           ? [`max-width:${Math.min(4096, Number(p.assetWidth))}px`]
           : []),
@@ -494,6 +493,18 @@ export function generateCss(
         `@container mw (min-width:1024px){:where(.mw-app > .${nodeClass(screen.root.id)} > *){max-width:1120px;margin-inline:auto}}`,
       );
     walk(screen.root, (node) => {
+      if (node.type === 'image') {
+        const ratio =
+          Number(node.props.assetAspectWidth) > 0 &&
+          Number(node.props.assetAspectHeight) > 0
+            ? `${Number(node.props.assetAspectWidth)} / ${Number(node.props.assetAspectHeight)}`
+            : '16 / 10';
+        rules.push(`:where(.${nodeClass(node.id)}){aspect-ratio:${ratio}}`);
+        rules.push(`:where(.mw-card .${nodeClass(node.id)}){aspect-ratio:1 / 1}`);
+        rules.push(
+          `@container mw (min-width:600px){:where(.mw-card .${nodeClass(node.id)}){aspect-ratio:4 / 3}}`,
+        );
+      }
       // Variant defaults live in zero-specificity utility rules. Avoid a
       // conflicting node-base declaration so the variant can supply its look;
       // explicit node styles are always emitted afterwards at class specificity.
@@ -691,8 +702,8 @@ export const UTILITY_CSS = `@container mw (min-width:600px){.mw-app{--type-displ
 .mw-nav-brand{font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--openui-text-primary)}
 .mw-nav-items{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .mw-nav-menu{position:relative;display:block}.mw-nav-menu summary{cursor:pointer;list-style:none;border:1px solid var(--openui-border-default);border-radius:999px;padding:6px 10px}.mw-nav-menu summary::-webkit-details-marker{display:none}.mw-nav-dropdown{position:absolute;right:0;top:calc(100% + 8px);z-index:30;display:flex;flex-direction:column;gap:12px;min-width:150px;padding:14px;background:var(--openui-fg);border:1px solid var(--openui-border-default);border-radius:var(--radius-card);box-shadow:0 8px 24px #0002}.mw-nav-items{display:none}@container mw (min-width:600px){.mw-nav-items{display:flex}.mw-nav-menu{display:none}}
-:where(.mw-hero-img){width:100%;height:180px;object-fit:cover;border-radius:calc(var(--radius-card) - 4px);display:block}
-:where(.mw-hero-copy){display:flex;flex-direction:column;gap:var(--gap-item);min-width:0}:where(.mw-hero[data-layout="split"] .mw-hero-copy){max-width:60ch}@container mw (min-width:600px){:where(.mw-hero[data-layout="split"]){align-items:center}:where(.mw-hero[data-layout="split"] .mw-hero-copy){justify-content:center;min-height:min(26.67cqw, 480px)}}:where(.mw-hero-media){min-width:0}:where(.mw-hero[data-layout="centered"] .mw-hero-copy){text-align:center;align-items:center}:where(.mw-hero[data-layout="immersive"][data-has-media="true"]){overflow:hidden;isolation:isolate}:where(.mw-hero[data-layout="immersive"][data-has-media="true"] .mw-hero-media){position:absolute;inset:0;z-index:-1}:where(.mw-hero[data-layout="immersive"] .mw-hero-img){height:100%;border-radius:0;filter:brightness(.55)}@container mw (min-width:600px){:where(.mw-hero[data-layout="split"] .mw-hero-img){height:auto;aspect-ratio:15 / 8}}
+:where(.mw-hero-img){width:100%;height:auto;aspect-ratio:4 / 5;object-fit:cover;border-radius:calc(var(--radius-card) - 4px);display:block}
+:where(.mw-hero-copy){display:flex;flex-direction:column;gap:var(--gap-item);min-width:0}:where(.mw-hero[data-layout="split"] .mw-hero-copy){max-width:60ch}@container mw (min-width:600px){:where(.mw-hero[data-layout="split"]){align-items:center}:where(.mw-hero[data-layout="split"] .mw-hero-copy){justify-content:center;min-height:min(26.67cqw, 480px)}}:where(.mw-hero-media){min-width:0}:where(.mw-hero[data-layout="centered"] .mw-hero-copy){text-align:center;align-items:center}:where(.mw-hero[data-layout="immersive"][data-has-media="true"]){overflow:hidden;isolation:isolate}:where(.mw-hero[data-layout="immersive"][data-has-media="false"]){isolation:isolate;overflow:hidden;background:linear-gradient(color-mix(in srgb,var(--openui-bg) 48%,transparent),color-mix(in srgb,var(--openui-bg) 48%,transparent)),radial-gradient(circle at 20% 25%,var(--openui-accent-subtle),transparent 60%),radial-gradient(circle at 80% 75%,var(--openui-secondary),transparent 58%),conic-gradient(from 35deg,var(--openui-accent),var(--openui-elevated),var(--openui-secondary),var(--openui-accent));color:var(--openui-text-primary)}:where(.mw-hero[data-layout="immersive"][data-has-media="true"] .mw-hero-media){position:absolute;inset:0;z-index:-1}:where(.mw-hero[data-layout="immersive"] .mw-hero-img){height:100%;border-radius:0;filter:brightness(.55)}:where(.mw-card .mw-hero-img){aspect-ratio:1 / 1}@container mw (min-width:600px){:where(.mw-hero .mw-hero-img){aspect-ratio:15 / 8}:where(.mw-card .mw-hero-img){aspect-ratio:4 / 3}}@container mw (min-width:1024px){:where(.mw-hero[data-layout="immersive"] .mw-hero-img){aspect-ratio:2 / 1}}
 .mw-nav-item{font-size:13px;font-weight:500;color:var(--openui-text-secondary);cursor:pointer;background:none;border:none;padding:0}
 .mw-nav-item:hover{color:var(--openui-text-primary)}
 .mw-nav-cta{border:0;border-radius:999px;padding:9px 16px;background:var(--openui-accent);color:var(--openui-text-on-accent);font-weight:600;cursor:pointer}
