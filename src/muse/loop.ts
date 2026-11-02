@@ -42,6 +42,13 @@ import {
 } from './qualityLint';
 import { beginTurnJournal, endTurnJournal } from './turnJournal';
 import {
+  startBuildPresenter,
+  stopBuildPresenter,
+  refreshBuildPresenter,
+  buildTimeline,
+  buildCardId,
+} from './buildPresenter';
+import {
   autoIllustrate,
   illustrateTargets,
   queueAssetTargets,
@@ -263,6 +270,7 @@ export function stopAgent(): void {
 }
 
 function addSystem(text: string) {
+  if (buildTimeline(text)) return;
   if (/still working…|silence is normal/i.test(text)) {
     console.debug(text);
     return;
@@ -294,6 +302,8 @@ function startHeartbeat(_anchor: number) {
 
 function recordNarration(text: string): ReturnType<typeof addAgent> {
   if (!text.trim()) return;
+  if (buildTimeline(text))
+    return useProject.getState().doc.rail.find((entry) => entry.id === buildCardId());
   const project = useProject.getState();
   const card = [...project.doc.rail]
     .reverse()
@@ -1707,6 +1717,14 @@ export async function runAgentTurn(
   startHeartbeat(startedAt);
   const before = useProject.getState().doc;
   const journal = beginTurnJournal(userText);
+  if (!smallTalkTurn) {
+    useAgent.setState({
+      assetJobs: [],
+      assetDocumentEpoch: useProject.getState().documentEpoch,
+      assetsPending: new Set(),
+    });
+    startBuildPresenter(journal);
+  }
   useAgent.getState().setInterruptionCard(null);
   const interrupted = (reason: 'error' | 'stopped' | 'cap', message?: string) => {
     endTurnJournal(journal);
@@ -1723,6 +1741,8 @@ export async function runAgentTurn(
       if (err instanceof MuseError && err.code === 'aborted') interrupted('stopped');
       else interrupted('error', err instanceof Error ? err.message : String(err));
     } finally {
+      refreshBuildPresenter();
+      stopBuildPresenter();
       journal.unsubscribe?.();
       stopHeartbeat();
       useAgent.getState().endTurn();
@@ -1827,7 +1847,7 @@ export async function runAgentTurn(
         imageBudget.remaining,
         controller.signal,
         newlyAdded,
-        undefined,
+        buildCardId(),
         () => reserveImageAttempt(imageBudget),
       );
       await verifyGate(
@@ -1865,6 +1885,8 @@ export async function runAgentTurn(
       interrupted('error', err.message);
     } else interrupted('error', err instanceof Error ? err.message : String(err));
   } finally {
+    refreshBuildPresenter();
+    stopBuildPresenter();
     journal.unsubscribe?.();
     stopHeartbeat();
     useAgent.getState().endTurn();
@@ -2197,13 +2219,16 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     .reverse()
     .find((entry) => entry.card?.kind === 'thinking' && entry.card.state === 'pending');
   const card = pending ?? addCard('progress', {}, 'Building screens');
+  const queueJournal = beginTurnJournal(blueprint);
+  startBuildPresenter(queueJournal);
   useProject.getState().patchRail(card.id, {
     text: 'Building screens',
     card: {
       kind: 'progress',
       state: 'pending',
       data: {
-        ...(card.card?.data || {}),
+        ...(useProject.getState().doc.rail.find((entry) => entry.id === card.id)?.card
+          ?.data || {}),
         title: 'Building screens',
         parts: targets.map((s) => ({ id: s.id, label: s.name, state: 'queued' })),
         startedAt,
@@ -2470,6 +2495,9 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
   } catch (err) {
     wrapError(err, 'Continue the build.');
   } finally {
+    refreshBuildPresenter();
+    stopBuildPresenter();
+    queueJournal.unsubscribe?.();
     stopHeartbeat();
     useAgent.getState().endTurn();
     useAgent.getState().setProgress(null);

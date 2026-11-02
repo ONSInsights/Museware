@@ -391,6 +391,71 @@ function ColorCard({ entry }: { entry: RailEntry }) {
   );
 }
 
+function LiveBuildCard({ entry }: { entry: RailEntry }) {
+  const data = entry.card!.data;
+  const busy = useAgent((s) => s.busy);
+  const timeline = Array.isArray(data.timeline)
+    ? (data.timeline as Array<{ at: number; text: string }>)
+    : [];
+  const assets = Array.isArray(data.assets)
+    ? (data.assets as Array<{ state: string }>)
+    : [];
+  const quality = Array.isArray(data.quality) ? (data.quality as string[]) : [];
+  const done = assets.filter((item) => item.state === 'done').length;
+  return (
+    <div
+      className="railcard chat-card chat-card--work"
+      role="group"
+      aria-label="Build progress"
+    >
+      <div className="railcard-head">
+        <strong>{String(data.title || 'Building')}</strong>
+      </div>
+      <div className="railcard-sub" aria-live="polite">
+        {String(data.elapsed || '0s')} · {Number(data.ops || 0)} ops
+        {assets.length ? ` · Images ${done}/${assets.length}` : ''}
+      </div>
+      {timeline.length > 0 && (
+        <details>
+          <summary>Progress ({timeline.length})</summary>
+          {timeline.map((item, i) => (
+            <p key={i}>
+              <time>{new Date(item.at).toLocaleTimeString()}</time> · {item.text}
+            </p>
+          ))}
+        </details>
+      )}
+      {quality.length > 0 && (
+        <details>
+          <summary>Quality notes ({quality.length})</summary>
+          <div className="asset-chips">
+            {quality.map((line, i) => (
+              <span
+                className="chip chip-static"
+                style={{ color: 'var(--mw-danger)' }}
+                key={i}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
+        </details>
+      )}
+      {busy && (
+        <div className="card-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            onClick={() => stopAgent()}
+          >
+            <Square size={11} /> Stop
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProgressCard({ entry }: { entry: RailEntry }) {
   const busy = useAgent((s) => s.busy);
   const progress = useAgent((s) => s.progress);
@@ -617,11 +682,9 @@ function ThinkingCard({ entry }: { entry: RailEntry }) {
         className="thinking-toggle"
         aria-expanded={expanded}
         onClick={() =>
-          useProject
-            .getState()
-            .patchRail(entry.id, {
-              card: { ...card, data: { ...data, expanded: !expanded } },
-            })
+          useProject.getState().patchRail(entry.id, {
+            card: { ...card, data: { ...data, expanded: !expanded } },
+          })
         }
       >
         {active && <span className="spin" />} <strong>Thinking</strong>
@@ -663,7 +726,11 @@ export function RailCard({ entry }: { entry: RailEntry }) {
     case 'color':
       return <ColorCard entry={entry} />;
     case 'progress':
-      return <ProgressCard entry={entry} />;
+      return card.data.turnCard ? (
+        <LiveBuildCard entry={entry} />
+      ) : (
+        <ProgressCard entry={entry} />
+      );
     case 'error':
       return <ErrorCard entry={entry} />;
     case 'key':

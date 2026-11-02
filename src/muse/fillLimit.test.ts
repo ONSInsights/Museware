@@ -95,7 +95,7 @@ describe('fill call allowance', () => {
     expect(
       useProject
         .getState()
-        .doc.rail.some((entry) => entry.text.includes('no screens completed')),
+        .doc.rail.some((entry) => JSON.stringify(entry).includes('no screens completed')),
     ).toBe(true);
   });
 
@@ -123,7 +123,7 @@ describe('fill call allowance', () => {
     expect(
       useProject
         .getState()
-        .doc.rail.some((entry) => entry.text.includes('did not call finish')),
+        .doc.rail.some((entry) => JSON.stringify(entry).includes('did not call finish')),
     ).toBe(true);
     expect(vi.mocked(chatStream)).toHaveBeenCalledTimes(3);
   });
@@ -138,7 +138,7 @@ describe('fill call allowance', () => {
     expect(
       useProject
         .getState()
-        .doc.rail.some((entry) => entry.text.includes('no screens completed')),
+        .doc.rail.some((entry) => JSON.stringify(entry).includes('no screens completed')),
     ).toBe(true);
   });
 

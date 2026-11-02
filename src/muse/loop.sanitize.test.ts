@@ -113,7 +113,9 @@ describe('tool history sanitation', () => {
     expect(calls[1].some((m) => m.tool_calls?.length)).toBe(false);
     expect(calls[1].some((m) => m.content.includes('at most 12 ops'))).toBe(true);
     expect(
-      useProject.getState().doc.rail.some((entry) => entry.text.includes('output cap')),
+      useProject
+        .getState()
+        .doc.rail.some((entry) => JSON.stringify(entry).includes('output cap')),
     ).toBe(true);
   });
   it('repairs valid recoverable arguments before execution and echo', async () => {
@@ -174,7 +176,7 @@ describe('tool history sanitation', () => {
     expect(
       useProject
         .getState()
-        .doc.rail.some((r) => r.text.includes('reviewer quota exhausted')),
+        .doc.rail.some((r) => JSON.stringify(r).includes('reviewer quota exhausted')),
     ).toBe(true);
   });
 });

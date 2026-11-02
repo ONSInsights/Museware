@@ -113,7 +113,9 @@ describe('blueprint header drift', () => {
     await runFillQueue({ mode: 'steady' });
     expect(useAgent.getState().verification).toBe('problems');
     expect(
-      useProject.getState().doc.rail.some((r) => r.text.includes('no screens completed')),
+      useProject
+        .getState()
+        .doc.rail.some((r) => JSON.stringify(r).includes('no screens completed')),
     ).toBe(true);
     expect(vi.mocked(chatStream)).toHaveBeenCalledTimes(1);
   });

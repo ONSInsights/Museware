@@ -28,7 +28,10 @@ const reply = (name?: string, args?: unknown, text = ''): ChatResult => ({
 const lines = () =>
   useProject
     .getState()
-    .doc.rail.map((r) => r.text)
+    .doc.rail.map(
+      (r) =>
+        `${r.text} ${Array.isArray(r.card?.data.timeline) ? r.card.data.timeline.map((item: { text?: string }) => item.text).join('\n') : ''}`,
+    )
     .join('\n');
 beforeEach(() => {
   vi.mocked(chatStream).mockReset();

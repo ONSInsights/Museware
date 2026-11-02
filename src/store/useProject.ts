@@ -74,7 +74,8 @@ function fromSnapshot(snap: Snapshot, doc: ProjectDoc): ProjectDoc {
 }
 
 function trimCardData(entry: RailEntry): RailEntry {
-  if (!entry.card || entry.card.kind === 'thinking') return entry;
+  if (!entry.card || entry.card.kind === 'thinking' || entry.card.data.turnCard === true)
+    return entry;
   const data = entry.card.data || {};
   const text = typeof data.blueprint === 'string' ? data.blueprint : '';
   if (text.length > 6000) {

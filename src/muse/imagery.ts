@@ -1,4 +1,5 @@
 import { findNodeInDoc, findParent } from '../ops/treeUtils';
+import { buildTimeline } from './buildPresenter';
 import { SCAFFOLD_STRINGS } from '../types/library';
 import { useAgent, type AssetJob } from '../store/useAgent';
 import { useProject } from '../store/useProject';
@@ -13,7 +14,9 @@ export type ImageOutcome = {
   stop?: boolean;
   attempts?: number;
 };
-const rail = (text: string) => useProject.getState().addRail({ role: 'system', text });
+const rail = (text: string) => {
+  if (!buildTimeline(text)) useProject.getState().addRail({ role: 'system', text });
+};
 
 /** Nearby meaningful copy and the blueprint section describe the actual subject. */
 export function imageSubject(

@@ -101,6 +101,12 @@ export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean
       <div
         className="prose-agent chat-bubble chat-bubble--agent"
         data-fresh={fresh || undefined}
+        style={{
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: 2,
+          overflow: 'hidden',
+        }}
       >
         {entry.text}
         {entry.reasoningReplayed && (
