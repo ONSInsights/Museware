@@ -13,9 +13,10 @@ export function DataDrawer({
   dataKey: string;
   onClose: () => void;
 }) {
-  const rows = useProject(
-    (s) => s.doc.screens.find((screen) => screen.id === screenId)?.mockData?.[dataKey],
-  );
+  const rows = useProject((s) => {
+    const mockData = s.doc.screens.find((screen) => screen.id === screenId)?.mockData;
+    return mockData && Object.hasOwn(mockData, dataKey) ? mockData[dataKey] : undefined;
+  });
   const applyBatch = useProject((s) => s.applyBatch);
   const [fieldNames, setFieldNames] = useState<Record<number, string>>({});
   const write = (next: MockRow[]) => {
@@ -29,6 +30,31 @@ export function DataDrawer({
   const data = rows || [];
   const change = (index: number, key: string, value: string | number | boolean) =>
     write(data.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
+  const renameField = (index: number, oldKey: string, nextKey: string) => {
+    const name = nextKey.trim();
+    if (name === oldKey) return true;
+    if (
+      !name ||
+      Object.hasOwn(data[index], name) ||
+      ['__proto__', 'constructor', 'prototype'].includes(name)
+    ) {
+      useUi.getState().toast('Choose a unique field name.', 'warn');
+      return false;
+    }
+    write(
+      data.map((row, i) =>
+        i === index
+          ? Object.fromEntries(
+              Object.entries(row).map(([key, value]) => [
+                key === oldKey ? name : key,
+                value,
+              ]),
+            )
+          : row,
+      ),
+    );
+    return true;
+  };
   return (
     <section className="data-drawer" aria-label={`Data rows for ${dataKey}`}>
       <header className="data-drawer-head">
@@ -69,7 +95,22 @@ export function DataDrawer({
           </div>
           {Object.entries(row).map(([key, value]) => (
             <label className="data-row-field" key={key}>
-              <span>{key}</span>
+              <input
+                className="input"
+                aria-label={`Rename field ${key} in row ${index + 1}`}
+                defaultValue={key}
+                onBlur={(event) => {
+                  if (!renameField(index, key, event.currentTarget.value))
+                    event.currentTarget.value = key;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur();
+                  if (event.key === 'Escape') {
+                    event.currentTarget.value = key;
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
               {typeof value === 'boolean' ? (
                 <select
                   className="select"

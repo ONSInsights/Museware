@@ -27,7 +27,7 @@ import { ThemePicker } from '../design/ThemePicker';
 import { Icon } from '../canvas/Icon';
 import { Segmented } from '../components/ui';
 import { ActionEditor } from './ActionEditor';
-import { DataDrawer } from './DataDrawer';
+import { DataBlock } from './DataBlock';
 import { Bindings } from './Bindings';
 import { illustrate } from '../muse/cards';
 import { ClearOverride, NumberField, SelectField, TextField, ToggleField } from './Fields';
@@ -107,7 +107,6 @@ export function Inspector() {
   const toast = useUi((s) => s.toast);
   const propertiesOpen = useUi((s) => s.propertiesOpen);
   const [tab, setTab] = useState<Tab>('props');
-  const [dataDrawer, setDataDrawer] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [compName, setCompName] = useState('');
   const [compNote, setCompNote] = useState('');
@@ -494,55 +493,33 @@ export function Inspector() {
                             />
                           );
                         }
-                        if (def.kind === 'data') {
-                          const keys = Object.keys(screen.mockData || {});
+                        if (def.kind === 'dataset') {
+                          const key = String(value);
                           return (
                             <div key={def.key}>
                               <TextField
                                 label={def.label}
-                                hint={
-                                  def.key === 'dataKey'
-                                    ? `${def.hint} Renaming this key orphans its rows and bindings — the export reads by key.`
-                                    : def.hint
-                                }
+                                hint={`${def.hint} Renaming this key orphans its rows and bindings — the export reads by key.`}
                                 value={String(value)}
-                                onCommit={(next) => writeProps({ [def.key]: next })}
+                                onCommit={(next) => writeProps({ [def.key]: next.trim() })}
                               />
-                              {String(value).trim() && (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-ghost"
-                                    onClick={() =>
-                                      setDataDrawer(
-                                        dataDrawer === String(value) ? null : String(value),
-                                      )
-                                    }
-                                  >
-                                    Rows: {screen.mockData?.[String(value)]?.length || 0} ·
-                                    View
-                                  </button>
-                                  {dataDrawer === String(value) && (
-                                    <DataDrawer
-                                      key={`${screen.id}:${String(value)}`}
-                                      screenId={screen.id}
-                                      dataKey={String(value)}
-                                      onClose={() => setDataDrawer(null)}
-                                    />
-                                  )}
-                                </>
-                              )}
-                              {keys.length > 0 && (
+                              <DataBlock
+                                key={`${screen.id}:${key}`}
+                                screen={screen}
+                                dataKey={key}
+                                doc={doc}
+                              />
+                              {Object.keys(screen.mockData || {}).length > 0 && (
                                 <div className="data-key-options">
-                                  {keys.map((key) => (
+                                  {Object.keys(screen.mockData || {}).map((existing) => (
                                     <button
                                       type="button"
-                                      key={key}
+                                      key={existing}
                                       className="chip mw-shell-util-11"
-                                      data-selected={String(value) === key}
-                                      onClick={() => writeProps({ [def.key]: key })}
+                                      data-selected={key === existing}
+                                      onClick={() => writeProps({ [def.key]: existing })}
                                     >
-                                      {key}
+                                      {existing}
                                     </button>
                                   ))}
                                 </div>

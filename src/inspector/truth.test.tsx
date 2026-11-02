@@ -49,7 +49,7 @@ describe('inspector tells the truth', () => {
     expect(
       screen.getByText(/Renaming this key orphans its rows and bindings/),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Rows: 1 · View' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Field editor' }));
     fireEvent.change(screen.getByLabelText('Row 1 label'), { target: { value: 'Coffee' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
     expect(useProject.getState().doc.screens[0].mockData?.items).toEqual([

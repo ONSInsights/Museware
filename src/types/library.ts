@@ -68,6 +68,7 @@ export type PropKind =
   | 'tone'
   | 'actions'
   | 'data'
+  | 'dataset'
   | 'bind';
 
 /**
@@ -860,7 +861,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     hint: 'Repeats one row template over mock rows. You select the list, not its rows.',
     defaultProps: { dataKey: '', itemTemplate: null, divider: false },
     props: [
-      p('dataKey', 'Data key', 'data', 'Content', 'Which mock dataset fills the rows.'),
+      p('dataKey', 'Data key', 'dataset', 'Content', 'Which mock dataset fills the rows.'),
       p(
         'divider',
         'Hairlines between rows',
@@ -882,7 +883,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
       p('columns', 'Columns', 'data', 'Content', 'Header names, comma separated.', {
         required: true,
       }),
-      p('dataKey', 'Data key', 'data', 'Content', 'Which mock dataset fills the rows.'),
+      p('dataKey', 'Data key', 'dataset', 'Content', 'Which mock dataset fills the rows.'),
     ],
   },
   {
@@ -911,7 +912,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
       p('kind', 'Kind', 'select', 'Content', 'Bars for comparison, line for a trend.', {
         options: ['bar', 'line', 'spark'],
       }),
-      p('dataKey', 'Data key', 'data', 'Content', 'Which mock dataset feeds the chart.'),
+      p('dataKey', 'Data key', 'dataset', 'Content', 'Which mock dataset feeds the chart.'),
     ],
   },
 ];

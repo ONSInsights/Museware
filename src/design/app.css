@@ -6231,3 +6231,32 @@ button.how-card .field-hint {
 .screen-tabs .screen-tab {
   flex: 0 0 auto;
 }
+
+/* Inline dataset editing uses the same surface hierarchy as inspector fields. */
+.data-block {
+  display: grid;
+  gap: var(--mw-space-2);
+  padding: var(--mw-space-3);
+  margin-top: var(--mw-space-2);
+  border: 1px solid color-mix(in srgb, var(--mw-border) 82%, var(--mw-ink) 18%);
+  border-radius: var(--mw-radius-md);
+  background: var(--mw-surface-2);
+}
+.data-block-head,
+.data-block-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--mw-space-2);
+}
+.data-block-head strong {
+  flex: 1;
+  color: var(--mw-ink-2);
+  font-size: var(--mw-fs-10);
+}
+.data-block textarea {
+  width: 100%;
+  min-width: 0;
+}
+.data-block p {
+  margin: 0;
+}

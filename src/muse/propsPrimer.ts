@@ -9,7 +9,9 @@ export const BUILDER_PROPS_PRIMER = COMPONENT_SPECS.map((spec) => {
       prop.defaultValue !== undefined ? prop.defaultValue : spec.defaultProps[prop.key];
     const detail = [
       prop.kind,
-      prop.kind === 'data' ? `hint=${JSON.stringify(prop.hint)}` : '',
+      prop.kind === 'data' || prop.kind === 'dataset'
+        ? `hint=${JSON.stringify(prop.hint)}`
+        : '',
       prop.options?.length ? `enum=${JSON.stringify(prop.options)}` : '',
       defaultValue !== undefined ? `default=${JSON.stringify(defaultValue)}` : '',
       prop.required ? 'required' : '',
