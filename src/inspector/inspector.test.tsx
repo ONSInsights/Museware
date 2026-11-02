@@ -106,9 +106,9 @@ describe('a Row gets the fields a Row needs', () => {
     openTab('Style');
   });
 
-  it('explains that container spacing and contents live in Style', () => {
+  it('offers the shared motion control on containers', () => {
     openTab('Props');
-    expect(screen.getByText(/Row \(horizontal\) has no content of its own/i)).toBeTruthy();
+    expect(screen.getByText('Motion')).toBeTruthy();
   });
 
   it('offers scoped redesign and restyle controls for a container', () => {

@@ -476,6 +476,7 @@ export function generateCss(
   const rules: string[] = [
     '.mw-css-root,.mw-app{container-type:inline-size;container-name:mw;font-family:var(--font-body);color:var(--openui-text-primary);background:var(--openui-bg);-webkit-font-smoothing:antialiased}',
     '.mw-app{--type-display:var(--type-display-base);--type-title:var(--type-title-base);--pad-screen:var(--pad-screen-base);--gap-section:var(--gap-section-base)}',
+    '.mw-app{--mw-motion-fast:160ms;--mw-motion-med:280ms;--mw-motion-slow:480ms;--mw-ease-out:cubic-bezier(.22,1,.36,1)}',
     '.mw-app *{box-sizing:border-box}',
     '.mw-app button{font-family:inherit}',
     '.mw-app img{max-width:100%}',
@@ -550,6 +551,24 @@ export function generateCss(
         node.type === 'marquee' ||
         decls.some((decl) => /^overflow(?:-y)?\s*:\s*(?:hidden|clip)\s*$/i.test(decl));
       rules.push(renderRule(`.${nodeClass(node.id)}`, decls));
+      const preset = String(node.props.motion || 'none');
+      if (['rise', 'fade', 'slide', 'scale'].includes(preset)) {
+        const sel = `:where(.${nodeClass(node.id)})`;
+        rules.push(
+          `${sel}{animation:mw-${preset} var(--mw-motion-slow) var(--mw-ease-out) both}`,
+        );
+        rules.push(
+          `@media (prefers-reduced-motion:reduce){${sel}{animation:none;opacity:1;transform:none}}`,
+        );
+        if (node.type === 'section') {
+          for (let i = 1; i <= 8; i++) {
+            const nth = i === 8 ? 'n+8' : String(i);
+            rules.push(
+              `:where(.${nodeClass(node.id)} > :nth-child(${nth})){animation-delay:${(i - 1) * 70}ms}`,
+            );
+          }
+        }
+      }
       if (options.editScope && node.type !== 'divider' && clipped)
         rules.push(
           renderRule(`.frame-viewport .${nodeClass(node.id)}`, [
@@ -672,6 +691,11 @@ export function screenCssClass(screenId: string): string {
 }
 
 /** Utility classes shared by canvas, Run mode and exported code. */
+export const MOTION_DICTIONARY = `@keyframes mw-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes mw-fade{from{opacity:0}to{opacity:1}}
+@keyframes mw-slide{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+@keyframes mw-scale{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}`;
+
 export const UTILITY_CSS = `@container mw (min-width:600px){.mw-app{--type-display:var(--type-display-md);--type-title:var(--type-title-md);--gap-section:var(--gap-section-md);--pad-screen:var(--pad-screen-md)}}
 @container mw (min-width:1024px){.mw-app{--type-display:var(--type-display-lg);--type-title:var(--type-title-lg);--gap-section:var(--gap-section-lg);--pad-screen:var(--pad-screen-lg)}}
 :where(.mw-sec-head){display:flex;flex-direction:column;align-items:flex-start;gap:10px}:where(.mw-section[data-align="center"] .mw-sec-head){align-items:center;text-align:center}.mw-sec-eyebrow{display:inline-flex;padding:5px 10px;border:1px solid currentColor;border-radius:999px;font-size:12px}.mw-sec-title{margin:0;font-family:var(--font-heading);font-size:var(--type-title);line-height:1.15;text-wrap:balance}.mw-sec-sub{margin:0;max-width:60ch;font-size:var(--type-body);line-height:1.6}:where(.mw-section[data-surface="sunk"]){background:var(--openui-sunk)}:where(.mw-section[data-surface="elevated"]){background:var(--openui-elevated)}:where(.mw-section[data-surface="accent"]){background:var(--openui-accent);color:var(--openui-text-on-accent)}:where(.mw-section[data-surface="glow"]){background:radial-gradient(circle at 80% 10%,var(--openui-accent-subtle),transparent 60%),var(--openui-elevated)}:where(.mw-section[data-surface]:not([data-surface="plain"])){padding:var(--pad-card);border-radius:var(--radius-card)}:where(.mw-section[data-bleed="true"]){margin-inline:calc(-1 * var(--pad-screen));width:calc(100% + 2 * var(--pad-screen));max-width:none}
@@ -745,5 +769,5 @@ export function generateFullCss(
   doc: ProjectDoc,
   options: { editScope?: boolean; scrollModel?: 'phone' | 'web' } = {},
 ): string {
-  return `${generateCss(doc, options)}\n${UTILITY_CSS}`;
+  return `${generateCss(doc, options)}\n${MOTION_DICTIONARY}\n${UTILITY_CSS}`;
 }

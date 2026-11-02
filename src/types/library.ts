@@ -114,6 +114,15 @@ const p = (
   extra: Partial<PropDef> = {},
 ): PropDef => ({ key, label, kind, group, hint, ...extra });
 
+export const MOTION_PROP = p(
+  'motion',
+  'Motion',
+  'select',
+  'Behavior',
+  'Entrance preset when the page or section loads.',
+  { options: ['none', 'rise', 'fade', 'slide', 'scale'], defaultValue: 'none' },
+);
+
 export const COMPONENT_SPECS: ComponentSpec[] = [
   {
     type: 'screen',
@@ -916,6 +925,11 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     ],
   },
 ];
+
+for (const item of COMPONENT_SPECS) {
+  item.props.push(MOTION_PROP);
+  item.defaultProps.motion = 'none';
+}
 
 const BY_TYPE = new Map(COMPONENT_SPECS.map((s) => [s.type as string, s]));
 
