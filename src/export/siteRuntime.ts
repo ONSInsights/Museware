@@ -26,7 +26,12 @@ type Motion = (
   options?: { preset?: string; speed?: number; interactive?: boolean },
 ) => void;
 
-export function startSite(data: SiteData, mountMotion: Motion): void {
+export function startSite(
+  data: SiteData,
+  mountMotion: Motion,
+  armReveals?: (root: HTMLElement) => void,
+): void {
+  document.querySelectorAll<HTMLElement>('.mw-app').forEach((root) => armReveals?.(root));
   if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
     document
       .querySelectorAll<HTMLElement>('.mw-marquee[data-static="true"]')

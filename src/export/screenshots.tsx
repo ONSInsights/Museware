@@ -74,7 +74,7 @@ export async function captureScreen(
         <>
           <CanvasStyle doc={doc} />
           <div className="capture-container">
-            <NodeView doc={doc} screen={screen} mode="run" runtime={runtime} />
+            <NodeView doc={doc} screen={screen} mode="run" runtime={runtime} noMotionArm />
           </div>
         </>,
       ),

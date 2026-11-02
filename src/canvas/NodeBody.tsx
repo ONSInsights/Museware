@@ -919,6 +919,9 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       return (
         <section
           className={`${cls} mw-section`}
+          data-motion-reveal={
+            ['rise', 'fade', 'slide', 'scale'].includes(String(p.motion)) ? '' : undefined
+          }
           data-surface={asText(p.surface, 'plain')}
           data-align={asText(p.align, 'start')}
           data-bleed={Boolean(p.bleed)}

@@ -561,6 +561,15 @@ export function generateCss(
           `@media (prefers-reduced-motion:reduce){${sel}{animation:none;opacity:1;transform:none}}`,
         );
         if (node.type === 'section') {
+          rules.push(
+            `:where([data-motion-armed] .${nodeClass(node.id)}:not(.is-in)){animation:none;opacity:0}`,
+          );
+          rules.push(
+            `:where([data-motion-armed] .${nodeClass(node.id)}:not(.is-in) > *){animation-play-state:paused}`,
+          );
+          rules.push(
+            `@media (prefers-reduced-motion:reduce){:where([data-motion-armed] .${nodeClass(node.id)}:not(.is-in)){animation:none;opacity:1;transform:none}}`,
+          );
           for (let i = 1; i <= 8; i++) {
             const nth = i === 8 ? 'n+8' : String(i);
             rules.push(

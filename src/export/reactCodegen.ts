@@ -1,5 +1,6 @@
 // Exported local paths must be relative, never absolute /paths: subpath hosting is supported.
 import motionSource from '../canvas/motion.js?raw';
+import revealSource from '../canvas/reveal.js?raw';
 import { auditCodegen } from './auditCodegen';
 import type { ComponentNode, ProjectDoc, ScreenDoc, Action } from '../types/tree';
 import { materializeCss, screenLookVariables } from '../design/materialize';
@@ -321,7 +322,7 @@ function renderNode(
           ? `<div className="mw-sec-head">${p.eyebrow ? `<span className="mw-sec-eyebrow">${jsxText(p.eyebrow)}</span>` : ''}${p.title ? `<h2 className="mw-sec-title">${jsxText(p.title)}</h2>` : ''}${p.subtitle ? `<p className="mw-sec-sub">${jsxText(p.subtitle)}</p>` : ''}</div>`
           : '';
       return wrap(
-        `<section className={${str(`${cls} mw-section`)}} data-surface=${str(p.surface || 'plain')} data-align=${str(p.align || 'start')} data-bleed={${str(Boolean(p.bleed))}}>${head}\n${children}\n${pad}</section>`,
+        `<section className={${str(`${cls} mw-section`)}} ${['rise', 'fade', 'slide', 'scale'].includes(String(p.motion)) ? 'data-motion-reveal="" ' : ''}data-surface=${str(p.surface || 'plain')} data-align=${str(p.align || 'start')} data-bleed={${str(Boolean(p.bleed))}}>${head}\n${children}\n${pad}</section>`,
       );
     }
     case 'card': {
@@ -372,17 +373,20 @@ function screenModule(doc: ProjectDoc, screen: ScreenDoc): string {
   const name = pascal(screen.id);
   const body = renderNode(screen.root, 3, doc.screens, screen);
   const vars = screenLookVariables(screen.root.props);
-  return `import type { CSSProperties } from 'react';
+  return `import { useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { armReveals } from '../reveal';
 import { useApp, TabsBlock, matchesValue } from '../runtime';
 import { Icon } from '../icons';
 import { MotionCanvas, VideoContent } from '../MotionCanvas';
 
 export function ${name}Screen() {
   const { state, setKey, run, go } = useApp();
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => armReveals(root.current), []);
   void go;
   return (
     <div className="mw-site-frame">
-      <div className="mw-app" style={${JSON.stringify(vars)} as CSSProperties}>
+      <div className="mw-app" ref={root} style={${JSON.stringify(vars)} as CSSProperties}>
 ${body}
       </div>
     </div>
@@ -394,6 +398,9 @@ ${body}
 export function generateProjectFiles(doc: ProjectDoc): Record<string, string> {
   const files: Record<string, string> = {};
   files['src/motion.js'] = motionSource;
+  files['src/reveal.js'] = revealSource;
+  files['src/reveal.d.ts'] =
+    'export function armReveals(root: HTMLElement | null, options?: { noArm?: boolean }): () => void;';
   files['src/motion.d.ts'] =
     'export function mountMotion(canvas: HTMLCanvasElement, options?: { preset?: string; speed?: number; interactive?: boolean }): () => void;';
   files['src/MotionCanvas.tsx'] = `import { useEffect, useRef, useState } from 'react';

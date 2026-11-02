@@ -1,4 +1,5 @@
-import { useMemo, type CSSProperties } from 'react';
+import { useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { armReveals } from './reveal';
 import type { ProjectDoc, ScreenDoc } from '../types/tree';
 import { NodeBody } from './NodeBody';
 import { generateFullCss } from './cssGen';
@@ -30,17 +31,25 @@ export function NodeView({
   screen,
   mode = 'edit',
   runtime,
+  noMotionArm = false,
 }: {
   doc: ProjectDoc;
   screen: ScreenDoc;
   mode?: 'edit' | 'run';
   runtime?: RuntimeApi | null;
+  noMotionArm?: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(
+    () => (mode === 'run' ? armReveals(root.current, { noArm: noMotionArm }) : undefined),
+    [mode, noMotionArm, screen.id],
+  );
   const theme = useResolvedCanvasTheme();
   return (
     <div className="mw-css-root">
       <div
         className="mw-app"
+        ref={root}
         data-theme={theme}
         data-screen-id={screen.id}
         style={screenLookVariables(screen.root.props) as CSSProperties}

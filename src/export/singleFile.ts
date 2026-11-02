@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import motionSource from '../canvas/motion.js?raw';
+import revealSource from '../canvas/reveal.js?raw';
 import { NodeBody, StaticExportContext } from '../canvas/NodeBody';
 import { generateFullCss } from '../canvas/cssGen';
 import { materializeCss, screenLookVariables } from '../design/materialize';
@@ -96,9 +97,10 @@ export function buildSingleHtml(input: ProjectDoc): string {
     'export function mountMotion',
     'function mountMotion',
   );
+  const reveal = revealSource.replace('export function armReveals', 'function armReveals');
   const metadata = safeScriptJson({ nodes, screens, entry: entry?.id || '' });
   const script =
-    `document.documentElement.dataset.theme=typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';\n${motion}\n(${startSite.toString()})(${metadata},mountMotion);`.replace(
+    `document.documentElement.dataset.theme=typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';\n${motion}\n${reveal}\n(${startSite.toString()})(${metadata},mountMotion,armReveals);`.replace(
       /<\/script/gi,
       '<\\/script',
     );
