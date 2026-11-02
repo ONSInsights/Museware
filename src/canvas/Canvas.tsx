@@ -481,6 +481,11 @@ export function Canvas() {
                   return;
                 }
                 select(id);
+                // A deliberate widget click is a request to inspect it, even
+                // when the panel was previously minimized (including a re-click
+                // on the already selected widget).
+                if (useUi.getState().inspectorCollapsed)
+                  useUi.getState().restoreInspector();
               }}
               onDoubleClick={(e) => {
                 const id = nodeIdFromElement(e.target as Element);

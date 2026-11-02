@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { Canvas } from './Canvas';
+import { Editor } from '../shell/Editor';
 import { NodeBody } from './NodeBody';
 import { RuntimeContext } from '../preview/runtime';
 import { useProject } from '../store/useProject';
@@ -88,6 +89,8 @@ beforeEach(() => {
     leftTab: 'insert',
     leftCollapsed: false,
     leftFlyout: false,
+    propertiesOpen: false,
+    inspectorCollapsed: false,
     toasts: [],
   });
 });
@@ -168,6 +171,30 @@ describe('clicking a canvas node selects it', () => {
   it('replaces the previous selection rather than accumulating', () => {
     clickAt('.n-btn_save');
     expect(clickAt('.n-inp_name')).toBe('inp_name');
+  });
+});
+
+describe('canvas clicks reopen a minimized inspector', () => {
+  it('reopens for a widget and for the same widget again, but not for the screen background', () => {
+    render(<Editor />);
+    fireEvent.click(document.querySelector('.n-btn_save') as Element);
+    expect(useUi.getState().selectedId).toBe('btn_save');
+    expect(document.querySelector('.inspector')?.getAttribute('data-open')).toBe('true');
+
+    fireEvent.click(document.querySelector('[aria-label="Minimize the panel"]') as Element);
+    expect(useUi.getState().inspectorCollapsed).toBe(true);
+    expect(document.querySelector('.inspector')?.getAttribute('data-open')).toBe('false');
+    fireEvent.click(document.querySelector('.n-btn_save') as Element);
+    expect(useUi.getState().selectedId).toBe('btn_save');
+    expect(useUi.getState().inspectorCollapsed).toBe(false);
+    expect(document.querySelector('.inspector')?.getAttribute('data-open')).toBe('true');
+
+    fireEvent.click(document.querySelector('[aria-label="Minimize the panel"]') as Element);
+    fireEvent.click(document.querySelector('.n-screen_1_root') as Element);
+    expect(useUi.getState().propertiesOpen).toBe(false);
+    fireEvent.click(document.querySelector('.n-txt_t') as Element);
+    expect(useUi.getState().selectedId).toBe('txt_t');
+    expect(document.querySelector('.inspector')?.getAttribute('data-open')).toBe('true');
   });
 });
 
