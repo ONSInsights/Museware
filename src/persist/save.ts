@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { nanoid } from 'nanoid';
 import type { ProjectDoc } from '../types/tree';
-import { parseProjectDoc } from './schema';
+import { parseProjectDoc, projectSchema, recoveryMessage, wasRecovered } from './schema';
 
 const DB_NAME = 'museware';
 const STORE = 'projects';
@@ -42,23 +42,27 @@ function metadata(id: string, doc: ProjectDoc): ProjectMeta {
 }
 /** Atomically copy legacy data without deleting the original recovery copy. */
 export async function migrateCurrent(): Promise<void> {
-  const database = await db();
-  const tx = database.transaction([STORE, META], 'readwrite');
-  const projects = tx.objectStore(STORE),
-    meta = tx.objectStore(META);
-  const old = await projects.get(LEGACY);
-  const migrated = await meta.get('legacy-migrated');
-  let migratedId: string | null = null;
-  if (old && !migrated) {
-    const doc = parseProjectDoc(old);
-    const id = `p_${nanoid()}`;
-    await projects.put(doc, id);
-    await meta.put(metadata(id, doc), `project:${id}`);
-    migratedId = id;
-    await meta.put(true, 'legacy-migrated');
+  try {
+    const database = await db();
+    const tx = database.transaction([STORE, META], 'readwrite');
+    const projects = tx.objectStore(STORE),
+      meta = tx.objectStore(META);
+    const old = await projects.get(LEGACY);
+    const migrated = await meta.get('legacy-migrated');
+    let migratedId: string | null = null;
+    if (old && !migrated) {
+      const doc = addRecoveryNote(parseProjectDoc(old));
+      const id = `p_${nanoid()}`;
+      await projects.put(doc, id);
+      await meta.put(metadata(id, doc), `project:${id}`);
+      migratedId = id;
+      await meta.put(true, 'legacy-migrated');
+    }
+    await tx.done;
+    if (migratedId) await openProject(migratedId);
+  } catch (err) {
+    console.warn('museware: legacy migration failed; continuing to projects', err);
   }
-  await tx.done;
-  if (migratedId) await openProject(migratedId);
 }
 export async function listProjects(): Promise<ProjectMeta[]> {
   await migrateCurrent();
@@ -74,12 +78,17 @@ export async function listProjects(): Promise<ProjectMeta[]> {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 async function writeProject(id: string, doc: ProjectDoc, creating = false): Promise<void> {
+  const clean = JSON.parse(JSON.stringify(doc)) as ProjectDoc & {
+    recoveredFromSchema?: unknown;
+  };
+  delete clean.recoveredFromSchema;
+  projectSchema.parse(clean);
   const tx = (await db()).transaction([STORE, META], 'readwrite');
   if (!creating && (await tx.objectStore(STORE).getKey(id)) === undefined) {
     await tx.done;
     throw new Error('This project was deleted in another tab; changes were not saved.');
   }
-  await tx.objectStore(STORE).put(JSON.parse(JSON.stringify(doc)), id);
+  await tx.objectStore(STORE).put(clean, id);
   await tx
     .objectStore(META)
     .put({ ...metadata(id, doc), updatedAt: Date.now() }, `project:${id}`);
@@ -119,7 +128,7 @@ export async function openProject(id: string): Promise<ProjectDoc | null> {
     await tx.done;
     return null;
   }
-  const doc = parseProjectDoc(raw);
+  const doc = addRecoveryNote(parseProjectDoc(raw));
   if (JSON.stringify(raw) !== JSON.stringify(doc)) await tx.objectStore(STORE).put(doc, id);
   await tx.objectStore(META).put(id, ACTIVE);
   await tx.done;
@@ -220,7 +229,48 @@ export function downloadProjectFile(doc: ProjectDoc) {
 
 export async function readProjectFile(file: File): Promise<ProjectDoc> {
   const text = await file.text();
-  return parseProjectDoc(JSON.parse(text));
+  let input: unknown;
+  try {
+    input = JSON.parse(text);
+  } catch {
+    throw new Error("This doesn't look like a Museware project file.");
+  }
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    (input as Record<string, unknown>).format !== 'museware/1' ||
+    !Array.isArray((input as Record<string, unknown>).screens)
+  )
+    throw new Error("This doesn't look like a Museware project file.");
+  // Device records auto-recover after their owner's tap; imported files require
+  // confirmation before their recovered copy is ever written as a new record.
+  return parseProjectDoc(input);
+}
+
+export function addRecoveryNote(doc: ProjectDoc): ProjectDoc {
+  if (!wasRecovered(doc)) return doc;
+  const result: ProjectDoc = {
+    ...doc,
+    rail: [
+      {
+        id: `recovery_${nanoid()}`,
+        at: Date.now(),
+        role: 'system',
+        text: recoveryMessage(doc),
+      },
+    ],
+  };
+  Object.defineProperty(result, 'recoveredFromSchema', { value: true, enumerable: false });
+  return result;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    void flushProject();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flushProject();
+  });
 }
 
 export async function readThemeFile(file: File): Promise<unknown> {

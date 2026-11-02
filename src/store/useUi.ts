@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useProject } from './useProject';
+import { flushProject } from '../persist/save';
 import type { RailEntry } from '../types/tree';
 import type { DesignTokens } from '../types/tokens';
 
@@ -185,6 +186,7 @@ export const useUi = create<UiStore>((set, get) => ({
   activePreset: null,
 
   setRoute: (route, projectId) => {
+    if (route === 'projects') void flushProject();
     if (typeof window !== 'undefined') {
       const hash =
         route === 'editor'

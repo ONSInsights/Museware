@@ -9,6 +9,7 @@ import { CanvasStyle, NodeView } from '../canvas/NodeView';
 import { emptyScreen } from '../ops/screenOps';
 import { n, TEMPLATES, buildScreensFor } from '../muse/demo/build';
 import type { ProjectDoc } from '../types/tree';
+import { wasRecovered } from '../persist/schema';
 import {
   createSavedProject,
   deleteSavedProject,
@@ -143,6 +144,7 @@ export function Home() {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [docs, setDocs] = useState<Record<string, ProjectDoc | null>>({});
+  const [unreadable, setUnreadable] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   const [query, setQuery] = useState('');
@@ -155,19 +157,31 @@ export function Home() {
   }, []);
   const ready = useProject((s) => s.ready);
   const refresh = async () => {
-    const items = await listProjects();
-    const loaded = await Promise.all(
-      items.map(async (item) => [item.id, await readSavedProject(item.id)] as const),
-    );
-    setProjects(items);
-    setDocs(Object.fromEntries(loaded));
-    setLoading(false);
+    try {
+      const items = await listProjects();
+      const loaded = await Promise.all(
+        items.map(async (item) => {
+          try {
+            const doc = await readSavedProject(item.id);
+            return { id: item.id, doc, unreadable: !doc };
+          } catch {
+            return { id: item.id, doc: null, unreadable: true };
+          }
+        }),
+      );
+      setProjects(items);
+      setDocs(Object.fromEntries(loaded.map((item) => [item.id, item.doc])));
+      setUnreadable(Object.fromEntries(loaded.map((item) => [item.id, item.unreadable])));
+      setError('');
+    } catch {
+      // Keep previously rendered cards if the metadata store temporarily fails.
+      setError('Could not read projects on this device.');
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
-    void refresh().catch(() => {
-      setLoading(false);
-      setError('Could not read projects on this device.');
-    });
+    void refresh();
   }, []);
   const open = async (id: string) => {
     const doc = await openProject(id);
@@ -354,6 +368,10 @@ export function Home() {
             />
             <div className="project-meta">
               <h2>{project.name}</h2>
+              {(unreadable[project.id] ||
+                (docs[project.id] && wasRecovered(docs[project.id]!))) && (
+                <p>Saved in an older format — tap to recover</p>
+              )}
               <p>{relativeUpdated(project.updatedAt)}</p>
               <div className="project-chips">
                 <span className="chip chip-static">

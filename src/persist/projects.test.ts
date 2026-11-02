@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { openDB } from 'idb';
-import { describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createProject } from '../store/useProject';
 import { emptyScreen } from '../ops/screenOps';
 import { DIRECTION_PALETTES } from '../design/palettes';
@@ -17,6 +18,14 @@ import {
   renameSavedProject,
   saveProjectSoon,
 } from './save';
+
+// This suite owns its IndexedDB factory: other suites cannot upgrade its v1 fixture.
+beforeAll(() => {
+  Object.defineProperty(globalThis, 'indexedDB', {
+    value: new IDBFactory(),
+    configurable: true,
+  });
+});
 
 describe('projects registry migration', () => {
   it('migrates current without losing its original, and saves each project separately', async () => {

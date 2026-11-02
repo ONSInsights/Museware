@@ -8,6 +8,7 @@ import {
   migrateCurrent,
   openProject,
   saveProjectSoon,
+  flushProject,
 } from './persist/save';
 import { fetchStatus } from './muse/client';
 import { offerKey } from './muse/loop';
@@ -185,6 +186,8 @@ export default function App() {
       const ticket = ++sequence;
       const destination = routeFromHash();
       if (destination.route !== 'editor') {
+        if (destination.route === 'projects') await flushProject();
+        if (ticket !== sequence) return;
         useUi.setState({ route: destination.route });
         return;
       }

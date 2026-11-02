@@ -15,7 +15,9 @@ import {
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { useAgent } from '../store/useAgent';
-import { IconButton, Menu } from '../components/ui';
+import { IconButton, Menu, Modal } from '../components/ui';
+import { CanvasStyle, NodeView } from '../canvas/NodeView';
+import type { ProjectDoc } from '../types/tree';
 import {
   addScreenBatch,
   deleteScreenBatch,
@@ -23,8 +25,15 @@ import {
   renameScreenBatch,
 } from '../ops/screenOps';
 import { stopAgent } from '../muse/loop';
-import { closeProject, downloadProjectFile, readProjectFile } from '../persist/save';
-import { parseProjectDoc } from '../persist/schema';
+import {
+  addRecoveryNote,
+  closeProject,
+  createSavedProject,
+  downloadProjectFile,
+  openProject,
+  readProjectFile,
+} from '../persist/save';
+import { wasRecovered } from '../persist/schema';
 
 export function Topbar() {
   const doc = useProject((s) => s.doc);
@@ -51,6 +60,8 @@ export function Topbar() {
   const [renameValue, setRenameValue] = useState('');
   const [editingProjectName, setEditingProjectName] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [recoveredImport, setRecoveredImport] = useState<ProjectDoc | null>(null);
+  const [importing, setImporting] = useState(false);
   const [width, setWidth] = useState(() => window.innerWidth);
   const [hiddenTabs, setHiddenTabs] = useState(0);
   const [tabsOverflow, setTabsOverflow] = useState(false);
@@ -560,7 +571,11 @@ export function Topbar() {
             e.target.value = '';
             if (!file) return;
             try {
-              const parsed = parseProjectDoc(await readProjectFile(file));
+              const parsed = await readProjectFile(file);
+              if (wasRecovered(parsed)) {
+                setRecoveredImport(parsed);
+                return;
+              }
               replaceDoc(parsed);
               const first = parsed.screens.find((s) => s.entry) || parsed.screens[0];
               if (first) setActiveScreen(first.id);
@@ -574,6 +589,77 @@ export function Topbar() {
           }}
         />
       </div>
+      {recoveredImport && (
+        <Modal
+          title="Older backup"
+          onClose={() => {
+            if (!importing) setRecoveredImport(null);
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={importing}
+                onClick={() => setRecoveredImport(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-accent"
+                disabled={importing}
+                onClick={() => {
+                  setImporting(true);
+                  void (async () => {
+                    try {
+                      const id = await createSavedProject(addRecoveryNote(recoveredImport));
+                      const opened = await openProject(id);
+                      if (!opened) throw new Error('Project not found');
+                      useProject.getState().hydrate(opened, id);
+                      const first =
+                        opened.screens.find((screen) => screen.entry) || opened.screens[0];
+                      if (first) setActiveScreen(first.id);
+                      setRoute('editor', id);
+                      setRecoveredImport(null);
+                      toast('Project imported', 'ok');
+                    } catch {
+                      toast(
+                        'Could not import this backup. Check device storage and try again.',
+                        'danger',
+                      );
+                    } finally {
+                      setImporting(false);
+                    }
+                  })();
+                }}
+              >
+                Import recovered
+              </button>
+            </>
+          }
+        >
+          <span className="chip chip-static">Older backup</span>
+          <p>
+            This backup was saved by an older version of Museware. Your screens and design
+            are here as far as recovery allows. Chat history will be cleared, and some older
+            settings or data values may be adjusted to open it.
+          </p>
+          {recoveredImport.screens[0] && (
+            <div style={{ maxHeight: 240, overflow: 'auto', pointerEvents: 'none' }}>
+              <CanvasStyle doc={recoveredImport} />
+              <NodeView
+                doc={recoveredImport}
+                screen={
+                  recoveredImport.screens.find((screen) => screen.entry) ||
+                  recoveredImport.screens[0]
+                }
+                mode="edit"
+              />
+            </div>
+          )}
+        </Modal>
+      )}
     </header>
   );
 }
