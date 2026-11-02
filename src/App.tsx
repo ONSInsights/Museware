@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSaveStatus, writeFailureLabel } from './store/useSaveStatus';
 import { Sparkles } from 'lucide-react';
 import { useProject, createProject } from './store/useProject';
 import { useUi, type Route } from './store/useUi';
@@ -39,10 +40,22 @@ export default function App() {
   const route = useUi((s) => s.route);
   const runMode = useUi((s) => s.runMode);
   const theme = useUi((s) => s.theme);
-  const doc = useProject((s) => s.doc);
   const ready = useProject((s) => s.ready);
   const projectId = useProject((s) => s.projectId);
-  const warned = useRef(new Set<string>());
+
+  // Browser storage persistence is a request, not a guarantee.
+  useEffect(() => {
+    if (!navigator.storage?.persist) return;
+    try {
+      void navigator.storage.persist().then(
+        (granted) =>
+          console.info('museware: persistent storage', granted ? 'granted' : 'not granted'),
+        (error) => console.warn('museware: persistent storage request failed', error),
+      );
+    } catch (error) {
+      console.warn('museware: persistent storage request failed', error);
+    }
+  }, []);
 
   // Boot: restore the local project, then ask the proxy who it is.
   useEffect(() => {
@@ -228,20 +241,38 @@ export default function App() {
     };
   }, [booting]);
 
-  // Autosave is bound to the document's project ID, never a global active pointer.
+  // Every immutable document change is queued synchronously, even when React
+  // batches renders during an uninterrupted build.
   useEffect(() => {
-    if (!ready || booting || route !== 'editor' || !projectId) return;
-    saveProjectSoon(projectId, doc, () => {
-      if (warned.current.has(projectId)) return;
-      warned.current.add(projectId);
-      useUi
-        .getState()
-        .toast(
-          'This project could not be saved. It may have been deleted in another tab.',
-          'warn',
-        );
+    if (!ready || booting) return;
+    return useProject.subscribe((next, previous) => {
+      if (
+        next.doc !== previous.doc &&
+        next.ready &&
+        next.projectId &&
+        useUi.getState().route === 'editor'
+      )
+        saveProjectSoon(next.projectId, next.doc);
     });
-  }, [doc, ready, booting, route, projectId]);
+  }, [ready, booting]);
+  useEffect(() => {
+    if (ready && !booting && route === 'editor' && projectId)
+      saveProjectSoon(projectId, useProject.getState().doc);
+  }, [ready, booting, route, projectId]);
+  useEffect(
+    () =>
+      useSaveStatus.subscribe((next, previous) => {
+        const id = useProject.getState().projectId;
+        if (!id) return;
+        const result = next.byProject[id];
+        const before = previous.byProject[id];
+        if (result && !result.ok && (!before || before.ok))
+          useUi
+            .getState()
+            .toast(`Not saving — ${writeFailureLabel(result.errorName)}.`, 'danger');
+      }),
+    [],
+  );
 
   // Global shortcuts.
   useEffect(() => {

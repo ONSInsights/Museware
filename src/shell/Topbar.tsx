@@ -15,6 +15,7 @@ import {
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { useAgent } from '../store/useAgent';
+import { useSaveStatus, readWriteResults, writeFailureLabel } from '../store/useSaveStatus';
 import { IconButton, Menu, Modal } from '../components/ui';
 import { CanvasStyle, NodeView } from '../canvas/NodeView';
 import type { ProjectDoc } from '../types/tree';
@@ -37,6 +38,19 @@ import { wasRecovered } from '../persist/schema';
 
 export function Topbar() {
   const doc = useProject((s) => s.doc);
+  const projectId = useProject((s) => s.projectId);
+  const latest = useSaveStatus((s) => (projectId ? s.byProject[projectId] : undefined));
+  const lastSuccess = useSaveStatus((s) =>
+    projectId ? s.lastSuccess[projectId] : undefined,
+  );
+  const history = projectId
+    ? readWriteResults().filter((result) => result.projectId === projectId)
+    : [];
+  const status = latest || history.at(-1);
+  const lastSaved = lastSuccess || [...history].reverse().find((result) => result.ok)?.at;
+  const savedTime = lastSaved
+    ? new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
   const applyBatch = useProject((s) => s.applyBatch);
   const undo = useProject((s) => s.undo);
   const redo = useProject((s) => s.redo);
@@ -59,7 +73,6 @@ export function Topbar() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [editingProjectName, setEditingProjectName] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [recoveredImport, setRecoveredImport] = useState<ProjectDoc | null>(null);
   const [importing, setImporting] = useState(false);
   const [width, setWidth] = useState(() => window.innerWidth);
@@ -72,11 +85,6 @@ export function Topbar() {
   const utilitiesOverflow = width <= 1100;
   const homeOverflow = width <= 700;
 
-  useEffect(() => {
-    setSaved(false);
-    const timer = window.setTimeout(() => setSaved(true), 1400);
-    return () => window.clearTimeout(timer);
-  }, [doc.updatedAt]);
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth);
     window.addEventListener('resize', resize);
@@ -247,10 +255,21 @@ export function Topbar() {
           onChange={(e) => setName(e.target.value)}
           className="project-name-input"
         />
-        <span className="faint mono mw-shell-util-3" title="Autosaved to this browser">
-          {saved ? 'saved' : 'saving…'}
-        </span>
       </div>
+      {projectId && (
+        <span
+          className="save-status"
+          data-failed={status && !status.ok ? 'true' : undefined}
+          role={status && !status.ok ? 'alert' : 'status'}
+        >
+          {status && !status.ok
+            ? `Not saving — ${writeFailureLabel(status.errorName)}`
+            : savedTime
+              ? `Saved ${savedTime}`
+              : 'Saving…'}
+          {status && !status.ok && savedTime && <small>{` · Saved ${savedTime}`}</small>}
+        </span>
+      )}
       <div className="screen-switcher">
         <div className="screen-tabs-clip" data-overflow={tabsOverflow}>
           <div className="screen-tabs" ref={tabsRef}>

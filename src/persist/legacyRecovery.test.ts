@@ -4,6 +4,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { openDB } from 'idb';
 import { beforeAll, expect, it } from 'vitest';
 import { createProject } from '../store/useProject';
+import { emptyScreen } from '../ops/screenOps';
 import { listProjects, openProject } from './save';
 import { projectSchema } from './schema';
 beforeAll(() => {
@@ -20,6 +21,7 @@ it('recovers a poisoned legacy record once without blocking the shelf or deletin
     },
   });
   const old = JSON.parse(JSON.stringify(createProject('Legacy')));
+  old.screens = [emptyScreen('Tea', { id: 'tea', entry: true })];
   old.opLog = [{ at: 1, source: 'muse', batch: [], summary: '' }];
   await db.put('projects', old, 'current');
   const items = await listProjects();

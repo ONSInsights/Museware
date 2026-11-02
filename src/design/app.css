@@ -6426,3 +6426,29 @@ button.how-card .field-hint {
     flex: 1 1 100%;
   }
 }
+
+/* The save receipt is always visible; a failure cannot disappear behind the phone toolbar. */
+.topbar { position: relative; }
+.save-status {
+  flex: 0 0 auto;
+  font-size: var(--mw-fs-11);
+  color: var(--mw-ink-2);
+  white-space: nowrap;
+}
+.save-status[data-failed='true'] {
+  color: var(--mw-danger);
+  background: var(--mw-surface);
+  border: 1px solid currentColor;
+  border-radius: var(--mw-radius-sm);
+  padding: var(--mw-space-1) var(--mw-space-2);
+}
+@media (max-width: 700px) {
+  .topbar .save-status {
+    position: absolute;
+    top: 100%;
+    right: var(--mw-space-2);
+    z-index: var(--mw-z-sticky);
+    background: var(--mw-surface);
+    padding: var(--mw-space-1) var(--mw-space-2);
+  }
+}

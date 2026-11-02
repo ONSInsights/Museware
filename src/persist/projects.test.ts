@@ -67,13 +67,13 @@ describe('projects registry migration', () => {
     expect((await listProjects()).some((p) => p.id === copy)).toBe(false);
     const doomed = await createSavedProject(createProject('Deleted elsewhere'));
     const onError = vi.fn();
-    saveProjectSoon(doomed, createProject('Unsaved changes'), onError);
     const otherTab = await openDB('museware', 2);
     const tx = otherTab.transaction(['projects', 'meta'], 'readwrite');
     await tx.objectStore('projects').delete(doomed);
     await tx.objectStore('meta').delete(`project:${doomed}`);
     await tx.done;
     otherTab.close();
+    saveProjectSoon(doomed, createProject('Unsaved changes'), onError);
     await flushProject();
     expect(onError).toHaveBeenCalledOnce();
     expect(await openProject(doomed)).toBeNull();

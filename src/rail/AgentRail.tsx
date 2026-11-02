@@ -13,6 +13,7 @@ import {
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { useAgent } from '../store/useAgent';
+import { emptyProjectLabel, useSaveStatus } from '../store/useSaveStatus';
 import { runAgentTurn, runScopedAction, stopAgent } from '../muse/loop';
 import { recreateFromScreenshot } from '../muse/screenshot';
 import { generateHeroImage } from '../muse/cards';
@@ -115,6 +116,8 @@ export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean
 export function AgentRail({ focused = false }: { focused?: boolean }) {
   const rail = useProject((s) => s.doc.rail);
   const doc = useProject((s) => s.doc);
+  const projectId = useProject((s) => s.projectId);
+  useSaveStatus((s) => (projectId ? s.byProject[projectId] : undefined));
   const setDraft = useUi((s) => s.setDraft);
   const draftTrimmed = useUi((s) => s.draftTrimmed);
   const draft = useUi((s) => s.draft);
@@ -470,6 +473,13 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         </div>
       )}
       <div className="rail-body" ref={bodyRef}>
+        {!filter &&
+          projectId &&
+          !doc.screens.length &&
+          !doc.opLog.length &&
+          !doc.rail.length && (
+            <div className="sys-pill">{emptyProjectLabel(projectId)}</div>
+          )}
         {visibleRail.length > VISIBLE && !showAll && (
           <button
             type="button"

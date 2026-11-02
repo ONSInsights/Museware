@@ -101,7 +101,10 @@ it('keeps good cards openable when one saved record needs recovery', async () =>
   const { openDB } = await import('idb');
   await createSavedProject(createProject('Good one'));
   await createSavedProject(createProject('Good two'));
-  const id = await createSavedProject(createProject('Old record'));
+  const id = await createSavedProject({
+    ...createProject('Old record'),
+    screens: [emptyScreen('Tea', { id: 'tea', entry: true })],
+  });
   const db = await openDB('museware', 2);
   const old = await db.get('projects', id);
   old.opLog = [{ at: 1, source: 'muse', batch: [], summary: 'old' }];

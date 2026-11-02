@@ -2,6 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { nanoid } from 'nanoid';
 import type { ProjectDoc } from '../types/tree';
 import { parseProjectDoc, projectSchema, recoveryMessage, wasRecovered } from './schema';
+import { useSaveStatus } from '../store/useSaveStatus';
 
 const DB_NAME = 'museware';
 const STORE = 'projects';
@@ -16,7 +17,6 @@ export interface ProjectMeta {
   kind?: 'web' | 'app';
 }
 let dbPromise: Promise<IDBPDatabase> | null = null;
-let timer: ReturnType<typeof setTimeout> | null = null;
 let pending: { id: string; doc: ProjectDoc; onError?: (err: unknown) => void } | null =
   null;
 let writes: Promise<void> = Promise.resolve();
@@ -86,7 +86,11 @@ async function writeProject(id: string, doc: ProjectDoc, creating = false): Prom
   const tx = (await db()).transaction([STORE, META], 'readwrite');
   if (!creating && (await tx.objectStore(STORE).getKey(id)) === undefined) {
     await tx.done;
-    throw new Error('This project was deleted in another tab; changes were not saved.');
+    const error = new Error(
+      'This project was deleted in another tab; changes were not saved.',
+    );
+    error.name = 'ProjectRemovedError';
+    throw error;
   }
   await tx.objectStore(STORE).put(clean, id);
   await tx
@@ -97,11 +101,33 @@ async function writeProject(id: string, doc: ProjectDoc, creating = false): Prom
 function enqueue(id: string, doc: ProjectDoc, creating = false): Promise<void> {
   const task = writes.catch(() => {}).then(() => writeProject(id, doc, creating));
   writes = task;
+  let bytes = 0;
+  try {
+    bytes = new TextEncoder().encode(JSON.stringify(doc)).length;
+  } catch {
+    /* writeProject will report serialization failures */
+  }
+  void task.then(
+    () =>
+      useSaveStatus.getState().record({ projectId: id, at: Date.now(), ok: true, bytes }),
+    (error: unknown) =>
+      useSaveStatus.getState().record({
+        projectId: id,
+        at: Date.now(),
+        ok: false,
+        bytes,
+        errorName:
+          error &&
+          typeof error === 'object' &&
+          'name' in error &&
+          typeof error.name === 'string'
+            ? error.name
+            : 'Error',
+      }),
+  );
   return task;
 }
 export async function flushProject(): Promise<void> {
-  if (timer) clearTimeout(timer);
-  timer = null;
   const snapshot = pending;
   pending = null;
   if (snapshot) {
@@ -166,10 +192,7 @@ export function saveProjectSoon(
 ) {
   if (pending && pending.id !== id) void flushProject();
   pending = { id, doc, onError };
-  if (timer) clearTimeout(timer);
-  timer = setTimeout(() => {
-    void flushProject();
-  }, 800);
+  void flushProject();
 }
 export async function saveProjectNow(id: string, doc: ProjectDoc): Promise<boolean> {
   try {
@@ -248,7 +271,7 @@ export async function readProjectFile(file: File): Promise<ProjectDoc> {
 }
 
 export function addRecoveryNote(doc: ProjectDoc): ProjectDoc {
-  if (!wasRecovered(doc)) return doc;
+  if (!wasRecovered(doc) || !doc.screens.length) return doc;
   const result: ProjectDoc = {
     ...doc,
     rail: [

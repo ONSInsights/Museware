@@ -10,6 +10,7 @@ import { emptyScreen } from '../ops/screenOps';
 import { n, TEMPLATES, buildScreensFor } from '../muse/demo/build';
 import type { ProjectDoc } from '../types/tree';
 import { wasRecovered } from '../persist/schema';
+import { emptyProjectLabel } from '../store/useSaveStatus';
 import {
   createSavedProject,
   deleteSavedProject,
@@ -369,9 +370,14 @@ export function Home() {
             <div className="project-meta">
               <h2>{project.name}</h2>
               {(unreadable[project.id] ||
-                (docs[project.id] && wasRecovered(docs[project.id]!))) && (
+                (Boolean(docs[project.id]?.screens.length) &&
+                  wasRecovered(docs[project.id]!))) && (
                 <p>Saved in an older format — tap to recover</p>
               )}
+              {docs[project.id] &&
+                !docs[project.id]!.screens.length &&
+                !docs[project.id]!.opLog.length &&
+                !docs[project.id]!.rail.length && <p>{emptyProjectLabel(project.id)}</p>}
               <p>{relativeUpdated(project.updatedAt)}</p>
               <div className="project-chips">
                 <span className="chip chip-static">

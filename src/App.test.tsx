@@ -437,3 +437,96 @@ describe('the shell actually renders', () => {
     expect(useUi.getState().runMode).toBe(false);
   });
 });
+
+it('requests persistent browser storage at boot', async () => {
+  const persist = vi.fn(async () => true);
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'storage');
+  Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true });
+  window.history.replaceState(null, '', '#/');
+  await boot();
+  expect(persist).toHaveBeenCalledOnce();
+  if (previous) Object.defineProperty(navigator, 'storage', previous);
+  else Reflect.deleteProperty(navigator, 'storage');
+});
+
+it('queues every rapid editor batch even when React batches the renders', async () => {
+  const { createSavedProject, flushProject, openProject } = await import('./persist/save');
+  const { createProject } = await import('./store/useProject');
+  const { emptyScreen } = await import('./ops/screenOps');
+  const d = createProject('Rapid build');
+  const page = emptyScreen('Tea', { id: 'tea', entry: true });
+  page.root.children = [
+    { id: 'headline', type: 'heading', props: { text: '0' }, styles: {}, children: [] },
+  ];
+  d.screens = [page];
+  const id = await createSavedProject(d);
+  window.history.replaceState(null, '', `#/app/${id}`);
+  await boot();
+  await flushProject();
+  const spy = vi.spyOn(IDBObjectStore.prototype, 'put');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await act(async () => {
+    for (let i = 1; i <= 50; i++)
+      useProject
+        .getState()
+        .applyBatch([{ op: 'setProps', id: 'headline', props: { text: String(i) } }], {
+          source: 'agent',
+        });
+  });
+  await flushProject();
+  vi.useRealTimers();
+  expect(spy.mock.calls.length).toBeGreaterThanOrEqual(100);
+  const saved = await openProject(id);
+  expect(saved?.opLog).toHaveLength(50);
+  expect(saved?.screens[0].root.children[0].props.text).toBe('50');
+  spy.mockRestore();
+});
+
+it('toasts the first failure with its real reason and repeats only after a success', async () => {
+  const { createSavedProject, flushProject } = await import('./persist/save');
+  const { createProject } = await import('./store/useProject');
+  const { useSaveStatus } = await import('./store/useSaveStatus');
+  const id = await createSavedProject(createProject('Toast test'));
+  window.history.replaceState(null, '', `#/app/${id}`);
+  await boot();
+  await act(async () => {
+    await flushProject();
+  });
+  act(() => {
+    useUi.setState({ toasts: [] });
+    useSaveStatus
+      .getState()
+      .record({
+        projectId: id,
+        at: 1,
+        bytes: 10,
+        ok: false,
+        errorName: 'QuotaExceededError',
+      });
+    useSaveStatus
+      .getState()
+      .record({
+        projectId: id,
+        at: 2,
+        bytes: 10,
+        ok: false,
+        errorName: 'QuotaExceededError',
+      });
+  });
+  expect(useUi.getState().toasts).toHaveLength(1);
+  expect(useUi.getState().toasts[0].text).toContain('device storage is full');
+  act(() => {
+    useSaveStatus.getState().record({ projectId: id, at: 3, bytes: 10, ok: true });
+    useSaveStatus
+      .getState()
+      .record({
+        projectId: id,
+        at: 4,
+        bytes: 10,
+        ok: false,
+        errorName: 'ProjectRemovedError',
+      });
+  });
+  expect(useUi.getState().toasts).toHaveLength(2);
+  expect(useUi.getState().toasts[1].text).toContain('project was removed');
+});
