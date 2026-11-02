@@ -56,10 +56,13 @@ afterEach(() => {
 
 async function boot() {
   render(<App />);
-  // Let the boot effect (idb + status) settle.
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  });
+  // Wait for IndexedDB boot to finish rather than assuming a fixed duration.
+  await waitFor(
+    () => {
+      expect(screen.queryByLabelText('Loading Museware')).toBeNull();
+    },
+    { timeout: 5000 },
+  );
 }
 
 describe('the shell actually renders', () => {
