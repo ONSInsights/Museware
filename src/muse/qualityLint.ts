@@ -16,9 +16,107 @@ export interface LintFinding {
     | 'responsive'
     | 'navbar'
     | 'brand'
-    | 'hero';
+    | 'hero'
+    | 'composition';
   nodeId: string;
   message: string;
+}
+
+/** Bounded, actionable composition checks; these never add or remove nodes. */
+export function lintComposition(screen: ScreenDoc): LintFinding[] {
+  const hints: LintFinding[] = [];
+  const add = (node: ComponentNode, message: string) => {
+    if (hints.length < 4)
+      hints.push({ severity: 'warn', code: 'composition', nodeId: node.id, message });
+  };
+  const visit = (node: ComponentNode, parent?: ComponentNode) => {
+    if (node.type === 'grid') {
+      const cols = Math.max(
+        1,
+        Math.min(
+          6,
+          Number(
+            node.styles.responsive?.expanded?.columns ??
+              node.styles.columns ??
+              node.props.columns,
+          ) || 2,
+        ),
+      );
+      const last = node.children.at(-1);
+      if (
+        last &&
+        cols > 1 &&
+        node.children.length > cols &&
+        node.children.length % cols === 1 &&
+        last.styles.colSpan !== 'full' &&
+        last.styles.colSpan !== undefined
+      )
+        add(
+          last,
+          'Orphan row risk: setStyles colSpan to full on this last card if its explicit span defeats row-closing defaults.',
+        );
+    }
+    if (node.type === 'hero') {
+      const layout = String(node.props.layout || 'split');
+      const media = Boolean(
+        node.props.image ||
+          node.props.src ||
+          node.children.some((child) => child.type === 'image'),
+      );
+      const copy = `${node.props.title || ''} ${node.props.subtitle || ''}`.trim();
+      if (
+        layout === 'split' &&
+        media &&
+        copy.length < 30 &&
+        Number.parseInt(String(node.styles.minHeight || '0'), 10) > 500
+      )
+        add(
+          node,
+          'Split hero may have a dead void: setStyles minHeight to hug so the media and copy balance.',
+        );
+      if (
+        layout === 'immersive' &&
+        media &&
+        String(node.styles.filter || '').trim() === 'none'
+      )
+        add(
+          node,
+          'Possible scrimless text on image: setStyles filter to brightness(0.55) for readable contrast.',
+        );
+    }
+    if (
+      node.type === 'image' &&
+      Boolean(node.props.src || node.props.image) &&
+      parent &&
+      !['hero', 'card', 'grid', 'section'].includes(parent.type) &&
+      !node.styles.aspectRatio &&
+      !node.styles.borderRadius
+    )
+      add(
+        node,
+        'Image may float in padding: setStyles aspectRatio to 16/9 to give it an intentional frame.',
+      );
+    if (node.type === 'marquee' && String(node.styles.animation || '').trim() === 'none')
+      add(
+        node,
+        'Marquee stopped without the static presentation: setStyles animation to an empty value so the safe loop can run.',
+      );
+    const sections = node.children.filter((child) => child.type === 'section');
+    for (let i = 2; i < sections.length; i++) {
+      const surface = (n: ComponentNode) => String(n.props.surface || 'plain');
+      if (
+        surface(sections[i]) === surface(sections[i - 1]) &&
+        surface(sections[i]) === surface(sections[i - 2])
+      )
+        add(
+          sections[i],
+          'Three sections use the same surface: setProps surface to sunk for a restrained rhythm.',
+        );
+    }
+    node.children.forEach((child) => visit(child, node));
+  };
+  visit(screen.root);
+  return hints;
 }
 
 /** Deterministic facts, independent of the reviewer and safe on old documents. */
@@ -355,5 +453,5 @@ export function lintScreen(
     );
   if (kind === 'web' && !hasNavbar)
     add(screen.root, 'warn', 'navbar', 'A website has navigation: no navbar node found.');
-  return findings;
+  return [...findings, ...lintComposition(screen)];
 }

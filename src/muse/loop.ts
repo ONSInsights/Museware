@@ -1209,9 +1209,11 @@ async function reviewer(
 }
 
 function findingsFor(doc: ProjectDoc, screenIds: string[]): LintFinding[] {
+  let compositionCount = 0;
   return doc.screens
     .filter((screen) => screenIds.includes(screen.id))
-    .flatMap((screen) => lintScreen(screen, doc.tokens, new Set(), doc.kind));
+    .flatMap((screen) => lintScreen(screen, doc.tokens, new Set(), doc.kind))
+    .filter((finding) => finding.code !== 'composition' || ++compositionCount <= 4);
 }
 
 function formatFindings(findings: LintFinding[]): string {
@@ -1459,7 +1461,7 @@ export async function verifyGate(
     await executeToolLoop({
       messages: contextMessages(
         doc,
-        `${rebuildNote(first.notes)} Repair only these existing ids: ${[...affected].join(', ')}. Never restructure the page or replace healthy images.`,
+        `${rebuildNote(first.notes)}\nComposition hints:\n${formatFindings(findings.filter((f) => f.code === 'composition'))}\nRepair only these existing ids: ${[...affected].join(', ')}. Never restructure the page or replace healthy images.`,
       ),
       maxCalls: 8,
       role: 'builder',
