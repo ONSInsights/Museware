@@ -34,7 +34,12 @@ import type { Action, OpError, ProjectDoc, ScreenDoc } from '../types/tree';
 import { entryScreen, findNodeInDoc, clone, walk } from '../ops/treeUtils';
 import { applyOps } from '../ops/apply';
 import { filterScopedOps } from './scope';
-import { lintScreen, lintRemovedImageVoids, type LintFinding } from './qualityLint';
+import {
+  lintScreen,
+  lintMotion,
+  lintRemovedImageVoids,
+  type LintFinding,
+} from './qualityLint';
 import { beginTurnJournal, endTurnJournal } from './turnJournal';
 import {
   autoIllustrate,
@@ -543,6 +548,7 @@ interface ToolLoopOptions {
   onProgress?: (line: string) => void;
   scope?: ScopedDraft;
   repairIds?: string[];
+  protectedMotionIds?: string[];
   repairStyleOnly?: boolean;
   allowReplaceImages?: boolean;
   imageBudget?: ImageBudget;
@@ -971,6 +977,13 @@ async function runTool(
             styles?: Record<string, unknown>;
           };
           if (!op.id || !ids.has(op.id) || !findNodeInDoc(doc, op.id)) return false;
+          if (
+            opts.protectedMotionIds?.includes(op.id) &&
+            op.op === 'setProps' &&
+            op.props &&
+            'motion' in op.props
+          )
+            return false;
           if (opts.repairStyleOnly) {
             if (
               op.op !== 'setStyles' ||
@@ -1215,13 +1228,18 @@ function findingsFor(
   screenIds: string[],
   before?: ProjectDoc,
 ): LintFinding[] {
-  let compositionCount = 0;
   const findings = doc.screens
     .filter((screen) => screenIds.includes(screen.id))
     .flatMap((screen) => lintScreen(screen, doc.tokens, new Set(), doc.kind));
-  return [...(before ? lintRemovedImageVoids(before, doc) : []), ...findings].filter(
-    (finding) => finding.code !== 'composition' || ++compositionCount <= 4,
+  const all = [...(before ? lintRemovedImageVoids(before, doc) : []), ...findings];
+  const composition = all.filter((finding) => finding.code === 'composition');
+  const chosen = new Set(
+    [
+      ...composition.filter((finding) => finding.severity === 'block'),
+      ...composition.filter((finding) => finding.severity !== 'block'),
+    ].slice(0, 4),
   );
+  return all.filter((finding) => finding.code !== 'composition' || chosen.has(finding));
 }
 
 function formatFindings(findings: LintFinding[]): string {
@@ -1355,6 +1373,11 @@ export async function verifyGate(
 ): Promise<void> {
   useAgent.getState().setVerification('running');
   let findings = findingsFor(doc, screenIds, before);
+  const motionAdvisories = () =>
+    doc.screens
+      .filter((screen) => screenIds.includes(screen.id))
+      .flatMap(lintMotion)
+      .filter((finding) => finding.advisory);
   const blocking = findings.filter((f) => f.severity === 'block');
   if (blocking.length) {
     useAgent.getState().setVerification('problems', formatFindings(blocking));
@@ -1388,6 +1411,9 @@ export async function verifyGate(
         role: 'builder',
         effort: 'high',
         repairIds: affected,
+        protectedMotionIds: motionAdvisories()
+          .filter((f) => f.protectMotion)
+          .map((f) => f.nodeId),
         imageBudget,
       });
     } catch (err) {
@@ -1419,7 +1445,11 @@ export async function verifyGate(
     return;
   }
   const outline = canvasOutline(doc, screenIds);
-  const first = await reviewer(task, outline, formatFindings(findings));
+  const first = await reviewer(
+    task,
+    outline,
+    formatFindings(findings.filter((f) => !f.advisory)),
+  );
   if (first.verdict === 'pass') {
     publishImageWarnings(doc, findings);
     useAgent
@@ -1443,10 +1473,19 @@ export async function verifyGate(
     );
     return;
   }
-  const affected = new Set(findings.map((finding) => finding.nodeId));
+  const actionable = findings.filter((finding) => !finding.advisory);
+  const affected = new Set(actionable.map((finding) => finding.nodeId));
+  const advisoryOnlyIds = new Set(
+    motionAdvisories()
+      .filter((finding) => !affected.has(finding.nodeId))
+      .map((finding) => finding.nodeId),
+  );
   for (const screen of doc.screens.filter((screen) => screenIds.includes(screen.id)))
     walk(screen.root, (node) => {
-      if (new RegExp(`(^|[^a-z0-9_])${node.id}([^a-z0-9_]|$)`, 'i').test(first.notes))
+      if (
+        !advisoryOnlyIds.has(node.id) &&
+        new RegExp(`(^|[^a-z0-9_])${node.id}([^a-z0-9_]|$)`, 'i').test(first.notes)
+      )
         affected.add(node.id);
     });
   if (!affected.size) {
@@ -1470,12 +1509,15 @@ export async function verifyGate(
     await executeToolLoop({
       messages: contextMessages(
         doc,
-        `${rebuildNote(first.notes)}\nComposition hints:\n${formatFindings(findings.filter((f) => f.code === 'composition'))}\nRepair only these existing ids: ${[...affected].join(', ')}. Never restructure the page or replace healthy images.`,
+        `${rebuildNote(first.notes)}\nComposition hints:\n${formatFindings(findings.filter((f) => f.code === 'composition' && !f.advisory))}\nRepair only these existing ids: ${[...affected].join(', ')}. Never restructure the page or replace healthy images.`,
       ),
       maxCalls: 8,
       role: 'builder',
       effort: 'high',
       repairIds: [...affected],
+      protectedMotionIds: motionAdvisories()
+        .filter((f) => f.protectMotion)
+        .map((f) => f.nodeId),
       imageBudget,
     });
   } catch (err) {
@@ -1495,7 +1537,7 @@ export async function verifyGate(
   const second = await reviewer(
     task,
     canvasOutline(after, screenIds),
-    formatFindings(findings),
+    formatFindings(findings.filter((f) => !f.advisory)),
   );
   const state =
     second.verdict === 'pass'

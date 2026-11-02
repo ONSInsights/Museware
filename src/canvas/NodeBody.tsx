@@ -940,6 +940,13 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       return (
         <section
           className={`${cls} mw-section`}
+          role={
+            p.role === 'footer'
+              ? 'contentinfo'
+              : p.role === 'nav'
+                ? 'navigation'
+                : undefined
+          }
           data-motion-reveal={
             ['rise', 'fade', 'slide', 'scale'].includes(String(p.motion)) ? '' : undefined
           }
@@ -1074,5 +1081,20 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       break;
   }
 
-  return <div className={cls}>{renderChildren()}</div>;
+  return (
+    <div
+      className={cls}
+      role={
+        node.type === 'col'
+          ? p.role === 'footer'
+            ? 'contentinfo'
+            : p.role === 'nav'
+              ? 'navigation'
+              : undefined
+          : undefined
+      }
+    >
+      {renderChildren()}
+    </div>
+  );
 }

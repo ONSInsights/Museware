@@ -310,7 +310,7 @@ function renderNode(
     case 'grid':
     case 'form':
       return wrap(
-        `<${node.type === 'form' ? 'form' : 'section'} className={${str(cls)}}${
+        `<${node.type === 'form' ? 'form' : 'section'} className={${str(cls)}}${node.type === 'col' && (p.role === 'footer' || p.role === 'nav') ? ` role=${str(p.role === 'footer' ? 'contentinfo' : 'navigation')}` : ''}${
           node.type === 'form'
             ? ` onSubmit={(e) => { e.preventDefault(); ${attrEvents(node, 'submit') || ''} }}`
             : ''
@@ -322,7 +322,7 @@ function renderNode(
           ? `<div className="mw-sec-head">${p.eyebrow ? `<span className="mw-sec-eyebrow">${jsxText(p.eyebrow)}</span>` : ''}${p.title ? `<h2 className="mw-sec-title">${jsxText(p.title)}</h2>` : ''}${p.subtitle ? `<p className="mw-sec-sub">${jsxText(p.subtitle)}</p>` : ''}</div>`
           : '';
       return wrap(
-        `<section className={${str(`${cls} mw-section`)}} ${['rise', 'fade', 'slide', 'scale'].includes(String(p.motion)) ? 'data-motion-reveal="" ' : ''}data-surface=${str(p.surface || 'plain')} data-align=${str(p.align || 'start')} data-bleed={${str(Boolean(p.bleed))}}>${head}\n${children}\n${pad}</section>`,
+        `<section className={${str(`${cls} mw-section`)}}${p.role === 'footer' || p.role === 'nav' ? ` role=${str(p.role === 'footer' ? 'contentinfo' : 'navigation')}` : ''} ${['rise', 'fade', 'slide', 'scale'].includes(String(p.motion)) ? 'data-motion-reveal="" ' : ''}data-surface=${str(p.surface || 'plain')} data-align=${str(p.align || 'start')} data-bleed={${str(Boolean(p.bleed))}}>${head}\n${children}\n${pad}</section>`,
       );
     }
     case 'card': {

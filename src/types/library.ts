@@ -123,6 +123,15 @@ export const MOTION_PROP = p(
   { options: ['none', 'rise', 'fade', 'slide', 'scale'], defaultValue: 'none' },
 );
 
+export const PAGE_ROLE_PROP = p(
+  'role',
+  'Page role',
+  'select',
+  'Behavior',
+  'What this block means to the page.',
+  { options: ['none', 'footer', 'nav'], defaultValue: 'none' },
+);
+
 export const COMPONENT_SPECS: ComponentSpec[] = [
   {
     type: 'screen',
@@ -929,6 +938,10 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
 for (const item of COMPONENT_SPECS) {
   item.props.push(MOTION_PROP);
   item.defaultProps.motion = 'none';
+  if (item.type === 'section' || item.type === 'col') {
+    item.props.push(PAGE_ROLE_PROP);
+    item.defaultProps.role = 'none';
+  }
 }
 
 const BY_TYPE = new Map(COMPONENT_SPECS.map((s) => [s.type as string, s]));

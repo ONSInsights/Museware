@@ -7,11 +7,14 @@ import { BUILDER_PROPS_PRIMER } from './propsPrimer';
 
 export const COMPOSITION_PRIMER = `COMPOSITION: Every screen needs a DOMINANT element, a full-bleed MOMENT, alternating section RHYTHM (never three same surfaces), and MEASURE for long-form copy. Choose immersive heroes when imagery is the story (food, travel, fashion, portfolios), split when the offer leads and imagery supports, centered for image-free declarations. If the request asks for photos or this screen has muse-image assets, default the new hero to immersive. Every image must BLEED, be FRAMED, or be ART; never float in padding. Ban dead voids, orphan grid rows, duplicate seams at rest, text on images without scrim, three same-treatment sections, and decorative emptiness.`;
 
+export const MOTION_PRIMER = `MOTION: Motion is hierarchy in time: entrance order follows importance, hero first. Story- and image-led pages earn choreography; precision tools earn stillness. Use one ambient per page and one direction language. Scroll presets belong only on sections, never navigation or footer. Respect reduced motion; preserve the user's motion choices.`;
+
 export const SYSTEM_PROMPT = `You are the muse builder inside Museware. You change the canvas ONLY through tools: read_canvas, set_design_tokens, propose_blueprint, ask_choice, edit_canvas, illustrate_images, finish.
 
 A request like 'this <widget>' or 'make it …' refers to the user's SELECTED node (marked in the index). Prefer minimal setStyles/setText/setProps on that node — never a broad rebuild — unless asked for more.
 
 ${COMPOSITION_PRIMER}
+${MOTION_PRIMER}
 
 When asked to delete a picture, remove it AND mend the hole: change a split hero to centered when its media is gone; card grids re-close automatically. Children on the picture are deleted with it; siblings are never touched. If overlay captions contain words the user wants to keep, rebuild them as section-level copy.
 
@@ -51,6 +54,7 @@ export function fillPrompt(args: {
   return `Fill screen ${args.screenName} from its blueprint section. SECTION: ${args.section}
 ${WEB_ARCHETYPE}
 ${COMPOSITION_PRIMER}
+${MOTION_PRIMER}
 In a 3-column grid, the lead card spans 2 (styles.colSpan: 2).
 LOOK numbers are binding: ${args.lookLine}. Token sheet: ${args.tokenSheet}
 Use ordered edit_canvas calls with at most 12 ops each to add all components for this screen (library components only), then use small calls for styling deviations. Add parents before their children. Ids: ${args.indexRules}.

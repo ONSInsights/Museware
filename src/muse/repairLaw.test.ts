@@ -101,6 +101,43 @@ describe('repair mends, never redesigns', () => {
     expect(lines()).not.toContain('Restored five images!');
     expect(useAgent.getState().imageWarnings.has('img_ritual')).toBe(true);
   });
+  it('does not repair a stagger advisory even if the reviewer names it', async () => {
+    const d = structuredClone(useProject.getState().doc);
+    const section = n('story', 'section', { motion: 'rise' });
+    section.children = Array.from({ length: 9 }, (_, i) => n(`item${i}`, 'text'));
+    d.screens[0].root.children = [
+      n('nav', 'navbar', { brand: 'Tea' }),
+      n('hero', 'hero', { title: 'Tea', image: 'https://example.com/i.jpg' }),
+      section,
+    ];
+    useProject.getState().replaceDoc(d);
+    vi.mocked(chatStream).mockResolvedValueOnce(
+      reply(undefined, undefined, 'PROBLEMS: story should be changed'),
+    );
+    await verifyGate('Tea', d, ['tea'], { remaining: 0 });
+    expect(chatStream).toHaveBeenCalledTimes(1);
+    expect(useProject.getState().doc.screens[0].root.children[2].props.motion).toBe('rise');
+  });
+  it('repairs an unscrimmed immersive image using a scoped existing style op', async () => {
+    const d = structuredClone(useProject.getState().doc);
+    const hero = n('h', 'hero', { layout: 'immersive', title: 'Tea' });
+    hero.children = [n('photo', 'image', { src: 'https://example.com/i.jpg' })];
+    d.screens[0].root.children = [hero];
+    useProject.getState().replaceDoc(d);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setStyles', id: 'photo', styles: { filter: 'brightness(0.55)' } }],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'Done' }))
+      .mockResolvedValueOnce(reply(undefined, undefined, 'PASS'));
+    await verifyGate('Tea', d, ['tea'], { remaining: 0 });
+    expect(
+      useProject.getState().doc.screens[0].root.children[0].children[0].styles.filter,
+    ).toBe('brightness(0.55)');
+    expect(useAgent.getState().verification).toBe('pass');
+  });
   it('applies only responsive styles to existing requested nodes during targeted responsive repair', async () => {
     const d = structuredClone(useProject.getState().doc);
     const root = d.screens[0].root;

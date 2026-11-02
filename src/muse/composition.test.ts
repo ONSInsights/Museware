@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMPOSITION_PRIMER, SYSTEM_PROMPT, fillPrompt } from './prompts';
+import { COMPOSITION_PRIMER, MOTION_PRIMER, SYSTEM_PROMPT, fillPrompt } from './prompts';
 import { lintComposition } from './qualityLint';
 import { emptyScreen } from '../ops/screenOps';
 import type { ComponentNode } from '../types/tree';
@@ -34,6 +34,18 @@ describe('composition guidance', () => {
       }),
     ).toContain(COMPOSITION_PRIMER);
     expect(COMPOSITION_PRIMER.length).toBeLessThan(1000);
+    expect(MOTION_PRIMER.split(/\s+/).length).toBeLessThanOrEqual(100);
+    expect(SYSTEM_PROMPT).toContain(MOTION_PRIMER);
+    expect(
+      fillPrompt({
+        screenName: 'Tea',
+        section: '',
+        lookLine: '',
+        tokenSheet: '',
+        indexRules: '',
+        existingIndex: '',
+      }),
+    ).toContain(MOTION_PRIMER);
   });
   it('finds concrete composition risks, with one mending op per hint and a cap', () => {
     const page = emptyScreen('Tea', { id: 'tea', entry: true });
@@ -70,7 +82,11 @@ describe('composition guidance', () => {
     });
     immersive.styles.filter = 'none';
     page.root.children = [marquee, immersive];
-    expect(lintComposition(page).map((f) => f.nodeId)).toEqual(['m', 'immersive']);
+    expect(lintComposition(page).map((f) => f.nodeId)).toEqual(['m']);
+    immersive.children = [node('photo', 'image', { src: 'https://example.com/image.jpg' })];
+    expect(lintComposition(page)[0]).toMatchObject({ nodeId: 'photo', severity: 'block' });
+    immersive.children[0].styles.filter = 'brightness(0.55)';
+    expect(lintComposition(page).some((f) => f.severity === 'block')).toBe(false);
     page.root.children = [
       node('s1', 'section'),
       node('s2', 'section'),
@@ -79,5 +95,54 @@ describe('composition guidance', () => {
     expect(lintComposition(page)[0].message).toContain('same surface');
     page.root.children = [node('clean', 'section', { surface: 'sunk' })];
     expect(lintComposition(page)).toEqual([]);
+  });
+});
+
+describe('motion guidance', () => {
+  it('makes nine children advisory only, while eight are silent', () => {
+    const page = emptyScreen('Tea', { id: 'tea', entry: true });
+    const section = node('story', 'section', { motion: 'rise' });
+    section.children = Array.from({ length: 8 }, (_, i) => node(`item${i}`, 'text'));
+    page.root.children = [section];
+    expect(lintComposition(page)).toEqual([]);
+    section.children.push(node('item8', 'text'));
+    expect(lintComposition(page)).toEqual([
+      expect.objectContaining({
+        nodeId: 'story',
+        advisory: true,
+        protectMotion: true,
+        message:
+          "This section staggers more children than the cascade expresses (8+) — the rest enter together, which is fine. If it's really two ideas, ask for a split and it'll be rebuilt as two sections.",
+      }),
+    ]);
+  });
+  it('uses declared page roles only and recognizes ambient widgets', () => {
+    const page = emptyScreen('Tea', { id: 'tea', entry: true });
+    page.root.children = [
+      node('footer_name', 'section', { motion: 'rise' }),
+      node('nav', 'col', { motion: 'fade', role: 'nav' }),
+      node('one', 'marquee'),
+      node('two', 'video', { src: 'https://example.com/v.mp4', autoplayMuted: true }),
+    ];
+    const findings = lintComposition(page);
+    expect(findings.some((f) => f.nodeId === 'footer_name')).toBe(false);
+    expect(findings.find((f) => f.nodeId === 'nav')?.message).toContain('motion to none');
+    expect(findings.find((f) => f.nodeId === 'two')?.message).toContain('autoplayMuted');
+  });
+  it('prioritizes blocking image issues within the four finding limit', () => {
+    const page = emptyScreen('Tea', { id: 'tea', entry: true });
+    const hero = node('h', 'hero', { layout: 'immersive' });
+    hero.children = [node('photo', 'image', { src: 'https://example.com/i.jpg' })];
+    page.root.children = [
+      node('a', 'section'),
+      node('b', 'section'),
+      node('c', 'section'),
+      node('d', 'section'),
+      node('e', 'section'),
+      hero,
+    ];
+    const findings = lintComposition(page);
+    expect(findings).toHaveLength(4);
+    expect(findings[0]).toMatchObject({ nodeId: 'photo', severity: 'block' });
   });
 });

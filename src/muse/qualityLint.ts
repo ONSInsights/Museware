@@ -21,14 +21,16 @@ export interface LintFinding {
     | 'composition';
   nodeId: string;
   message: string;
+  /** Visible guidance only: never use it to scope an automatic repair. */
+  advisory?: boolean;
+  protectMotion?: boolean;
 }
 
 /** Bounded, actionable composition checks; these never add or remove nodes. */
 export function lintComposition(screen: ScreenDoc): LintFinding[] {
   const hints: LintFinding[] = [];
   const add = (node: ComponentNode, message: string) => {
-    if (hints.length < 4)
-      hints.push({ severity: 'warn', code: 'composition', nodeId: node.id, message });
+    hints.push({ severity: 'warn', code: 'composition', nodeId: node.id, message });
   };
   const visit = (node: ComponentNode, parent?: ComponentNode) => {
     if (node.type === 'grid') {
@@ -75,15 +77,6 @@ export function lintComposition(screen: ScreenDoc): LintFinding[] {
           node,
           'Split hero may have a dead void: setStyles minHeight to hug so the media and copy balance.',
         );
-      if (
-        layout === 'immersive' &&
-        media &&
-        String(node.styles.filter || '').trim() === 'none'
-      )
-        add(
-          node,
-          'Possible scrimless text on image: setStyles filter to brightness(0.55) for readable contrast.',
-        );
     }
     if (
       node.type === 'image' &&
@@ -117,7 +110,88 @@ export function lintComposition(screen: ScreenDoc): LintFinding[] {
     node.children.forEach((child) => visit(child, node));
   };
   visit(screen.root);
-  return hints;
+  const motion = lintMotion(screen);
+  return [
+    ...motion.filter((item) => item.severity === 'block'),
+    ...hints,
+    ...motion.filter((item) => item.severity !== 'block'),
+  ].slice(0, 4);
+}
+
+/** Concrete motion guidance. No names are guessed: page roles are declared props. */
+export function lintMotion(screen: ScreenDoc): LintFinding[] {
+  const findings: LintFinding[] = [];
+  let ambient = 0;
+  const push = (
+    node: ComponentNode,
+    message: string,
+    severity: LintFinding['severity'] = 'warn',
+    advisory = false,
+  ) =>
+    findings.push({
+      nodeId: node.id,
+      severity,
+      code: 'composition',
+      message,
+      ...(advisory ? { advisory: true } : {}),
+    });
+  const darkEnough = (value: unknown) => {
+    const m = /brightness\(\s*(\d*\.?\d+)\s*(%)?\s*\)/i.exec(String(value || ''));
+    return !!m && Number(m[1]) / (m[2] ? 100 : 1) <= 0.65;
+  };
+  walk(screen.root, (node) => {
+    const animated = ['rise', 'fade', 'slide', 'scale'].includes(String(node.props.motion));
+    const isAmbient =
+      node.type === 'marquee' ||
+      node.type === 'scene3d' ||
+      (node.type === 'video' && (!node.props.src || node.props.autoplayMuted === true));
+    if (isAmbient && ++ambient > 1) {
+      if (node.type === 'video' && node.props.src && node.props.autoplayMuted === true)
+        push(
+          node,
+          'Multiple ambient widgets: setProps autoplayMuted to false on this video to demote it.',
+        );
+      else
+        push(
+          node,
+          'Multiple ambient widgets: consider demoting one to still content with the user’s approval.',
+          'warn',
+          true,
+        );
+    }
+    if (node.type === 'section' && animated && node.children.length > 8) {
+      push(
+        node,
+        "This section staggers more children than the cascade expresses (8+) — the rest enter together, which is fine. If it's really two ideas, ask for a split and it'll be rebuilt as two sections.",
+        'warn',
+        true,
+      );
+      findings[findings.length - 1].protectMotion = true;
+    }
+    if (
+      animated &&
+      (node.type === 'navbar' ||
+        node.type === 'bottomnav' ||
+        ((node.type === 'section' || node.type === 'col') &&
+          ['footer', 'nav'].includes(String(node.props.role))))
+    )
+      push(
+        node,
+        'Navigation or footer has entrance motion: setProps motion to none to keep it steady.',
+      );
+    if (node.type === 'hero' && node.props.layout === 'immersive') {
+      // Prop images already receive the house scrim in CSS; a child image uses
+      // a different class and must be darkened on that existing image widget.
+      for (const child of node.children)
+        if (child.type === 'image' && !darkEnough(child.styles.filter))
+          push(
+            child,
+            'Immersive text on an unscrimmed image: setStyles filter to brightness(0.55) on this image.',
+            'block',
+          );
+    }
+  });
+  return findings;
 }
 
 /** Only a picture removed in this turn can identify the newly opened hole. */
@@ -176,8 +250,8 @@ export function lintScreen(
   let hasResponsive = false;
   let hasNavbar = false;
   let heroCount = 0;
-  let marqueeCount = 0;
   let sceneCount = 0;
+  let marqueeCount = 0;
   let accentSections = 0;
   let glowSections = 0;
   const rawPixels = (value: unknown): number[] => {

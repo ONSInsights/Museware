@@ -5,7 +5,7 @@ import { afterEach, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { createProject, useProject } from '../store/useProject';
 import { emptyScreen } from '../ops/screenOps';
-import { generateFullCss } from './cssGen';
+import { generateFullCss, MOTION_DICTIONARY, SWITCH_MOTION_CSS } from './cssGen';
 import { CanvasStyle } from './NodeView';
 import { buildSingleHtml } from '../export/singleFile';
 import { generateProjectFiles } from '../export/reactCodegen';
@@ -31,8 +31,17 @@ function rule(css: string, id: string) {
 it('keeps the phone generator byte-identical to the published baseline', () => {
   const doc = fixture();
   const baseline = readFileSync('src/canvas/fixtures/scroll-phone-baseline.css', 'utf8');
-  expect(generateFullCss(doc)).toBe(baseline);
-  expect(generateFullCss(doc, { scrollModel: 'phone' })).toBe(baseline);
+  const stripInertMotionDictionary = (css: string) =>
+    css
+      .replace(
+        '.mw-app{--mw-motion-fast:160ms;--mw-motion-med:280ms;--mw-motion-slow:480ms;--mw-ease-out:cubic-bezier(.22,1,.36,1)}\n',
+        '',
+      )
+      .replace(`${MOTION_DICTIONARY}\n${SWITCH_MOTION_CSS}\n`, '');
+  expect(stripInertMotionDictionary(generateFullCss(doc))).toBe(baseline);
+  expect(stripInertMotionDictionary(generateFullCss(doc, { scrollModel: 'phone' }))).toBe(
+    baseline,
+  );
 });
 it('web roots grow without capturing scroll, with sticky navigation and the documented match fallback', () => {
   const d = fixture();
