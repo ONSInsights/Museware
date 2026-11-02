@@ -726,7 +726,7 @@ a {
 }
 
 .workspace[data-inspector='wide'] {
-  --mw-inspector-now: min(var(--mw-inspector-wide), 40vw);
+  --mw-inspector-now: min(var(--mw-inspector-w-wide), calc(100vw - var(--mw-space-4)));
 }
 
 .left-panel {
@@ -6259,4 +6259,44 @@ button.how-card .field-hint {
 }
 .data-block p {
   margin: 0;
+}
+
+/* Expanding a content field never changes its underlying validation or data. */
+.content-field-wrap {
+  position: relative;
+  min-width: 0;
+}
+.content-field-wrap > .textarea {
+  width: 100%;
+  padding-right: var(--mw-space-8);
+}
+.content-expand {
+  position: absolute;
+  top: var(--mw-space-1);
+  right: var(--mw-space-1);
+}
+.modal-shell .content-editor-modal {
+  width: min(var(--mw-shell-geometry-720), 100%);
+  height: 70vh;
+}
+.content-editor-modal .modal-body {
+  flex: 1;
+  min-height: 0;
+}
+.content-editor-textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+}
+.inspector .insp-section-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mw-surface);
+}
+.inspector .field-label {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }

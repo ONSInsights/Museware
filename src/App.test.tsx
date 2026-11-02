@@ -407,13 +407,11 @@ describe('the shell actually renders', () => {
     expect(workspace.getAttribute('data-inspector')).toBe('open');
 
     // Maximize hands the panel the wide column.
-    fireEvent.click(screen.getByLabelText('Widen the panel'));
+    fireEvent.click(screen.getByLabelText('Wide panel'));
     expect(useUi.getState().inspectorWide).toBe(true);
     expect(workspace.getAttribute('data-inspector')).toBe('wide');
-    expect(
-      screen.getByLabelText('Restore the panel width').getAttribute('aria-pressed'),
-    ).toBe('true');
-    fireEvent.click(screen.getByLabelText('Restore the panel width'));
+    expect(screen.getByLabelText('Wide panel').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByLabelText('Wide panel'));
     expect(workspace.getAttribute('data-inspector')).toBe('open');
 
     // The keyboard does the same thing.

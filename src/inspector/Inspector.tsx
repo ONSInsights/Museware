@@ -3,8 +3,7 @@ import {
   Copy,
   Layers as LayersIcon,
   LoaderCircle,
-  Maximize2,
-  Minimize2,
+  PanelLeft,
   Paintbrush,
   PanelRightClose,
   Save,
@@ -77,12 +76,12 @@ function PanelControls() {
       <button
         type="button"
         className="icon-btn icon-btn-sm inspector-max"
-        aria-label={wide ? 'Restore the panel width' : 'Widen the panel'}
+        aria-label="Wide panel"
         aria-pressed={wide}
-        title={wide ? 'Restore the panel width' : 'Widen the panel'}
+        title="Wide panel"
         onClick={() => setWide(!wide)}
       >
-        {wide ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        <PanelLeft size={13} />
       </button>
       <button
         type="button"
@@ -533,6 +532,11 @@ export function Inspector() {
                             label={def.label}
                             hint={def.hint}
                             multiline={def.kind === 'longtext'}
+                            feedback={
+                              node.type === 'accordion' && def.key === 'items'
+                                ? 'accordion'
+                                : undefined
+                            }
                             value={String(value)}
                             onCommit={(next) => writeProps({ [def.key]: next })}
                           />

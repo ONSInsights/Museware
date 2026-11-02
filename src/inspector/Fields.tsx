@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { RotateCcw } from 'lucide-react';
 import type { DesignTokens } from '../types/tokens';
 import { COLOR_KEYS } from '../types/tokens';
+import { ExpandContent, type ContentFeedback } from './ContentEditor';
 
 /**
  * Draft-then-commit inputs. Every committed change is ONE op, so typing a
@@ -17,15 +18,17 @@ function useDraft(value: string, onCommit: (next: string) => void) {
       setDraft(value);
     }
   }, [value]);
-  const commit = () => {
-    if (draft === lastCommitted.current) return;
-    lastCommitted.current = draft;
-    onCommit(draft);
+  const commitValue = (value: string) => {
+    if (value === lastCommitted.current) return;
+    lastCommitted.current = value;
+    onCommit(value);
   };
+  const commit = () => commitValue(draft);
   return {
     draft,
     setDraft,
     commit,
+    commitValue,
     cancel: () => setDraft(lastCommitted.current),
     onKeyDown: (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -49,6 +52,7 @@ export function TextField({
   placeholder,
   multiline,
   list,
+  feedback,
 }: {
   label: string;
   value: string;
@@ -58,21 +62,36 @@ export function TextField({
   placeholder?: string;
   multiline?: boolean;
   list?: string;
+  feedback?: ContentFeedback;
 }) {
   const d = useDraft(value, onCommit);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   return (
     <label className="field">
       <span className="field-label">{label}</span>
       {multiline ? (
-        <textarea
-          className="textarea"
-          rows={3}
-          value={d.draft}
-          placeholder={placeholder}
-          onChange={(e) => d.setDraft(e.target.value)}
-          onBlur={d.commit}
-          onKeyDown={d.onKeyDown}
-        />
+        <div className="content-field-wrap">
+          <textarea
+            ref={textareaRef}
+            className="textarea"
+            rows={3}
+            value={d.draft}
+            placeholder={placeholder}
+            onChange={(e) => d.setDraft(e.target.value)}
+            onBlur={() => d.commit()}
+            onKeyDown={d.onKeyDown}
+          />
+          <ExpandContent
+            title={label}
+            value={d.draft}
+            feedback={feedback}
+            fieldRef={textareaRef}
+            onSave={(next) => {
+              d.setDraft(next);
+              d.commitValue(next);
+            }}
+          />
+        </div>
       ) : (
         <input
           className={mono ? 'input field-mono' : 'input'}
@@ -80,7 +99,7 @@ export function TextField({
           placeholder={placeholder}
           list={list}
           onChange={(e) => d.setDraft(e.target.value)}
-          onBlur={d.commit}
+          onBlur={() => d.commit()}
           onKeyDown={d.onKeyDown}
         />
       )}

@@ -424,7 +424,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
       p(
         'alt',
         'Alt text',
-        'text',
+        'longtext',
         'Advanced',
         'Read out by screen readers, and shown if the image fails.',
       ),
@@ -728,7 +728,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     },
     props: [
       p('label', 'Label', 'text', 'Content', 'Optional label above the strip.'),
-      p('items', 'Items', 'text', 'Content', 'Comma-separated items.'),
+      p('items', 'Items', 'longtext', 'Content', 'Comma-separated items.'),
       p('variant', 'Variant', 'select', 'Content', 'Item presentation.', {
         options: ['wordmarks', 'pills', 'metrics'],
       }),

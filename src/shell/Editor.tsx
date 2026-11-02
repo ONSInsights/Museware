@@ -17,11 +17,16 @@ export function Editor() {
   const leftFlyout = useUi((s) => s.leftFlyout);
   const propertiesOpen = useUi((s) => s.propertiesOpen);
   const inspectorWide = useUi((s) => s.inspectorWide);
+  const inspectorDrawerOpen = useUi((s) => s.inspectorDrawerOpen);
   const restoreInspector = useUi((s) => s.restoreInspector);
   const chatExpanded = useUi((s) => s.chatExpanded);
 
   // Three states for the one panel: docked, docked wide, or out of the way.
-  const panelState = propertiesOpen ? (inspectorWide ? 'wide' : 'open') : 'closed';
+  const panelState = propertiesOpen
+    ? inspectorWide || inspectorDrawerOpen
+      ? 'wide'
+      : 'open'
+    : 'closed';
   const inspectable = Boolean(screens.length);
 
   return (

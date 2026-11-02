@@ -42,6 +42,8 @@ interface UiStore {
   inspectorCollapsed: boolean;
   /** The user pressed maximize: the panel takes the wide width. */
   inspectorWide: boolean;
+  inspectorDrawerOpen: boolean;
+  setInspectorDrawerOpen: (open: boolean) => void;
   setPropertiesOpen: (open: boolean) => void;
   setInspectorWide: (wide: boolean) => void;
   minimizeInspector: () => void;
@@ -104,7 +106,10 @@ function readPreferences() {
       leftCollapsed: raw.leftCollapsed === true,
       railCollapsed: raw.railCollapsed === true,
       inspectorCollapsed: raw.inspectorCollapsed === true,
-      inspectorWide: raw.inspectorWide === true,
+      inspectorWide:
+        localStorage.getItem('museware/inspectorWide') === null
+          ? raw.inspectorWide === true
+          : localStorage.getItem('museware/inspectorWide') === 'true',
       paletteFilter:
         typeof raw.paletteFilter === 'string' ? raw.paletteFilter.slice(0, 200) : '',
     };
@@ -154,6 +159,7 @@ export const useUi = create<UiStore>((set, get) => ({
   propertiesOpen: false,
   inspectorCollapsed: preferences.inspectorCollapsed,
   inspectorWide: preferences.inspectorWide,
+  inspectorDrawerOpen: false,
   runMode: false,
   runScreenId: null,
   onboardingOpen: false,
@@ -203,7 +209,15 @@ export const useUi = create<UiStore>((set, get) => ({
       propertiesOpen: selectedId ? s.propertiesOpen || !s.inspectorCollapsed : false,
     })),
   setPropertiesOpen: (propertiesOpen) => set({ propertiesOpen, inspectorCollapsed: false }),
-  setInspectorWide: (inspectorWide) => set({ inspectorWide }),
+  setInspectorWide: (inspectorWide) => {
+    try {
+      localStorage.setItem('museware/inspectorWide', String(inspectorWide));
+    } catch {
+      /* storage unavailable */
+    }
+    set({ inspectorWide });
+  },
+  setInspectorDrawerOpen: (inspectorDrawerOpen) => set({ inspectorDrawerOpen }),
   minimizeInspector: () => set({ propertiesOpen: false, inspectorCollapsed: true }),
   restoreInspector: () => set({ propertiesOpen: true, inspectorCollapsed: false }),
   toggleInspector: () =>

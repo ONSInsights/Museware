@@ -99,12 +99,14 @@ export function Modal({
   children,
   footer,
   size = 'md',
+  className = '',
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
   size?: 'md' | 'wide';
+  className?: string;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -122,7 +124,7 @@ export function Modal({
       }}
     >
       <div
-        className="modal"
+        className={`modal ${className}`.trim()}
         data-size={size}
         role="dialog"
         aria-modal="true"

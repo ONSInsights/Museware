@@ -5,6 +5,7 @@ import { walk } from '../ops/treeUtils';
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { DataDrawer } from './DataDrawer';
+import { ExpandContent } from './ContentEditor';
 
 const CANONICAL = ['title', 'detail', 'meta'];
 const VALID_KEY = /^[a-z][a-z0-9_]{0,30}$/;
@@ -98,17 +99,23 @@ export function DataBlock({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const base = useRef(signature);
   const dirty = useRef(false);
+  const overlayOpen = useRef(false);
+  useEffect(() => {
+    if (!drawer) return;
+    useUi.getState().setInspectorDrawerOpen(true);
+    return () => useUi.getState().setInspectorDrawerOpen(false);
+  }, [drawer]);
   const valid = VALID_KEY.test(dataKey);
   const users = dataKey ? widgetsUsing(screen, dataKey) : 0;
   const shared = dataKey && (users > 1 || seededByMuse(doc, screen.id, dataKey));
   useEffect(() => {
-    if (!dirty.current) {
+    if (!dirty.current && !overlayOpen.current) {
       setDraft(serialized);
       base.current = signature;
       setError('');
     }
   }, [signature, serialized]);
-  const commit = () => {
+  const commit = (value = draft): string | void => {
     if (!dirty.current || !keys || !valid) return;
     const currentScreen = useProject
       .getState()
@@ -118,11 +125,13 @@ export function DataBlock({
         ? currentScreen.mockData[dataKey]
         : [];
     if (JSON.stringify(currentRows) !== base.current) {
-      setError('Rows changed elsewhere. Reopen this editor to review the latest data.');
-      return;
+      const message =
+        'Rows changed elsewhere. Reopen this editor to review the latest data.';
+      setError(message);
+      return message;
     }
     try {
-      const next = parseRows(draft, keys, data.length > 0);
+      const next = parseRows(value, keys, data.length > 0);
       if (JSON.stringify(next) !== signature) {
         const result = useProject
           .getState()
@@ -137,7 +146,9 @@ export function DataBlock({
       setDraft(formatRows(next, inlineRowKeys(next) || keys));
       setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save rows.');
+      const message = err instanceof Error ? err.message : 'Could not save rows.';
+      setError(message);
+      return message;
     }
   };
   return (
@@ -193,26 +204,58 @@ export function DataBlock({
               </div>
             </>
           )}
-          <textarea
-            ref={textarea}
-            className="textarea"
-            aria-label={`Data rows for ${dataKey}`}
-            rows={4}
-            value={draft}
-            placeholder="Title | Detail | Meta"
-            onChange={(event) => {
-              if (!dirty.current) base.current = signature;
-              dirty.current = true;
-              setDraft(event.target.value);
-              setError('');
-            }}
-            onBlur={commit}
-          />
+          <div className="content-field-wrap">
+            <textarea
+              ref={textarea}
+              className="textarea"
+              aria-label={`Data rows for ${dataKey}`}
+              rows={4}
+              value={draft}
+              placeholder="Title | Detail | Meta"
+              onChange={(event) => {
+                if (!dirty.current) base.current = signature;
+                dirty.current = true;
+                setDraft(event.target.value);
+                setError('');
+              }}
+              onBlur={() => {
+                if (!overlayOpen.current) commit();
+              }}
+            />
+            <ExpandContent
+              title="DATA ROWS"
+              value={draft}
+              feedback="rows"
+              fieldRef={textarea}
+              onOpen={() => {
+                overlayOpen.current = true;
+                if (!dirty.current) base.current = signature;
+              }}
+              onClose={() => {
+                overlayOpen.current = false;
+                if (!dirty.current) {
+                  const latest = useProject
+                    .getState()
+                    .doc.screens.find((item) => item.id === screen.id)?.mockData;
+                  const current =
+                    latest && Object.hasOwn(latest, dataKey) ? latest[dataKey] : [];
+                  const currentKeys = inlineRowKeys(current);
+                  base.current = JSON.stringify(current);
+                  setDraft(currentKeys ? formatRows(current, currentKeys) : '');
+                }
+              }}
+              onSave={(next) => {
+                dirty.current = true;
+                setDraft(next);
+                return commit(next);
+              }}
+            />
+          </div>
           <button
             type="button"
             className="btn btn-sm btn-ghost"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={commit}
+            onClick={() => commit()}
           >
             Save rows
           </button>
