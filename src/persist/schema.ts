@@ -81,6 +81,7 @@ export const projectSchema = z
   .object({
     format: z.literal('museware/1'),
     name: z.string().min(1).max(80).default('Untitled project'),
+    projectNameLocked: z.boolean().optional(),
     schemaVersion: z.number().default(2),
     themeLibrary: z
       .array(

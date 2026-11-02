@@ -66,15 +66,19 @@ export function Topbar() {
   const theme = useUi((s) => s.theme);
   const setTheme = useUi((s) => s.setTheme);
   const toast = useUi((s) => s.toast);
-  const [menu, setMenu] = useState<'file' | 'theme' | 'screen' | 'more' | null>(null);
+  const [menu, setMenu] = useState<
+    'file' | 'theme' | 'screen' | 'overview' | 'more' | null
+  >(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [editingProjectName, setEditingProjectName] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-  const [savedAt, setSavedAt] = useState<number>(doc.updatedAt);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setSavedAt(Date.now());
+    setSaved(false);
+    const timer = window.setTimeout(() => setSaved(true), 1400);
+    return () => window.clearTimeout(timer);
   }, [doc.updatedAt]);
 
   const run = (ops: unknown[], ok?: string) => {
@@ -130,17 +134,7 @@ export function Topbar() {
         </span>
       </button>
 
-      <span className="topbar-desktop">
-        <IconButton
-          label={leftCollapsed ? 'Show panels' : 'Hide panels'}
-          size="sm"
-          onClick={toggleLeft}
-        >
-          <LayoutGrid size={15} />
-        </IconButton>
-      </span>
-
-      <div className="project-name topbar-desktop mw-shell-util-2">
+      <div className="project-name mw-shell-util-2">
         <input
           value={doc.name}
           aria-label="Project name"
@@ -156,7 +150,7 @@ export function Topbar() {
           className="project-name-input"
         />
         <span className="faint mono mw-shell-util-3" title="Autosaved to this browser">
-          {Date.now() - savedAt < 1400 ? 'saving…' : 'saved'}
+          {saved ? 'saved' : 'saving…'}
         </span>
       </div>
 
@@ -209,6 +203,35 @@ export function Topbar() {
           </IconButton>
         </span>
         <div className="topbar-desktop mw-shell-util-2">
+          <IconButton
+            label="Screens overview"
+            size="sm"
+            active={menu === 'overview'}
+            onClick={() => setMenu(menu === 'overview' ? null : 'overview')}
+          >
+            <LayoutGrid size={14} />
+          </IconButton>
+          <Menu open={menu === 'overview'} onClose={() => setMenu(null)} align="left">
+            {doc.screens.map((screen) => (
+              <button
+                type="button"
+                key={screen.id}
+                onClick={() => {
+                  setActiveScreen(screen.id);
+                  select(null);
+                  setMenu(null);
+                }}
+              >
+                {screen.name}
+                {screen.entry ? ' · entry' : ''}
+              </button>
+            ))}
+            {!doc.screens.length && (
+              <button type="button" disabled>
+                No screens yet
+              </button>
+            )}
+          </Menu>
           <button
             type="button"
             className="icon-btn"
@@ -301,11 +324,7 @@ export function Topbar() {
 
       <span className="topbar-spacer" />
 
-      <div
-        className="segmented breakpoint-segmented topbar-desktop"
-        role="group"
-        aria-label="Breakpoint"
-      >
+      <div className="segmented breakpoint-segmented" role="group" aria-label="Breakpoint">
         {BPS.map((bp) => {
           const Icon = bp.icon;
           return (
@@ -323,7 +342,7 @@ export function Topbar() {
         })}
       </div>
 
-      <span className="topbar-desktop mw-shell-util-5">
+      <span className="topbar-history mw-shell-util-5">
         <IconButton
           label={`Undo${undoDepth ? ` (${undoDepth})` : ''}`}
           size="sm"
@@ -343,31 +362,43 @@ export function Topbar() {
       </span>
 
       <div className="topbar-right">
-        {busy && (
+        {busy ? (
           <button
             type="button"
             className="stop-btn"
             onClick={() => stopAgent()}
             title="Stop the agent"
+            aria-label="Stop the agent"
           >
             <Square size={12} /> Stop
           </button>
+        ) : (
+          <button
+            type="button"
+            className="run-btn"
+            onClick={() =>
+              doc.screens.length
+                ? setRunMode(true, activeScreenId || doc.screens[0].id)
+                : toast('Create or generate a screen first to run the app', 'warn')
+            }
+            title={doc.screens.length ? 'Run the app (⌘⏎)' : 'Start with a prompt'}
+            aria-label={doc.screens.length ? 'Run the app' : 'Start with a prompt'}
+          >
+            <Play size={13} fill="currentColor" strokeWidth={0} />
+            <span className="run-label">Run</span>
+          </button>
         )}
-        <button
-          type="button"
-          className="run-btn"
-          onClick={() =>
-            doc.screens.length
-              ? setRunMode(true, activeScreenId || doc.screens[0].id)
-              : toast('Create or generate a screen first to run the app', 'warn')
-          }
-          title={doc.screens.length ? 'Run the app (⌘⏎)' : 'Start with a prompt'}
-          aria-label={doc.screens.length ? 'Run the app' : 'Start with a prompt'}
-        >
-          <Play size={13} fill="currentColor" strokeWidth={0} />
-          <span className="run-label">Run</span>
-        </button>
-        <div className="topbar-desktop mw-shell-util-2">
+        <span className="topbar-utility">
+          <IconButton
+            label={leftCollapsed ? 'Show panels' : 'Hide panels'}
+            size="sm"
+            onClick={toggleLeft}
+          >
+            <LayoutGrid size={15} />
+          </IconButton>
+        </span>
+
+        <div className="topbar-utility mw-shell-util-2">
           <IconButton
             label="Theme"
             size="sm"
@@ -422,7 +453,7 @@ export function Topbar() {
             </button>
           </Menu>
         </div>
-        <span className="topbar-desktop mw-shell-util-5">
+        <span className="topbar-utility mw-shell-util-5">
           <IconButton
             label="Settings & models"
             size="sm"
@@ -431,7 +462,7 @@ export function Topbar() {
             <Sparkles size={15} />
           </IconButton>
         </span>
-        <div className="topbar-desktop mw-shell-util-2">
+        <div className="topbar-utility mw-shell-util-2">
           <IconButton
             label="Project file"
             size="sm"
@@ -490,7 +521,7 @@ export function Topbar() {
           </Menu>
         </div>
         {/* Phones: everything the desktop bar shows, in one 44px target. */}
-        <div className="topbar-mobile mw-shell-util-2">
+        <div className="topbar-overflow mw-shell-util-2">
           <IconButton
             label="More actions"
             size="sm"
@@ -528,6 +559,32 @@ export function Topbar() {
               }}
             >
               <Plus size={13} /> Add screen
+            </button>
+            {doc.screens.map((screen) => (
+              <button
+                type="button"
+                key={screen.id}
+                onClick={() => {
+                  setActiveScreen(screen.id);
+                  select(null);
+                  setMenu(null);
+                }}
+              >
+                <LayoutGrid size={13} /> {screen.name}
+                {screen.entry ? ' · entry' : ''}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setMenu(null);
+                void closeProject(useProject.getState().projectId)
+                  .then(() => setRoute('projects'))
+                  .catch(() => toast('Could not save this project.', 'warn'));
+              }}
+            >
+              <Home size={13} /> Projects home
             </button>
             <button
               type="button"

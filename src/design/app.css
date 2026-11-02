@@ -6055,3 +6055,93 @@ button.how-card .field-hint {
   font-size: var(--mw-fs-10);
   pointer-events: none;
 }
+
+/* Topbar priority: utilities collapse before history; identity and action remain. */
+.topbar-overflow {
+  display: none;
+}
+.topbar-utility,
+.topbar-history {
+  flex: 0 0 auto;
+}
+.topbar .project-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.topbar .breakpoint-segmented {
+  flex: 0 0 auto;
+}
+@media (max-width: 1100px) {
+  .topbar-utility {
+    display: none !important;
+  }
+  .topbar-overflow {
+    display: block;
+  }
+}
+@media (max-width: 900px) {
+  .topbar-history {
+    display: none !important;
+  }
+}
+@media (max-width: 700px) {
+  .topbar .project-name {
+    width: 19vw;
+    padding: 0;
+    overflow: hidden;
+  }
+  .topbar .project-name-input {
+    width: 100%;
+  }
+  .topbar .screen-switcher {
+    flex: 1 1 0;
+  }
+  .topbar .breakpoint-segmented .bp-label {
+    display: none;
+  }
+  .topbar-spacer {
+    display: none;
+  }
+  .topbar-right .run-btn {
+    display: inline-flex;
+  }
+}
+.topbar-right .run-btn,
+.topbar-right .stop-btn {
+  justify-content: center;
+  min-width: var(--mw-shell-geometry-72);
+  height: var(--mw-shell-geometry-34);
+  border-radius: var(--mw-radius-sm);
+}
+@media (max-width: 700px) {
+  .topbar .project-name {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    line-height: 1.1;
+  }
+  .topbar-right .run-btn,
+  .topbar-right .stop-btn {
+    min-width: var(--mw-shell-geometry-56);
+  }
+}
+@media (max-width: 700px) {
+  .topbar {
+    gap: var(--mw-space-1);
+  }
+  .topbar .brand {
+    flex: 0 0 var(--mw-space-8);
+    min-width: 0;
+  }
+  .topbar .breakpoint-segmented button {
+    width: var(--mw-control-h-sm);
+    min-width: 0;
+    padding: 0;
+    justify-content: center;
+  }
+  .topbar-right .run-btn,
+  .topbar-right .stop-btn {
+    padding: 0 var(--mw-space-2);
+  }
+}

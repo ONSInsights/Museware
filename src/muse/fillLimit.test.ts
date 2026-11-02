@@ -47,6 +47,39 @@ beforeEach(() => {
   });
 });
 describe('fill call allowance', () => {
+  it('names the first successfully finished entry build, once', async () => {
+    const doc = structuredClone(useProject.getState().doc);
+    doc.screens[0].name = 'KOYO Tea Landing';
+    doc.screens[0].root.children = [];
+    useProject.getState().replaceDoc(doc);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            {
+              op: 'add',
+              parentId: doc.screens[0].root.id,
+              node: { id: 'tea_title', type: 'heading', props: { text: 'Tea' } },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'Built' }))
+      .mockResolvedValueOnce({
+        ...reply('finish', {}),
+        text: 'PASS',
+        toolCalls: [],
+        finishReason: 'stop',
+      });
+    await runFillQueue({ mode: 'steady' });
+    expect(useProject.getState().doc.name).toBe('KOYO Tea');
+    expect(
+      useProject
+        .getState()
+        .doc.rail.filter((entry) => entry.text.startsWith('Project named ')),
+    ).toHaveLength(1);
+  });
+
   it('does not claim success when an empty screen stops without finish', async () => {
     const doc = structuredClone(useProject.getState().doc);
     doc.screens[0].root.children = [];

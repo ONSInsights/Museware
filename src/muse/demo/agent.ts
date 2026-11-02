@@ -1,3 +1,4 @@
+import { nameProjectAfterBuild } from '../projectName';
 /**
  * The local muse — a deterministic stand-in that exercises the REAL pipeline
  * (cards, blueprint, ops, progress, verify) when no API key is present, so the
@@ -174,10 +175,6 @@ function docHasScreens(): boolean {
 
 function screensForTemplate(template: DemoTemplate): ScreenDoc[] {
   return buildScreensFor(template, useProject.getState().doc.tokens);
-}
-
-function projectNameFor(template: DemoTemplate): string {
-  return template.projectName;
 }
 
 async function proposeBlueprintFor(
@@ -390,7 +387,7 @@ export async function startDemoBuild(mode: 'blueprint' | 'steady' | 'fast'): Pro
       .getState()
       .doc.screens.filter((s) => screens.some((x) => x.id === s.id));
     await streamProse(describeResult(built), controller.signal);
-    useProject.getState().setName(projectNameFor(template));
+    nameProjectAfterBuild();
     useProject.getState().snapshotProjectTheme();
     if (
       useUi.getState().activeScreenId === null ||
@@ -501,7 +498,6 @@ export async function runDemoTurn(text: string, opts: DemoOpts): Promise<void> {
     if (!docHasScreens()) {
       const kind = explicitKind || template.kind;
       useProject.getState().setKind(kind);
-      useProject.getState().setName(projectNameFor(template));
       useProject.getState().snapshotProjectTheme();
       system(
         kind === 'web'

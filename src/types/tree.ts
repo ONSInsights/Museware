@@ -226,6 +226,8 @@ export interface ProjectDoc {
     updatedAt: number;
   }>;
   name: string;
+  /** Once a person or completed build chooses a name, never auto-name again. */
+  projectNameLocked?: boolean;
   screens: ScreenDoc[];
   tokens: import('./tokens').DesignTokens;
   opLog: OpEntry[];

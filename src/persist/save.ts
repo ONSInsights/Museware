@@ -179,6 +179,7 @@ export async function renameSavedProject(id: string, name: string): Promise<void
   await enqueue(id, {
     ...doc,
     name: name.trim().slice(0, 80) || doc.name,
+    projectNameLocked: true,
     updatedAt: Date.now(),
   });
 }

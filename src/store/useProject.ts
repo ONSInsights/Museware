@@ -63,7 +63,7 @@ function fromSnapshot(snap: Snapshot, doc: ProjectDoc): ProjectDoc {
     tokens: clone(snap.tokens),
     customComponents: clone(snap.customComponents),
     kind: snap.kind,
-    name: snap.name,
+    name: doc.name,
     blueprint: snap.blueprint ? { ...snap.blueprint } : undefined,
     updatedAt: Date.now(),
   };
@@ -322,7 +322,15 @@ export const useProject = create<ProjectStore>((set, get) => ({
       const themeLibrary = s.doc.themeLibrary?.map((entry) =>
         entry.name === s.doc.name ? { ...entry, name: next } : entry,
       );
-      return { doc: { ...s.doc, name: next, themeLibrary, updatedAt: Date.now() } };
+      return {
+        doc: {
+          ...s.doc,
+          name: next,
+          projectNameLocked: true,
+          themeLibrary,
+          updatedAt: Date.now(),
+        },
+      };
     }),
 
   setKind: (kind) => set((s) => ({ doc: { ...s.doc, kind, updatedAt: Date.now() } })),

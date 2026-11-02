@@ -353,11 +353,12 @@ describe('the shell actually renders', () => {
     expect(bar?.textContent).toMatch(/Insert/);
     expect(bar?.textContent).toMatch(/Run/);
 
-    // Everything the desktop bar shows is marked so CSS can hide it on a phone…
-    expect(document.querySelectorAll('.topbar-desktop').length).toBeGreaterThan(4);
+    // Identity and viewport stay in the row; utilities collapse into the menu.
+    expect(document.querySelector('.topbar .project-name')).toBeTruthy();
+    expect(document.querySelector('.topbar .breakpoint-segmented')).toBeTruthy();
+    expect(document.querySelectorAll('.topbar-utility').length).toBeGreaterThan(2);
 
-    // …and the phone menu still reaches all of it.
-    const more = document.querySelector('.topbar-mobile button');
+    const more = document.querySelector('.topbar-overflow button');
     expect(more).toBeTruthy();
     fireEvent.click(more!);
     const menu = document.querySelector('.menu[role=menu]');

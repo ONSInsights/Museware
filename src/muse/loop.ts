@@ -8,6 +8,7 @@ import { useUi } from '../store/useUi';
 import { buildTokenSheet } from './tokenSheet';
 import { buildProjectIndex } from './projectIndex';
 import { BUILDER_PROPS_PRIMER } from './propsPrimer';
+import { nameProjectAfterBuild } from './projectName';
 import { canvasOutline, subtreeOutline } from './canvasOutline';
 import { parseBlueprint, blueprintScreenSections } from './blueprintParse';
 import { parseTypedOptions } from './typedOptions';
@@ -1717,6 +1718,15 @@ export async function runAgentTurn(
         imageBudget,
       );
     }
+    const entryBefore = before.screens.find((screen) => screen.entry);
+    if (
+      result.finished &&
+      result.changed &&
+      !result.choiceAsked &&
+      !controller.signal.aborted &&
+      (!entryBefore || entryBefore.root.children.length === 0)
+    )
+      nameProjectAfterBuild();
     if (!result.finished && !result.choiceAsked && !result.stopped) {
       addAgent("That's where this turn landed. Look it over, or tell me the next move.");
     }
@@ -2045,6 +2055,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     doc.screens.map((screen) => [screen.id, structuredClone(screen)]),
   );
   const completed = new Set<string>();
+  const finishedScreens = new Set<string>();
   try {
     for (let i = 0; i < targets.length; i += 1) {
       if (controller.signal.aborted) break;
@@ -2157,6 +2168,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           continue;
         }
         completed.add(target.id);
+        finishedScreens.add(target.id);
         useAgent.getState().patchPart(target.id, { state: 'done' });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -2251,6 +2263,15 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           .getState()
           .rememberScreenBuild(card.id, id, beforeScreens.get(id) ?? null);
       const count = completed.size;
+      const entry = useProject.getState().doc.screens.find((screen) => screen.entry);
+      if (
+        !controller.signal.aborted &&
+        entry &&
+        completed.has(entry.id) &&
+        finishedScreens.has(entry.id) &&
+        !beforeScreens.get(entry.id)?.root.children.length
+      )
+        nameProjectAfterBuild();
       if (count && !controller.signal.aborted) useProject.getState().snapshotProjectTheme();
       if (!controller.signal.aborted)
         addAgent(
