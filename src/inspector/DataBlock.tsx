@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { spec } from '../types/library';
-import type { MockRow, ProjectDoc, ScreenDoc } from '../types/tree';
+import type { ComponentNode, MockRow, ProjectDoc, ScreenDoc } from '../types/tree';
 import { walk } from '../ops/treeUtils';
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { DataDrawer } from './DataDrawer';
 import { ExpandContent } from './ContentEditor';
+import { sampleRows } from '../canvas/nodeSamples';
 
 const CANONICAL = ['title', 'detail', 'meta'];
 const VALID_KEY = /^[a-z][a-z0-9_]{0,30}$/;
@@ -80,10 +81,12 @@ export function DataBlock({
   screen,
   dataKey,
   doc,
+  nodeType,
 }: {
   screen: ScreenDoc;
   dataKey: string;
   doc: ProjectDoc;
+  nodeType: ComponentNode['type'];
 }) {
   const rows =
     dataKey && screen.mockData && Object.hasOwn(screen.mockData, dataKey)
@@ -91,7 +94,9 @@ export function DataBlock({
       : undefined;
   const data = rows || [];
   const keys = inlineRowKeys(data);
-  const serialized = keys ? formatRows(data, keys) : '';
+  const serialized = keys
+    ? formatRows(data.length ? data : sampleRows(nodeType), keys)
+    : '';
   const signature = JSON.stringify(data);
   const [draft, setDraft] = useState(serialized);
   const [error, setError] = useState('');
@@ -115,8 +120,8 @@ export function DataBlock({
       setError('');
     }
   }, [signature, serialized]);
-  const commit = (value = draft): string | void => {
-    if (!dirty.current || !keys || !valid) return;
+  const commit = (value = draft, explicit = false): string | void => {
+    if ((!dirty.current && !explicit) || !keys || !valid) return;
     const currentScreen = useProject
       .getState()
       .doc.screens.find((item) => item.id === screen.id);
@@ -179,12 +184,24 @@ export function DataBlock({
         <>
           {!data.length && (
             <>
-              <p className="field-hint">No rows yet — the canvas is showing samples</p>
+              <p className="field-hint">
+                These are sample rows — edit them or tap Save rows to make them real.
+              </p>
               <div className="data-block-actions">
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => textarea.current?.focus()}
+                  onClick={() => {
+                    if (!dirty.current) base.current = signature;
+                    dirty.current = true;
+                    const next = `${draft}${draft && !draft.endsWith('\n') ? '\n' : ''}${Array(3).fill('New row | detail | meta').join('\n')}`;
+                    setDraft(next);
+                    setError('');
+                    textarea.current?.focus();
+                    requestAnimationFrame(() =>
+                      textarea.current?.setSelectionRange(next.length, next.length),
+                    );
+                  }}
                 >
                   Add rows
                 </button>
@@ -241,7 +258,14 @@ export function DataBlock({
                     latest && Object.hasOwn(latest, dataKey) ? latest[dataKey] : [];
                   const currentKeys = inlineRowKeys(current);
                   base.current = JSON.stringify(current);
-                  setDraft(currentKeys ? formatRows(current, currentKeys) : '');
+                  setDraft(
+                    currentKeys
+                      ? formatRows(
+                          current.length ? current : sampleRows(nodeType),
+                          currentKeys,
+                        )
+                      : '',
+                  );
                 }
               }}
               onSave={(next) => {
@@ -255,7 +279,7 @@ export function DataBlock({
             type="button"
             className="btn btn-sm btn-ghost"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => commit()}
+            onClick={() => commit(draft, true)}
           >
             Save rows
           </button>

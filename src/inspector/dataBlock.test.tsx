@@ -8,6 +8,8 @@ import { createProject, useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { emptyScreen } from '../ops/screenOps';
 import { spec } from '../types/library';
+import { NodeView } from '../canvas/NodeView';
+import { sampleRows } from '../canvas/nodeSamples';
 import type { ComponentNode, MockRow } from '../types/tree';
 
 function setup(rows: MockRow[] = [], other: ComponentNode[] = []) {
@@ -38,7 +40,11 @@ afterEach(cleanup);
 describe('inline data rows', () => {
   it('parses canonical rows and commits a single undoable setMockData batch', () => {
     render(<Inspector />);
-    expect(screen.getByText('No rows yet — the canvas is showing samples')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'These are sample rows — edit them or tap Save rows to make them real.',
+      ),
+    ).toBeTruthy();
     expect(screen.getByText('DATA ROWS · 0')).toBeTruthy();
     const input = screen.getByRole('textbox', { name: 'Data rows for tea_picks' });
     fireEvent.change(input, { target: { value: 'Morning walk | 6,204 steps | +12%' } });
@@ -54,6 +60,59 @@ describe('inline data rows', () => {
     });
     act(() => state.undo());
     expect(useProject.getState().doc.screens[0].mockData?.tea_picks).toEqual([]);
+  });
+  it('shows canvas samples without saving them, then saves the costume with one tap', () => {
+    function CanvasPreview() {
+      const doc = useProject((state) => state.doc);
+      return <NodeView doc={doc} screen={doc.screens[0]} mode="edit" />;
+    }
+    render(
+      <>
+        <Inspector />
+        <CanvasPreview />
+      </>,
+    );
+    const input = screen.getByRole('textbox', {
+      name: 'Data rows for tea_picks',
+    }) as HTMLTextAreaElement;
+    expect(input.value).toBe(formatRows(sampleRows('list'), ['title', 'detail', 'meta']));
+    expect(screen.getByText('Sample rows — add real data')).toBeTruthy();
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+    expect(useProject.getState().doc.screens[0].mockData?.tea_picks).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save rows' }));
+    expect(useProject.getState().doc.screens[0].mockData?.tea_picks).toEqual(
+      sampleRows('list'),
+    );
+    expect(screen.getByText('DATA ROWS · 4')).toBeTruthy();
+    expect(screen.queryByText('Sample rows — add real data')).toBeNull();
+    expect(screen.getByText('Morning walk')).toBeTruthy();
+  });
+  it('prefills table launch rows, and leaves real data alone', () => {
+    const doc = structuredClone(useProject.getState().doc);
+    doc.screens[0].root.children[0].type = 'table';
+    useProject.getState().hydrate(doc);
+    const view = render(<Inspector />);
+    const input = screen.getByRole('textbox', {
+      name: 'Data rows for tea_picks',
+    }) as HTMLTextAreaElement;
+    expect(input.value).toBe(formatRows(sampleRows('table'), ['title', 'detail', 'meta']));
+    fireEvent.click(screen.getByRole('button', { name: 'Save rows' }));
+    expect(useProject.getState().doc.screens[0].mockData?.tea_picks).toEqual(
+      sampleRows('table'),
+    );
+    expect(screen.getByText('DATA ROWS · 3')).toBeTruthy();
+    view.unmount();
+    setup([{ title: 'My own row', detail: 'Real', meta: 'Now' }]);
+    render(<Inspector />);
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'Data rows for tea_picks',
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe('My own row | Real | Now');
+    expect(screen.queryByText(/These are sample rows/)).toBeNull();
   });
   it('round trips canonical rows exactly and preserves custom key order', () => {
     for (const rows of [
@@ -82,7 +141,14 @@ describe('inline data rows', () => {
   });
   it('focuses Add rows and fills the unsent muse instruction on Ask muse', () => {
     render(<Inspector />);
+    const input = screen.getByRole('textbox', {
+      name: 'Data rows for tea_picks',
+    }) as HTMLTextAreaElement;
+    const before = input.value;
     fireEvent.click(screen.getByRole('button', { name: 'Add rows' }));
+    expect(input.value).toBe(
+      `${before}\n${Array(3).fill('New row | detail | meta').join('\n')}`,
+    );
     expect(document.activeElement).toBe(
       screen.getByRole('textbox', { name: 'Data rows for tea_picks' }),
     );

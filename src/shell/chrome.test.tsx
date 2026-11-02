@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { Topbar } from './Topbar';
+import { Segmented } from '../components/ui';
 import { Canvas } from '../canvas/Canvas';
 import { useAgent } from '../store/useAgent';
 import { createProject, useProject } from '../store/useProject';
@@ -24,6 +25,28 @@ describe('shared shell chrome', () => {
       ).toBeTruthy();
     },
   );
+  it('adds an optional class only to the requested segmented control', () => {
+    const options = [
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ];
+    const view = render(
+      <Segmented label="Bare" value="a" options={options} onChange={() => {}} />,
+    );
+    expect(screen.getByRole('group', { name: 'Bare' }).className).toBe('segmented');
+    view.rerender(
+      <Segmented
+        label="Custom"
+        value="a"
+        options={options}
+        onChange={() => {}}
+        className="insp-tabs"
+      />,
+    );
+    expect(screen.getByRole('group', { name: 'Custom' }).className).toBe(
+      'segmented insp-tabs',
+    );
+  });
   it('renders the breakpoint switcher as a segmented group', () => {
     vi.stubGlobal(
       'ResizeObserver',
@@ -32,12 +55,10 @@ describe('shared shell chrome', () => {
         disconnect() {}
       },
     );
-    useProject
-      .getState()
-      .hydrate({
-        ...createProject(),
-        screens: [emptyScreen('Home', { id: 'home', entry: true })],
-      });
+    useProject.getState().hydrate({
+      ...createProject(),
+      screens: [emptyScreen('Home', { id: 'home', entry: true })],
+    });
     render(<Canvas />);
     const group = screen.getByRole('group', { name: 'Breakpoint' });
     expect(group.classList.contains('breakpoint-segmented')).toBe(true);

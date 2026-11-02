@@ -1,3 +1,4 @@
+import { sampleRows } from './nodeSamples';
 import {
   useState,
   createContext,
@@ -72,22 +73,15 @@ function dataRows(
 }
 
 function fallbackRows(node: ComponentNode, count = 4): Record<string, unknown>[] {
-  const seeds: Array<[string, string, string]> =
-    node.type === 'table'
-      ? [
-          ['Beacon launch', 'Ready', 'Oct 12'],
-          ['Signal audit', 'In review', 'Oct 14'],
-          ['Warm intro', 'Draft', 'Oct 18'],
-        ]
-      : [
-          ['Morning walk', '6,204 steps', '+12%'],
-          ['Deep work', '2h 40m', '+8%'],
-          ['Reading', '24 pages', '—'],
-          ['Water', '1.8 L', '+5%'],
-        ];
-  return seeds
+  return sampleRows(node.type)
     .slice(0, count)
-    .map(([a, b, c]) => ({ title: a, name: a, value: b, detail: b, meta: c }));
+    .map(({ title, detail, meta }) => ({
+      title,
+      name: title,
+      value: detail,
+      detail,
+      meta,
+    }));
 }
 
 function chartPoints(

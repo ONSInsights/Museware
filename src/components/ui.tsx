@@ -68,14 +68,20 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  className,
 }: {
   value: T;
   options: Array<{ value: T; label: string; title?: string; icon?: ReactNode }>;
   onChange: (v: T) => void;
   label: string;
+  className?: string;
 }) {
   return (
-    <div className="segmented" role="group" aria-label={label}>
+    <div
+      className={className ? `segmented ${className}` : 'segmented'}
+      role="group"
+      aria-label={label}
+    >
       {options.map((o) => (
         <button
           key={o.value}

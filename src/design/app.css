@@ -426,6 +426,17 @@ a {
   cursor: pointer;
 }
 
+.segmented.insp-tabs {
+  display: flex;
+  width: 100%;
+}
+.segmented.insp-tabs button {
+  flex: 1;
+  min-width: 0;
+  height: var(--mw-control-h);
+  font: 500 var(--mw-fs-12) / 1.4 var(--mw-font-ui);
+}
+
 .segmented button[aria-pressed='true'] {
   background: var(--mw-surface);
   color: var(--mw-ink);

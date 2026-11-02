@@ -288,6 +288,7 @@ export function Inspector() {
 
       <div className="inspector-tabs">
         <Segmented<Tab>
+          className="insp-tabs"
           label="Inspector sections"
           value={tab}
           onChange={setTab}
@@ -520,8 +521,9 @@ export function Inspector() {
                                 onCommit={(next) => writeProps({ [def.key]: next.trim() })}
                               />
                               <DataBlock
-                                key={`${screen.id}:${key}`}
+                                key={`${screen.id}:${key}:${node.type}`}
                                 screen={screen}
+                                nodeType={node.type}
                                 dataKey={key}
                                 doc={doc}
                               />
