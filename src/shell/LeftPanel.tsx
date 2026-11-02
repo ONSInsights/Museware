@@ -1,4 +1,4 @@
-import { Layers as LayersIcon, PanelLeftClose, PanelLeftOpen, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Layers as LayersIcon, Plus, X } from 'lucide-react';
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { Palette } from '../palette/Palette';
@@ -17,11 +17,17 @@ export function LeftPanel() {
 
   if (collapsed) {
     return (
-      <aside className="left-panel" data-collapsed="true">
+      <aside className="left-panel" data-collapsed="true" data-flyout={flyout}>
+        <button
+          type="button"
+          className="left-dock-toggle"
+          aria-label="Show panels"
+          title="Show panels"
+          onClick={toggleLeft}
+        >
+          <ChevronRight size={13} />
+        </button>
         <div className="left-collapse">
-          <IconButton label="Show panels" size="sm" onClick={toggleLeft}>
-            <PanelLeftOpen size={15} />
-          </IconButton>
           <IconButton
             label="Insert"
             size="sm"
@@ -51,6 +57,15 @@ export function LeftPanel() {
 
   return (
     <aside className="left-panel" data-flyout={flyout}>
+      <button
+        type="button"
+        className="left-dock-toggle"
+        aria-label={flyout ? 'Close panel' : 'Hide panels'}
+        title={flyout ? 'Close panel' : 'Hide panels'}
+        onClick={() => (flyout ? setFlyout(false) : toggleLeft())}
+      >
+        {flyout ? <X size={13} /> : <ChevronLeft size={13} />}
+      </button>
       <div className="panel-tabs">
         <button
           type="button"
@@ -74,13 +89,6 @@ export function LeftPanel() {
         >
           Layers
         </button>
-        <IconButton
-          label={flyout ? 'Close panel' : 'Hide panels'}
-          size="sm"
-          onClick={() => (flyout ? setFlyout(false) : toggleLeft())}
-        >
-          {flyout ? <X size={14} /> : <PanelLeftClose size={14} />}
-        </IconButton>
       </div>
       {leftTab === 'insert' ? <Palette /> : <Layers />}
       {screens.length === 0 && (

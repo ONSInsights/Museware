@@ -18,9 +18,10 @@ afterEach(cleanup);
 describe('screen switcher actions', () => {
   it('opens the screen actions outside the scrolling tabs', () => {
     render(<Topbar />);
-    fireEvent.click(screen.getByRole('button', { name: 'Screen actions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Screens menu' }));
     const menu = screen.getByRole('menu');
-    expect(menu.querySelector('button')?.textContent).toContain('Add screen');
+    expect(menu.querySelector('button')?.textContent).toContain('Screen 1');
+    expect(screen.getByText('Add screen')).toBeTruthy();
     expect(menu.closest('.screen-tabs')).toBeNull();
     expect(menu.parentElement).toBe(document.body); // Escapes the topbar stacking context.
     expect(screen.getByText('Duplicate current')).toBeTruthy();

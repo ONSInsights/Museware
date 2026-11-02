@@ -196,17 +196,16 @@ describe('the shell actually renders', () => {
     // can centre it while the frame itself keeps its true width.
     expect(frame().parentElement?.className).toBe('frame-fit');
 
-    const chip = document.querySelector('.canvas-toolbar .chip') as HTMLElement;
-    expect(chip).toBeTruthy();
-
-    fireEvent.click(chip);
+    fireEvent.click(screen.getByRole('button', { name: 'Medium 768' }));
     expect(useUi.getState().breakpoint).toBe('medium');
     expect(frame().getAttribute('data-bp')).toBe('medium');
 
-    fireEvent.click(chip);
+    fireEvent.click(screen.getByRole('button', { name: 'Expanded 1280' }));
     expect(useUi.getState().breakpoint).toBe('expanded');
     expect(frame().getAttribute('data-bp')).toBe('expanded');
-    expect(chip.textContent).toMatch(/expanded/i);
+    expect(
+      screen.getByRole('button', { name: 'Expanded 1280' }).getAttribute('aria-pressed'),
+    ).toBe('true');
 
     act(() => {
       useUi.getState().setBreakpoint('compact');
@@ -349,14 +348,14 @@ describe('the shell actually renders', () => {
 
     const bar = document.querySelector('.mobile-bottom-bar');
     expect(bar).toBeTruthy();
-    expect(bar?.querySelectorAll('button').length).toBe(5);
+    expect(bar?.querySelectorAll('button').length).toBe(4);
     expect(bar?.textContent).toMatch(/Insert/);
-    expect(bar?.textContent).toMatch(/Run/);
+    expect(bar?.textContent).not.toMatch(/Run/);
 
-    // Identity and viewport stay in the row; utilities collapse into the menu.
+    // Identity and screens stay in the row; viewport controls live on the canvas.
     expect(document.querySelector('.topbar .project-name')).toBeTruthy();
-    expect(document.querySelector('.topbar .breakpoint-segmented')).toBeTruthy();
-    expect(document.querySelectorAll('.topbar-utility').length).toBeGreaterThan(2);
+    expect(document.querySelector('.topbar .screen-switcher')).toBeTruthy();
+    expect(document.querySelector('.topbar .breakpoint-segmented')).toBeNull();
 
     const more = document.querySelector('.topbar-overflow button');
     expect(more).toBeTruthy();
@@ -364,9 +363,8 @@ describe('the shell actually renders', () => {
     const menu = document.querySelector('.menu[role=menu]');
     expect(menu).toBeTruthy();
     const inside = within(menu as HTMLElement);
-    expect(inside.getByText(/Settings & models/)).toBeTruthy();
-    expect(inside.getByText(/Export the app/)).toBeTruthy();
-    expect(inside.getByText(/Compact 390/)).toBeTruthy();
+    expect(inside.getByText(/Keyboard shortcuts/)).toBeTruthy();
+    expect(inside.getByText(/About Museware/)).toBeTruthy();
   });
 
   it('the inspector panel minimizes to an edge tab and widens on demand', async () => {

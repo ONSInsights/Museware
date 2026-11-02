@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties } from 'react';
-import { GripVertical, ImagePlus, Monitor, Plus, Smartphone, Sparkles } from 'lucide-react';
+import {
+  GripVertical,
+  ImagePlus,
+  Monitor,
+  Smartphone,
+  Sparkles,
+  Tablet,
+} from 'lucide-react';
 import { useProject } from '../store/useProject';
 import { useUi, BREAKPOINT_WIDTHS } from '../store/useUi';
 import { useDrag, buildDropOps, nodeIdFromElement, dropTargetFor } from './drag';
 import { fitScale, fitSize, toLocalBox } from './fit';
 import { CanvasStyle, NodeView } from './NodeView';
 import { findNode } from '../ops/treeUtils';
-import { addScreenBatch } from '../ops/screenOps';
 import { recreateFromScreenshot } from '../muse/screenshot';
 import { Button } from '../components/ui';
 
@@ -30,7 +36,6 @@ export function Canvas() {
   const setActiveScreen = useUi((s) => s.setActiveScreen);
   const breakpoint = useUi((s) => s.breakpoint);
   const setBreakpoint = useUi((s) => s.setBreakpoint);
-  const setRunMode = useUi((s) => s.setRunMode);
   const runMode = useUi((s) => s.runMode);
   const startPrompt = useUi((s) => s.startPrompt);
   const toast = useUi((s) => s.toast);
@@ -270,18 +275,6 @@ export function Canvas() {
     return () => window.removeEventListener('keydown', onKey);
   }, [applyBatch, editing, screen, select, selectedId, toast]);
 
-  const addScreen = () => {
-    const batch = addScreenBatch(doc, `Screen ${doc.screens.length + 1}`);
-    const res = applyBatch(batch, { source: 'user' });
-    if (res.errors.length) {
-      toast(res.errors[0].message, 'warn');
-      return;
-    }
-    const created = useProject.getState().doc.screens.slice(-1)[0];
-    if (created) setActiveScreen(created.id);
-    toast('Screen added', 'ok');
-  };
-
   const commitEdit = () => {
     if (!editing) return;
     const node = screen ? findNode(screen.root, editing.id) : null;
@@ -310,9 +303,6 @@ export function Canvas() {
               }
             >
               Start from a prompt
-            </Button>
-            <Button variant="secondary" onClick={addScreen}>
-              <Plus size={13} /> Blank screen
             </Button>
             <Button
               variant="secondary"
@@ -345,7 +335,6 @@ export function Canvas() {
 
   const width = BREAKPOINT_WIDTHS[breakpoint];
   const frameHeight = fit.h && fit.k ? Math.round(fit.h / fit.k) : 780;
-  const BpIcon = breakpoint === 'compact' ? Smartphone : Monitor;
   const findPath = (
     node: typeof screen.root,
     id: string,
@@ -374,33 +363,32 @@ export function Canvas() {
             </span>
           ))}
         </nav>
-        <span className="faint mono mw-shell-util-3">
-          {screen.id} · {width}px {screen.entry ? '· entry' : ''}
-        </span>
         <span className="mw-shell-util-17" />
-        <button
-          type="button"
-          className="chip"
-          title={`Switch breakpoint (1 · 2 · 3) — ${width}px${
-            fit.k < 0.999
-              ? `, shown at ${Math.round(fit.k * 100)}% so the whole frame fits`
-              : ''
-          }. Watches are out of scope in v1.`}
-          onClick={() =>
-            setBreakpoint(
-              breakpoint === 'compact'
-                ? 'medium'
-                : breakpoint === 'medium'
-                  ? 'expanded'
-                  : 'compact',
-            )
-          }
+        <div
+          className="segmented breakpoint-segmented"
+          role="group"
+          aria-label="Breakpoint"
         >
-          <BpIcon size={11} /> {breakpoint}
-          {fit.k < 0.999 && (
-            <span className="faint mono"> · {Math.round(fit.k * 100)}%</span>
-          )}
-        </button>
+          {(
+            [
+              { value: 'compact', label: 'Compact 390', icon: Smartphone },
+              { value: 'medium', label: 'Medium 768', icon: Tablet },
+              { value: 'expanded', label: 'Expanded 1280', icon: Monitor },
+            ] as const
+          ).map((bp) => (
+            <button
+              type="button"
+              key={bp.value}
+              aria-pressed={breakpoint === bp.value}
+              aria-label={bp.label}
+              title={`${bp.label} — editing this width`}
+              onClick={() => setBreakpoint(bp.value)}
+            >
+              <bp.icon size={14} />
+              <span className="bp-label mono">{BREAKPOINT_WIDTHS[bp.value]}</span>
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="chip"
@@ -413,16 +401,6 @@ export function Canvas() {
         >
           {actualSize ? '100%' : 'Fit'}
         </button>
-        {/* On a phone the tab bar already owns Run and the overflow menu owns
-            Add screen, so these two would be the same action twice in 56px. */}
-        <span className="topbar-desktop mw-shell-util-5">
-          <Button size="sm" variant="ghost" onClick={() => setRunMode(true, screen.id)}>
-            ▶ Run
-          </Button>
-          <Button size="sm" variant="ghost" onClick={addScreen}>
-            <Plus size={13} /> Screen
-          </Button>
-        </span>
       </div>
 
       <div

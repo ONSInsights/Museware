@@ -1,27 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Home,
-  Copy,
   Download,
-  Laptop,
-  Play,
-  LayoutGrid,
-  Monitor,
+  Home,
   Moon,
   MoreHorizontal,
+  Play,
   Plus,
   Redo2,
-  Smartphone,
   Sparkles,
   Square,
   Sun,
-  Trash2,
   Undo2,
-  Upload,
-  X,
 } from 'lucide-react';
 import { useProject } from '../store/useProject';
-import { useUi, BREAKPOINT_WIDTHS, type Breakpoint } from '../store/useUi';
+import { useUi } from '../store/useUi';
 import { useAgent } from '../store/useAgent';
 import { IconButton, Menu } from '../components/ui';
 import {
@@ -33,12 +25,6 @@ import {
 import { stopAgent } from '../muse/loop';
 import { closeProject, downloadProjectFile, readProjectFile } from '../persist/save';
 import { parseProjectDoc } from '../persist/schema';
-
-const BPS: Array<{ value: Breakpoint; label: string; icon: typeof Smartphone }> = [
-  { value: 'compact', label: 'Compact 390', icon: Smartphone },
-  { value: 'medium', label: 'Medium 768', icon: Laptop },
-  { value: 'expanded', label: 'Expanded 1280', icon: Monitor },
-];
 
 export function Topbar() {
   const doc = useProject((s) => s.doc);
@@ -53,33 +39,72 @@ export function Topbar() {
   const activeScreenId = useUi((s) => s.activeScreenId);
   const setActiveScreen = useUi((s) => s.setActiveScreen);
   const select = useUi((s) => s.select);
-  const breakpoint = useUi((s) => s.breakpoint);
-  const setBreakpoint = useUi((s) => s.setBreakpoint);
-  const leftCollapsed = useUi((s) => s.leftCollapsed);
-  const toggleLeft = useUi((s) => s.toggleLeft);
   const setRunMode = useUi((s) => s.setRunMode);
-  const setLeftTab = useUi((s) => s.setLeftTab);
-  const setLeftFlyout = useUi((s) => s.setLeftFlyout);
   const setMobileRail = useUi((s) => s.setMobileRail);
   const setModal = useUi((s) => s.setModal);
   const setRoute = useUi((s) => s.setRoute);
   const theme = useUi((s) => s.theme);
   const setTheme = useUi((s) => s.setTheme);
   const toast = useUi((s) => s.toast);
-  const [menu, setMenu] = useState<
-    'file' | 'theme' | 'screen' | 'overview' | 'more' | null
-  >(null);
+  const [menu, setMenu] = useState<'screen' | 'file' | 'muse' | 'more' | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [editingProjectName, setEditingProjectName] = useState(false);
-  const importRef = useRef<HTMLInputElement>(null);
   const [saved, setSaved] = useState(false);
+  const [width, setWidth] = useState(() => window.innerWidth);
+  const [hiddenTabs, setHiddenTabs] = useState(0);
+  const [tabsOverflow, setTabsOverflow] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const activeId = activeScreenId || doc.screens[0]?.id;
+  const historyOverflow = width <= 900;
+  const utilitiesOverflow = width <= 1100;
+  const homeOverflow = width <= 700;
 
   useEffect(() => {
     setSaved(false);
     const timer = window.setTimeout(() => setSaved(true), 1400);
     return () => window.clearTimeout(timer);
   }, [doc.updatedAt]);
+  useEffect(() => {
+    const resize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+  useLayoutEffect(() => {
+    const tabs = tabsRef.current;
+    if (!tabs) return;
+    const measure = () => {
+      const bounds = tabs.getBoundingClientRect();
+      setTabsOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
+      setHiddenTabs(
+        Array.from(tabs.querySelectorAll<HTMLElement>('.screen-tab')).filter((el) => {
+          const rect = el.getBoundingClientRect();
+          return rect.right <= bounds.left + 1 || rect.left >= bounds.right - 1;
+        }).length,
+      );
+    };
+    const active = tabs.querySelector<HTMLElement>('.screen-tab[data-active="true"]');
+    if (active && tabs.clientWidth) {
+      const area = tabs.getBoundingClientRect();
+      const rect = active.getBoundingClientRect();
+      if (rect.width > area.width) tabs.scrollLeft += rect.left - area.left;
+      else if (rect.left < area.left) tabs.scrollLeft -= area.left - rect.left;
+      else if (rect.right > area.right) tabs.scrollLeft += rect.right - area.right;
+    }
+    measure();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(tabs);
+    Array.from(tabs.children).forEach((child) => observer?.observe(child));
+    tabs.addEventListener('scroll', measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      tabs.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+    };
+  }, [activeId, doc.screens, width, hiddenTabs > 0]);
 
   const run = (ops: unknown[], ok?: string) => {
     const res = applyBatch(ops, { source: 'user' });
@@ -90,21 +115,86 @@ export function Topbar() {
     if (ok) toast(ok);
     return true;
   };
-
   const addScreen = () => {
-    const name = `Screen ${doc.screens.length + 1}`;
-    if (!run(addScreenBatch(doc, name), 'Screen added')) return;
+    if (!run(addScreenBatch(doc, `Screen ${doc.screens.length + 1}`), 'Screen added'))
+      return;
     const created = useProject.getState().doc.screens.slice(-1)[0];
     if (created) {
       setActiveScreen(created.id);
       select(null);
     }
   };
-
-  const cycleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark');
+  const current = doc.screens.find((screen) => screen.id === activeId);
+  const home = () => {
+    void closeProject(useProject.getState().projectId)
+      .then(() => setRoute('projects'))
+      .catch(() => toast('Could not save this project.', 'warn'));
   };
-
+  const openMuse = () => setMobileRail(true);
+  const cycleTheme = () =>
+    setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark');
+  const exportActions = (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setMenu(null);
+          setModal('exportOpen', true);
+        }}
+      >
+        Export the app…
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setMenu(null);
+          downloadProjectFile(doc);
+        }}
+      >
+        Download project .json
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setMenu(null);
+          importRef.current?.click();
+        }}
+      >
+        Import project .json
+      </button>
+    </>
+  );
+  const museActions = (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setMenu(null);
+          openMuse();
+        }}
+      >
+        Open muse
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setMenu(null);
+          setModal('receiptsOpen', true);
+        }}
+      >
+        Receipts
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setMenu(null);
+          setModal('settingsOpen', true);
+        }}
+      >
+        Settings &amp; models
+      </button>
+    </>
+  );
   return (
     <header className="topbar">
       <button
@@ -114,26 +204,23 @@ export function Topbar() {
         title="Back to the start page"
         onClick={() => setRoute('landing')}
       >
-        <svg width="0" height="0" aria-hidden="true" className="mw-shell-util-1">
-          <defs>
-            <linearGradient id="muse-brand-gradient" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="var(--mw-accent)" />
-              <stop offset="100%" stopColor="var(--mw-accent-2)" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <Sparkles
-          size={18}
+        <svg
           className="brand-mark"
-          stroke="url(#muse-brand-gradient)"
-          strokeWidth={1.8}
-        />
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3z" />
+          <path d="M19 16v4M17 18h4" />
+        </svg>
         <span className="brand-word">
-          {'museware'}
-          <em>.</em>
+          museware<em>.</em>
         </span>
       </button>
-
       <div className="project-name mw-shell-util-2">
         <input
           value={doc.name}
@@ -153,77 +240,84 @@ export function Topbar() {
           {saved ? 'saved' : 'saving…'}
         </span>
       </div>
-
       <div className="screen-switcher">
-        <div className="screen-tabs">
-          {doc.screens.map((screen) => (
-            <button
-              type="button"
-              key={screen.id}
-              className="screen-tab"
-              data-active={screen.id === (activeScreenId || doc.screens[0]?.id)}
-              title={`${screen.name} · ${screen.id}${screen.entry ? ' · entry' : ''}`}
-              onClick={() => {
-                setActiveScreen(screen.id);
-                select(null);
-              }}
-              onDoubleClick={() => {
-                setRenaming(screen.id);
-                setRenameValue(screen.name);
-              }}
-            >
-              {screen.entry && <span className="badge-dot" data-tone="ok" />}
-              {renaming === screen.id ? (
-                <input
-                  className="input mw-shell-util-4"
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onBlur={() => {
-                    const next = renameValue.trim();
-                    setRenaming(null);
-                    if (next && next !== screen.name)
-                      run(renameScreenBatch(doc, screen.id, next));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    if (e.key === 'Escape') setRenaming(null);
-                  }}
-                />
-              ) : (
-                screen.name
-              )}
-            </button>
-          ))}
-        </div>
-        <span className="topbar-desktop mw-shell-util-5">
-          <IconButton label="Add screen" size="sm" onClick={addScreen}>
-            <Plus size={14} />
-          </IconButton>
-        </span>
-        <div className="topbar-desktop mw-shell-util-2">
-          <IconButton
-            label="Screens overview"
-            size="sm"
-            active={menu === 'overview'}
-            onClick={() => setMenu(menu === 'overview' ? null : 'overview')}
-          >
-            <LayoutGrid size={14} />
-          </IconButton>
-          <Menu open={menu === 'overview'} onClose={() => setMenu(null)} align="left">
+        <div className="screen-tabs-clip" data-overflow={tabsOverflow}>
+          <div className="screen-tabs" ref={tabsRef}>
             {doc.screens.map((screen) => (
               <button
                 type="button"
                 key={screen.id}
+                className="screen-tab"
+                data-active={screen.id === activeId}
+                title={`${screen.name} · ${screen.id}${screen.entry ? ' · entry' : ''}`}
+                onClick={() => {
+                  setActiveScreen(screen.id);
+                  select(null);
+                }}
+                onDoubleClick={() => {
+                  setRenaming(screen.id);
+                  setRenameValue(screen.name);
+                }}
+              >
+                {screen.entry && <span className="badge-dot" data-tone="ok" />}
+                {renaming === screen.id ? (
+                  <input
+                    className="input mw-shell-util-4"
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={() => {
+                      const next = renameValue.trim();
+                      setRenaming(null);
+                      if (next && next !== screen.name)
+                        run(renameScreenBatch(doc, screen.id, next));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      if (e.key === 'Escape') setRenaming(null);
+                    }}
+                  />
+                ) : (
+                  screen.name
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="screens-menu-anchor mw-shell-util-2">
+          {hiddenTabs > 0 && (
+            <button
+              type="button"
+              className="screen-overflow-count"
+              aria-label={`${hiddenTabs} hidden screens`}
+              onClick={() => setMenu(menu === 'screen' ? null : 'screen')}
+            >
+              +{hiddenTabs}
+            </button>
+          )}
+          <IconButton
+            label="Screens menu"
+            size="sm"
+            active={menu === 'screen'}
+            onClick={() => setMenu(menu === 'screen' ? null : 'screen')}
+          >
+            <Plus size={14} />
+          </IconButton>
+          <Menu open={menu === 'screen'} onClose={() => setMenu(null)} align="left">
+            {doc.screens.map((screen) => (
+              <button
+                type="button"
+                key={screen.id}
+                aria-current={screen.id === activeId ? 'page' : undefined}
                 onClick={() => {
                   setActiveScreen(screen.id);
                   select(null);
                   setMenu(null);
                 }}
               >
+                {screen.id === activeId ? '✓ ' : ''}
                 {screen.name}
-                {screen.entry ? ' · entry' : ''}
               </button>
             ))}
             {!doc.screens.length && (
@@ -231,29 +325,7 @@ export function Topbar() {
                 No screens yet
               </button>
             )}
-          </Menu>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Projects home"
-            disabled={busy}
-            onClick={() => {
-              void closeProject(useProject.getState().projectId)
-                .then(() => setRoute('projects'))
-                .catch(() => toast('Could not save this project.', 'warn'));
-            }}
-          >
-            <Home size={16} />
-          </button>
-          <IconButton
-            label="Screen actions"
-            size="sm"
-            active={menu === 'screen'}
-            onClick={() => setMenu(menu === 'screen' ? null : 'screen')}
-          >
-            <LayoutGrid size={14} />
-          </IconButton>
-          <Menu open={menu === 'screen'} onClose={() => setMenu(null)} align="left">
+            <hr />
             <button
               type="button"
               onClick={() => {
@@ -261,54 +333,45 @@ export function Topbar() {
                 addScreen();
               }}
             >
-              <Plus size={13} /> Add screen
+              Add screen
             </button>
             <button
               type="button"
+              disabled={!current}
               onClick={() => {
                 setMenu(null);
-                const current = doc.screens.find(
-                  (s) => s.id === (activeScreenId || doc.screens[0]?.id),
-                );
-                if (!current) return;
-                if (run(duplicateScreenBatch(doc, current.id), 'Screen duplicated')) {
+                if (
+                  current &&
+                  run(duplicateScreenBatch(doc, current.id), 'Screen duplicated')
+                ) {
                   const created = useProject.getState().doc.screens.slice(-1)[0];
                   if (created) setActiveScreen(created.id);
                 }
               }}
             >
-              <Copy size={13} /> Duplicate current
+              Duplicate current
             </button>
             <button
               type="button"
+              disabled={!current}
               onClick={() => {
                 setMenu(null);
-                const current = doc.screens.find(
-                  (s) => s.id === (activeScreenId || doc.screens[0]?.id),
-                );
                 if (current) {
                   setRenaming(current.id);
                   setRenameValue(current.name);
                 }
               }}
             >
-              <Sparkles size={13} /> Rename current
+              Rename current
             </button>
-            <hr />
             <button
               type="button"
               className="danger"
+              disabled={!current || doc.screens.length <= 1}
               onClick={() => {
                 setMenu(null);
-                const current = doc.screens.find(
-                  (s) => s.id === (activeScreenId || doc.screens[0]?.id),
-                );
-                if (!current) return;
-                if (doc.screens.length === 1) {
-                  toast('The last screen cannot be removed.', 'warn');
-                  return;
-                }
                 if (
+                  current &&
                   run(deleteScreenBatch(doc, current.id), 'Screen removed — ⌘Z restores it')
                 ) {
                   const next = useProject.getState().doc.screens[0];
@@ -316,57 +379,43 @@ export function Topbar() {
                 }
               }}
             >
-              <Trash2 size={13} /> Delete current
+              Delete current
             </button>
           </Menu>
         </div>
       </div>
-
+      {!homeOverflow && (
+        <IconButton label="Projects home" size="sm" disabled={busy} onClick={home}>
+          <Home size={15} />
+        </IconButton>
+      )}
       <span className="topbar-spacer" />
-
-      <div className="segmented breakpoint-segmented" role="group" aria-label="Breakpoint">
-        {BPS.map((bp) => {
-          const Icon = bp.icon;
-          return (
-            <button
-              type="button"
-              key={bp.value}
-              aria-pressed={breakpoint === bp.value}
-              title={`${bp.label} — editing this width`}
-              onClick={() => setBreakpoint(bp.value)}
-            >
-              <Icon size={14} />
-              <span className="bp-label mono">{BREAKPOINT_WIDTHS[bp.value]}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <span className="topbar-history mw-shell-util-5">
-        <IconButton
-          label={`Undo${undoDepth ? ` (${undoDepth})` : ''}`}
-          size="sm"
-          disabled={!undoDepth}
-          onClick={() => undo()}
-        >
-          <Undo2 size={15} />
-        </IconButton>
-        <IconButton
-          label={`Redo${redoDepth ? ` (${redoDepth})` : ''}`}
-          size="sm"
-          disabled={!redoDepth}
-          onClick={() => redo()}
-        >
-          <Redo2 size={15} />
-        </IconButton>
-      </span>
-
+      {!historyOverflow && (
+        <span className="topbar-history mw-shell-util-5">
+          <IconButton
+            label={`Undo${undoDepth ? ` (${undoDepth})` : ''}`}
+            size="sm"
+            disabled={!undoDepth}
+            onClick={() => undo()}
+          >
+            <Undo2 size={15} />
+          </IconButton>
+          <IconButton
+            label={`Redo${redoDepth ? ` (${redoDepth})` : ''}`}
+            size="sm"
+            disabled={!redoDepth}
+            onClick={() => redo()}
+          >
+            <Redo2 size={15} />
+          </IconButton>
+        </span>
+      )}
       <div className="topbar-right">
         {busy ? (
           <button
             type="button"
             className="stop-btn"
-            onClick={() => stopAgent()}
+            onClick={stopAgent}
             title="Stop the agent"
             aria-label="Stop the agent"
           >
@@ -378,149 +427,45 @@ export function Topbar() {
             className="run-btn"
             onClick={() =>
               doc.screens.length
-                ? setRunMode(true, activeScreenId || doc.screens[0].id)
+                ? setRunMode(true, activeId)
                 : toast('Create or generate a screen first to run the app', 'warn')
             }
             title={doc.screens.length ? 'Run the app (⌘⏎)' : 'Start with a prompt'}
             aria-label={doc.screens.length ? 'Run the app' : 'Start with a prompt'}
           >
-            <Play size={13} fill="currentColor" strokeWidth={0} />
-            <span className="run-label">Run</span>
+            <Play size={13} fill="currentColor" strokeWidth={0} /> Run
           </button>
         )}
-        <span className="topbar-utility">
-          <IconButton
-            label={leftCollapsed ? 'Show panels' : 'Hide panels'}
-            size="sm"
-            onClick={toggleLeft}
-          >
-            <LayoutGrid size={15} />
-          </IconButton>
-        </span>
-
-        <div className="topbar-utility mw-shell-util-2">
-          <IconButton
-            label="Theme"
-            size="sm"
-            active={menu === 'theme'}
-            onClick={() => setMenu(menu === 'theme' ? null : 'theme')}
-          >
-            {theme === 'dark' ? (
-              <Moon size={15} />
-            ) : theme === 'light' ? (
-              <Sun size={15} />
-            ) : (
-              <Monitor size={15} />
-            )}
-          </IconButton>
-          <Menu open={menu === 'theme'} onClose={() => setMenu(null)}>
-            <button
-              type="button"
-              onClick={() => {
-                setTheme('dark');
-                setMenu(null);
-              }}
-            >
-              <Moon size={13} /> Dark chrome
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTheme('light');
-                setMenu(null);
-              }}
-            >
-              <Sun size={13} /> Light chrome
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTheme('auto');
-                setMenu(null);
-              }}
-            >
-              <Monitor size={13} /> Follow the system
-            </button>
-            <hr />
-            <button
-              type="button"
-              onClick={() => {
-                cycleTheme();
-                setMenu(null);
-              }}
-            >
-              Cycle theme
-            </button>
-          </Menu>
-        </div>
-        <span className="topbar-utility mw-shell-util-5">
-          <IconButton
-            label="Settings & models"
-            size="sm"
-            onClick={() => setModal('settingsOpen', true)}
-          >
-            <Sparkles size={15} />
-          </IconButton>
-        </span>
-        <div className="topbar-utility mw-shell-util-2">
-          <IconButton
-            label="Project file"
-            size="sm"
-            active={menu === 'file'}
-            onClick={() => setMenu(menu === 'file' ? null : 'file')}
-          >
-            <Download size={15} />
-          </IconButton>
-          <Menu open={menu === 'file'} onClose={() => setMenu(null)}>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setModal('exportOpen', true);
-              }}
-            >
-              <Download size={13} /> Export the app…
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                downloadProjectFile(doc);
-              }}
-            >
-              <Download size={13} /> Download project .json
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                importRef.current?.click();
-              }}
-            >
-              <Upload size={13} /> Import project .json
-            </button>
-            <hr />
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setModal('receiptsOpen', true);
-              }}
-            >
-              <Sparkles size={13} /> Receipts
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setModal('shortcutsOpen', true);
-              }}
-            >
-              <X size={13} /> Keyboard shortcuts
-            </button>
-          </Menu>
-        </div>
-        {/* Phones: everything the desktop bar shows, in one 44px target. */}
+        {!utilitiesOverflow && (
+          <>
+            <div className="mw-shell-util-2">
+              <IconButton
+                label="Muse menu"
+                size="sm"
+                active={menu === 'muse'}
+                onClick={() => setMenu(menu === 'muse' ? null : 'muse')}
+              >
+                <Sparkles size={15} />
+              </IconButton>
+              <Menu open={menu === 'muse'} onClose={() => setMenu(null)}>
+                {museActions}
+              </Menu>
+            </div>
+            <div className="mw-shell-util-2">
+              <IconButton
+                label="Project file"
+                size="sm"
+                active={menu === 'file'}
+                onClick={() => setMenu(menu === 'file' ? null : 'file')}
+              >
+                <Download size={15} />
+              </IconButton>
+              <Menu open={menu === 'file'} onClose={() => setMenu(null)}>
+                {exportActions}
+              </Menu>
+            </div>
+          </>
+        )}
         <div className="topbar-overflow mw-shell-util-2">
           <IconButton
             label="More actions"
@@ -531,109 +476,51 @@ export function Topbar() {
             <MoreHorizontal size={16} />
           </IconButton>
           <Menu open={menu === 'more'} onClose={() => setMenu(null)}>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setLeftTab('insert');
-                setLeftFlyout(true);
-              }}
-            >
-              <Plus size={13} /> Insert components
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setLeftTab('layers');
-                setLeftFlyout(true);
-              }}
-            >
-              <LayoutGrid size={13} /> Layers
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                addScreen();
-              }}
-            >
-              <Plus size={13} /> Add screen
-            </button>
-            {doc.screens.map((screen) => (
-              <button
-                type="button"
-                key={screen.id}
-                onClick={() => {
-                  setActiveScreen(screen.id);
-                  select(null);
-                  setMenu(null);
-                }}
-              >
-                <LayoutGrid size={13} /> {screen.name}
-                {screen.entry ? ' · entry' : ''}
-              </button>
-            ))}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setMenu(null);
-                void closeProject(useProject.getState().projectId)
-                  .then(() => setRoute('projects'))
-                  .catch(() => toast('Could not save this project.', 'warn'));
-              }}
-            >
-              <Home size={13} /> Projects home
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setMobileRail(true);
-              }}
-            >
-              <Sparkles size={13} /> Open muse
-            </button>
-            <hr />
-            {BPS.map((bp) => {
-              const Icon = bp.icon;
-              return (
+            {historyOverflow && (
+              <>
                 <button
                   type="button"
-                  key={bp.value}
+                  disabled={!undoDepth}
                   onClick={() => {
-                    setBreakpoint(bp.value);
+                    undo();
                     setMenu(null);
                   }}
                 >
-                  <Icon size={13} /> {bp.label}
-                  {breakpoint === bp.value ? ' ✓' : ''}
+                  Undo
                 </button>
-              );
-            })}
-            <hr />
-            <button
-              type="button"
-              disabled={!undoDepth}
-              onClick={() => {
-                undo();
-                setMenu(null);
-              }}
-            >
-              <Undo2 size={13} /> Undo
-            </button>
-            <button
-              type="button"
-              disabled={!redoDepth}
-              onClick={() => {
-                redo();
-                setMenu(null);
-              }}
-            >
-              <Redo2 size={13} /> Redo
-            </button>
-            <hr />
+                <button
+                  type="button"
+                  disabled={!redoDepth}
+                  onClick={() => {
+                    redo();
+                    setMenu(null);
+                  }}
+                >
+                  Redo
+                </button>
+                <hr />
+              </>
+            )}
+            {homeOverflow && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setMenu(null);
+                  home();
+                }}
+              >
+                Projects home
+              </button>
+            )}
+            {utilitiesOverflow && (
+              <>
+                {museActions}
+                <hr />
+                {exportActions}
+                <hr />
+              </>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -641,52 +528,16 @@ export function Topbar() {
                 setMenu(null);
               }}
             >
-              {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />} Theme: {theme}
+              {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />} Theme: {theme}
             </button>
             <button
               type="button"
               onClick={() => {
                 setMenu(null);
-                setModal('settingsOpen', true);
+                setModal('shortcutsOpen', true);
               }}
             >
-              <Sparkles size={13} /> Settings &amp; models
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setModal('exportOpen', true);
-              }}
-            >
-              <Download size={13} /> Export the app…
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                downloadProjectFile(doc);
-              }}
-            >
-              <Download size={13} /> Download .json
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                importRef.current?.click();
-              }}
-            >
-              <Upload size={13} /> Import .json
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setModal('receiptsOpen', true);
-              }}
-            >
-              <Sparkles size={13} /> Receipts
+              Keyboard shortcuts
             </button>
             <button
               type="button"
@@ -695,7 +546,7 @@ export function Topbar() {
                 setModal('onboardingOpen', true);
               }}
             >
-              <X size={13} /> About Museware
+              About Museware
             </button>
           </Menu>
         </div>
@@ -709,8 +560,7 @@ export function Topbar() {
             e.target.value = '';
             if (!file) return;
             try {
-              const incoming = await readProjectFile(file);
-              const parsed = parseProjectDoc(incoming);
+              const parsed = parseProjectDoc(await readProjectFile(file));
               replaceDoc(parsed);
               const first = parsed.screens.find((s) => s.entry) || parsed.screens[0];
               if (first) setActiveScreen(first.id);

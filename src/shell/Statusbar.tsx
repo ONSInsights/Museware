@@ -1,17 +1,14 @@
-import { CircleDot, Command, Receipt as ReceiptIcon, Square } from 'lucide-react';
+import { CircleDot } from 'lucide-react';
 import { useProject } from '../store/useProject';
 import { useUi, BREAKPOINT_WIDTHS } from '../store/useUi';
 import { useAgent } from '../store/useAgent';
 import { countNodes } from '../ops/treeUtils';
-import { stopAgent } from '../muse/loop';
 
 export function Statusbar() {
   const doc = useProject((s) => s.doc);
   const lastResult = useProject((s) => s.lastResult);
   const activeScreenId = useUi((s) => s.activeScreenId);
   const breakpoint = useUi((s) => s.breakpoint);
-  const setModal = useUi((s) => s.setModal);
-  const setRunMode = useUi((s) => s.setRunMode);
   const busy = useAgent((s) => s.busy);
   const sessionRequests = useAgent((s) => s.sessionRequests);
   const demoMode = useAgent((s) => s.demoMode);
@@ -37,22 +34,12 @@ export function Statusbar() {
         <span data-tone="danger">{lastResult.errors[0].message}</span>
       ) : null}
       <span className="status-spacer" />
-      {busy && (
-        <button type="button" onClick={() => stopAgent()} data-tone="danger">
-          <Square size={9} /> Stop
-        </button>
-      )}
-      <button type="button" onClick={() => setModal('receiptsOpen', true)}>
-        <ReceiptIcon size={10} /> {sessionRequests} request
-        {sessionRequests === 1 ? '' : 's'}
-      </button>
-      <button type="button" onClick={() => setModal('shortcutsOpen', true)}>
-        <Command size={10} /> shortcuts
-      </button>
+      <span>{busy ? 'muse working' : 'muse idle'}</span>
+      <span>
+        {sessionRequests} request{sessionRequests === 1 ? '' : 's'}
+      </span>
       <span>{demoMode ? 'local engine' : 'muse live'}</span>
-      <button type="button" onClick={() => setRunMode(true, screen?.id)}>
-        ▶ run
-      </button>
+      <span>run</span>
     </footer>
   );
 }

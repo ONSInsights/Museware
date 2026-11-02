@@ -3821,7 +3821,7 @@ button.how-card .field-hint {
 
   /* ---------- tab bar ---------- */
   /*
-     Five destinations, one row, thumb height. The active one is a filled
+     Four destinations, one row, thumb height. The active one is a filled
      accent pill with the accent ink, because on a phone the icon alone is too
      small a signal. Everything is a token: radius, height, colour, gap.
   */
@@ -6144,4 +6144,90 @@ button.how-card .field-hint {
   .topbar-right .stop-btn {
     padding: 0 var(--mw-space-2);
   }
+}
+
+/* PR-P: file controls live in the topbar, view controls live on the canvas. */
+.topbar-overflow {
+  display: block;
+  flex: 0 0 auto;
+}
+.screen-switcher {
+  flex: 0 1 auto;
+}
+.screen-tabs-clip {
+  min-width: 0;
+  overflow: hidden;
+}
+.screen-tabs-clip[data-overflow='true'] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--mw-space-2),
+    black calc(100% - var(--mw-space-2)),
+    transparent
+  );
+}
+.screen-tabs {
+  max-width: 100%;
+  scrollbar-width: none;
+}
+.screen-tabs::-webkit-scrollbar {
+  display: none;
+}
+.screens-menu-anchor {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.screen-overflow-count {
+  border: 0;
+  border-radius: var(--mw-radius-sm);
+  background: var(--mw-surface-2);
+  color: var(--mw-ink-2);
+  padding: var(--mw-space-1);
+  font: 600 var(--mw-fs-11) var(--mw-font-ui);
+  cursor: pointer;
+}
+.left-panel {
+  position: relative;
+}
+.left-dock-toggle {
+  position: absolute;
+  right: calc(-1 * var(--mw-space-2));
+  top: var(--mw-space-2);
+  z-index: var(--mw-z-panels);
+  width: var(--mw-space-4);
+  height: var(--mw-space-6);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--mw-border);
+  border-radius: var(--mw-radius-sm);
+  background: var(--mw-surface);
+  color: var(--mw-ink-2);
+  cursor: pointer;
+}
+.canvas-toolbar nav {
+  overflow: auto;
+  white-space: nowrap;
+  min-width: 0;
+}
+.canvas-toolbar .breakpoint-segmented {
+  flex: 0 0 auto;
+}
+@media (max-width: 700px) {
+  .topbar .screen-switcher {
+    flex: 1 1 0;
+  }
+  .canvas-toolbar .breakpoint-segmented .bp-label {
+    display: none;
+  }
+  .canvas-toolbar .breakpoint-segmented button {
+    width: var(--mw-control-h-sm);
+    min-width: 0;
+    padding: 0;
+    justify-content: center;
+  }
+}
+.screen-tabs .screen-tab {
+  flex: 0 0 auto;
 }

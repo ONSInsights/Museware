@@ -1,11 +1,4 @@
-import {
-  ChevronLeft,
-  Layers,
-  LayoutGrid,
-  Play,
-  SlidersHorizontal,
-  Sparkles,
-} from 'lucide-react';
+import { ChevronLeft, Layers, LayoutGrid, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { Topbar } from './Topbar';
@@ -19,9 +12,6 @@ export function Editor() {
   const setLeftTab = useUi((s) => s.setLeftTab);
   const setLeftFlyout = useUi((s) => s.setLeftFlyout);
   const setChatExpanded = useUi((s) => s.setChatExpanded);
-  const setRunMode = useUi((s) => s.setRunMode);
-  const startPrompt = useUi((s) => s.startPrompt);
-  const activeScreenId = useUi((s) => s.activeScreenId);
   const screens = useProject((s) => s.doc.screens);
   const leftTab = useUi((s) => s.leftTab);
   const leftFlyout = useUi((s) => s.leftFlyout);
@@ -94,17 +84,6 @@ export function Editor() {
         >
           <Sparkles size={18} />
           <span>muse</span>
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            screens.length
-              ? setRunMode(true, activeScreenId || screens[0].id)
-              : startPrompt('Design me a small app to start from.')
-          }
-        >
-          <Play size={18} />
-          <span>Run</span>
         </button>
       </nav>
       <Statusbar />
