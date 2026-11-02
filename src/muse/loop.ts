@@ -1088,7 +1088,10 @@ async function runTool(
 
     case 'finish': {
       const a = args as { summary: string };
-      if (!opts.scope && !opts.repairIds) addAgent(a.summary);
+      if (!opts.scope && !opts.repairIds) {
+        useProject.getState().snapshotProjectTheme();
+        addAgent(a.summary);
+      }
       return { text: 'ok: turn finished.', finished: true };
     }
 
@@ -2246,6 +2249,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           .getState()
           .rememberScreenBuild(card.id, id, beforeScreens.get(id) ?? null);
       const count = completed.size;
+      if (count && !controller.signal.aborted) useProject.getState().snapshotProjectTheme();
       if (!controller.signal.aborted)
         addAgent(
           useAgent.getState().verification === 'pass' && count === targets.length

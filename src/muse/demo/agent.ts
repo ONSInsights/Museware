@@ -391,6 +391,7 @@ export async function startDemoBuild(mode: 'blueprint' | 'steady' | 'fast'): Pro
       .doc.screens.filter((s) => screens.some((x) => x.id === s.id));
     await streamProse(describeResult(built), controller.signal);
     useProject.getState().setName(projectNameFor(template));
+    useProject.getState().snapshotProjectTheme();
     if (
       useUi.getState().activeScreenId === null ||
       !built.some((s) => s.id === useUi.getState().activeScreenId)
@@ -501,6 +502,7 @@ export async function runDemoTurn(text: string, opts: DemoOpts): Promise<void> {
       const kind = explicitKind || template.kind;
       useProject.getState().setKind(kind);
       useProject.getState().setName(projectNameFor(template));
+      useProject.getState().snapshotProjectTheme();
       system(
         kind === 'web'
           ? 'Layout: desktop-first (1280) — navbar + footer pattern'

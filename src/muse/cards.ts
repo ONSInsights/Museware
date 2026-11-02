@@ -84,10 +84,12 @@ export async function answerChoice(cardId: string, index: number): Promise<void>
         },
       );
     if (res.errors.length) useUi.getState().toast(res.errors[0].message, 'danger');
-    else
+    else {
+      useProject.getState().snapshotProjectTheme();
       system(
         `🎨 ${brand}${secondary === brand ? '' : ` / ${secondary}`} — applied to the token sheet`,
       );
+    }
   }
 
   const question = String(

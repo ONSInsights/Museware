@@ -23,7 +23,7 @@ import { StyleTab } from './StyleTab';
 import { boundKeys, findNode, findParent } from '../ops/treeUtils';
 import { parseStateValue } from './stateValue';
 import { duplicateNodeBatch } from '../ops/screenOps';
-import { PRESETS } from '../design/presets';
+import { ThemePicker } from '../design/ThemePicker';
 import { Icon } from '../canvas/Icon';
 import { Segmented } from '../components/ui';
 import { ActionEditor } from './ActionEditor';
@@ -909,8 +909,6 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
   const applyBatch = useProject((s) => s.applyBatch);
   const toast = useUi((s) => s.toast);
   const startPrompt = useUi((s) => s.startPrompt);
-  const setActivePreset = useUi((s) => s.setActivePreset);
-  const activePreset = useUi((s) => s.activePreset);
   const runMode = useUi((s) => s.runMode);
   const screen = doc.screens.find((s) => s.id === screenId);
 
@@ -1022,54 +1020,7 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
             <span className="eyebrow">Design system</span>
             <span className="faint mw-shell-util-12">{doc.tokens.title}</span>
           </div>
-          <div className="swatch-grid">
-            {PRESETS.map((preset) => (
-              <button
-                type="button"
-                key={preset.id}
-                className="preset-card-mini"
-                data-selected={activePreset === preset.id}
-                title={preset.blurb}
-                onClick={() => {
-                  const ok = run(
-                    [
-                      {
-                        op: 'setTokens',
-                        patch: { ...preset.tokens.openuiTheme, title: preset.tokens.title },
-                      },
-                    ],
-                    `${preset.name} applied — every screen follows`,
-                  );
-                  if (ok) setActivePreset(preset.id);
-                }}
-              >
-                <span className="preset-swatches">
-                  <svg aria-hidden="true">
-                    <rect
-                      width="100%"
-                      height="100%"
-                      fill={preset.tokens.openuiTheme.brand_color}
-                    />
-                  </svg>
-                  <svg aria-hidden="true">
-                    <rect
-                      width="100%"
-                      height="100%"
-                      fill={preset.tokens.openuiTheme.secondary_color}
-                    />
-                  </svg>
-                  <svg aria-hidden="true">
-                    <rect
-                      width="100%"
-                      height="100%"
-                      fill={preset.tokens.openuiTheme.light_colors.openui_bg}
-                    />
-                  </svg>
-                </span>
-                <span>{preset.name}</span>
-              </button>
-            ))}
-          </div>
+          <ThemePicker compact />
           <div className="token-row">
             <span className="field-label mw-shell-util-17">Accent</span>
             <input

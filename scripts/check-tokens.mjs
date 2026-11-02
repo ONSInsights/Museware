@@ -172,7 +172,7 @@ for (const name of referencedTokens) {
   if (!declaredTokens.has(name)) problems.push(`${name}: referenced but not declared`);
 }
 
-// A strict shared ladder: transient popups must outrank fullscreen chat.
+// Tier law: persistent below chat; transient above; modals above popups; only toasts and tooltips at the top.
 const Z_ORDER = [
   'canvas',
   'canvas-overlay',
@@ -180,8 +180,8 @@ const Z_ORDER = [
   'sticky',
   'chat',
   'popover',
-  'modal',
   'launcher',
+  'modal',
   'toast',
   'tooltip',
 ];
@@ -193,11 +193,36 @@ const zValues = Z_ORDER.map((name) => {
   }
   return Number(value);
 });
-for (let i = 1; i < Z_ORDER.length; i += 1) {
-  if (zValues[i - 1] !== null && zValues[i] !== null && zValues[i - 1] >= zValues[i])
-    problems.push(
-      `${TOKENS_FILE}: --mw-z-${Z_ORDER[i - 1]} must be less than --mw-z-${Z_ORDER[i]}`,
-    );
+function ladderErrors(values) {
+  const errors = [];
+  for (let i = 1; i < Z_ORDER.length; i += 1) {
+    if (values[i - 1] !== null && values[i] !== null && values[i - 1] >= values[i])
+      errors.push(
+        `${TOKENS_FILE}: --mw-z-${Z_ORDER[i - 1]} must be less than --mw-z-${Z_ORDER[i]}`,
+      );
+  }
+  return errors;
+}
+problems.push(...ladderErrors(zValues));
+if (process.argv.includes('--self-test')) {
+  const good = [0, 5, 10, 20, 25, 30, 35, 40, 50, 60];
+  const bad = [...good];
+  bad[6] = 45;
+  if (ladderErrors(good).length || !ladderErrors(bad).length)
+    throw new Error('z-index ladder self-test failed');
+  console.log('✓ stacking ladder self-test rejects launcher over modal');
+}
+for (const [selector, tier] of [
+  ['.inspector', 'panels'],
+  ['.inspector-peek', 'panels'],
+  ['.rail', 'chat'],
+  ['.chat-focus', 'chat'],
+  ['.menu', 'popover'],
+  ['.color-field-menu', 'popover'],
+]) {
+  const rule = ruleFor(selector);
+  if (!rule || !new RegExp(`z-index\\s*:\\s*var\\(--mw-z-${tier}\\)`).test(rule))
+    problems.push(`${CSS_FILE}: ${selector} must use the ${tier} tier`);
 }
 
 const dark = new Map(primitives);
@@ -327,7 +352,7 @@ const worst = report.reduce((min, row) => (row[3] < min[3] ? row : min), report[
 console.log(`✓ tokens: no raw hex outside ${TOKENS_FILE}`);
 console.log('✓ token references: no missing --mw-* declarations');
 console.log(
-  '✓ stacking tokens: canvas < canvas-overlay < panels < sticky < chat < popover < modal < launcher < toast < tooltip',
+  '✓ stacking tokens: canvas < canvas-overlay < panels < sticky < chat < popover < launcher < modal < toast < tooltip',
 );
 console.log(
   `✓ stacking: .canvas-area traps its chrome; ${TRAPPED.length} overlays checked`,

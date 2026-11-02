@@ -8,6 +8,8 @@ import { nodeIdFromElement } from '../canvas/drag';
 import type { RuntimeApi } from '../preview/runtime';
 import { n } from '../muse/demo/build';
 import { PRESETS } from '../design/presets';
+import { applyDesignSystem } from '../design/ThemePicker';
+import type { OpenUiTheme } from '../types/tokens';
 import { MUSEWARE_DEFAULT_THEME } from '../design/starter';
 import { Button } from '../components/ui';
 import { applyOps } from '../ops/apply';
@@ -347,11 +349,16 @@ export function Landing() {
     });
   };
 
-  const go = async () => {
+  const go = async (preset?: { name: string; theme: OpenUiTheme }) => {
     setMenuOpen(false);
     try {
       const projects = await listProjects();
       if (projects.length) {
+        if (preset) {
+          if (useProject.getState().projectId) {
+            if (!applyDesignSystem(preset.name, preset.theme)) return;
+          } else useUi.getState().toast('Open a project to apply a design system.', 'warn');
+        }
         setRoute('projects');
         return;
       }
@@ -360,6 +367,7 @@ export function Landing() {
       const saved = await openProject(id);
       if (!saved) throw new Error('Could not open project');
       useProject.getState().hydrate(saved, id);
+      if (preset && !applyDesignSystem(preset.name, preset.theme)) return;
       setRoute('editor', id);
     } catch {
       useUi.getState().toast('Could not open a project on this device.', 'warn');
@@ -772,24 +780,7 @@ export function Landing() {
                   }
                 }}
                 onClick={() => {
-                  const result = useProject.getState().applyBatch(
-                    [
-                      {
-                        op: 'setTokens',
-                        patch: {
-                          ...preset.tokens.openuiTheme,
-                          title: preset.tokens.title,
-                        },
-                      },
-                    ],
-                    { source: 'user' },
-                  );
-                  if (result.errors.length) {
-                    useUi.getState().toast(result.errors[0].message, 'warn');
-                    return;
-                  }
-                  useUi.getState().setActivePreset(preset.id);
-                  void go();
+                  void go({ name: preset.name, theme: preset.tokens.openuiTheme });
                 }}
               >
                 <span className="lp-preset-render">

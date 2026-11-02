@@ -3,6 +3,7 @@ import { nodeSchema, styleSchema } from '../types/tools';
 import type { ProjectDoc } from '../types/tree';
 import { MUSEWARE_DEFAULT_THEME, cloneTheme } from '../design/starter';
 import { migrateLayoutV2 } from './migrate';
+import { seedProjectTheme } from '../design/themeLibrary';
 
 const styleSet = styleSchema;
 
@@ -80,6 +81,16 @@ export const projectSchema = z
   .object({
     format: z.literal('museware/1'),
     name: z.string().min(1).max(80).default('Untitled project'),
+    schemaVersion: z.number().default(2),
+    themeLibrary: z
+      .array(
+        z.object({
+          name: z.string(),
+          theme: tokensSchema.shape.openuiTheme,
+          updatedAt: z.number(),
+        }),
+      )
+      .default([]),
     screens: z.array(screenSchema).default([]),
     tokens: tokensSchema.default(() => cloneTheme(MUSEWARE_DEFAULT_THEME) as never),
     opLog: z
@@ -142,5 +153,6 @@ export function parseProjectDoc(input: unknown): ProjectDoc {
   if (!doc.screens.length) doc.screens = [];
   if (doc.screens.length && !doc.screens.some((s) => s.entry)) doc.screens[0].entry = true;
   doc.layoutVersion = Math.max(2, doc.layoutVersion || 2);
-  return doc;
+  doc.schemaVersion = Math.max(2, doc.schemaVersion || 0);
+  return seedProjectTheme(doc);
 }

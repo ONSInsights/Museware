@@ -14,6 +14,7 @@ import { applyOps, type ApplyResult } from '../ops/apply';
 import { clone } from '../ops/treeUtils';
 import { collectIds } from '../ops/ids';
 import { mockRowsSchema } from '../persist/schema';
+import { seedProjectTheme } from '../design/themeLibrary';
 
 const RAIL_CAP = 400;
 const CARD_DATA_CAP = 8000;
@@ -30,6 +31,8 @@ export interface Snapshot {
 export function createProject(name = 'Untitled project'): ProjectDoc {
   return {
     format: 'museware/1',
+    schemaVersion: 2,
+    themeLibrary: [],
     name,
     screens: [],
     tokens: cloneTheme(MUSEWARE_DEFAULT_THEME),
@@ -126,6 +129,8 @@ interface ProjectStore {
   patchRail: (id: string, patch: Partial<RailEntry> & { card?: RailEntry['card'] }) => void;
   setBlueprint: (text: string, decided?: boolean) => void;
   replaceTheme: (tokens: DesignTokens) => void;
+  snapshotProjectTheme: () => void;
+  undoTheme: (group: Snapshot, epoch: number, previous: DesignTokens) => boolean;
   setScreensEntry: (screenId: string) => void;
   /** Sticky marker: this project was shaped by contributor-tier output. */
   markContributor: () => void;
@@ -143,7 +148,7 @@ export const useProject = create<ProjectStore>((set, get) => ({
 
   hydrate: (doc, projectId = null) =>
     set((state) => ({
-      doc,
+      doc: seedProjectTheme(doc),
       projectId,
       ready: true,
       documentEpoch: state.documentEpoch + 1,
@@ -265,6 +270,35 @@ export const useProject = create<ProjectStore>((set, get) => ({
     return result;
   },
 
+  snapshotProjectTheme: () => set((state) => ({ doc: seedProjectTheme(state.doc) })),
+  undoTheme: (group, epoch, previous) => {
+    const state = get();
+    if (
+      state.documentEpoch !== epoch ||
+      state.undoStack[state.undoStack.length - 1] !== group
+    )
+      return false;
+    const result = applyOps(
+      [
+        {
+          op: 'setTokens',
+          replace: true,
+          patch: { openuiTheme: previous.openuiTheme, title: previous.title },
+        },
+      ],
+      state.doc,
+      { source: 'user' },
+    );
+    if (result.errors.length) return false;
+    set({
+      doc: result.doc,
+      undoStack: state.undoStack.slice(0, -1),
+      redoStack: [...state.redoStack, snapshotOf(state.doc)].slice(-50),
+      lastResult: result,
+    });
+    return true;
+  },
+
   undo: () => {
     const { undoStack, redoStack, doc } = get();
     if (!undoStack.length) return null;
@@ -303,7 +337,13 @@ export const useProject = create<ProjectStore>((set, get) => ({
   },
 
   setName: (name) =>
-    set((s) => ({ doc: { ...s.doc, name: name.slice(0, 80), updatedAt: Date.now() } })),
+    set((s) => {
+      const next = name.slice(0, 80);
+      const themeLibrary = s.doc.themeLibrary?.map((entry) =>
+        entry.name === s.doc.name ? { ...entry, name: next } : entry,
+      );
+      return { doc: { ...s.doc, name: next, themeLibrary, updatedAt: Date.now() } };
+    }),
 
   setKind: (kind) => set((s) => ({ doc: { ...s.doc, kind, updatedAt: Date.now() } })),
 

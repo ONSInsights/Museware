@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useUi } from '../store/useUi';
 
 type ButtonVariant = 'default' | 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger';
@@ -175,6 +176,7 @@ export function Menu({
   align?: 'left' | 'right';
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const anchor = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -195,6 +197,12 @@ export function Menu({
     const clamp = () => {
       const el = ref.current;
       if (!el) return;
+      const anchorRect = anchor.current?.parentElement?.getBoundingClientRect();
+      if (!anchorRect) return;
+      el.style.left = align === 'left' ? `${anchorRect.left}px` : 'auto';
+      el.style.right =
+        align === 'right' ? `${window.innerWidth - anchorRect.right}px` : 'auto';
+      el.style.top = `${anchorRect.bottom + 6}px`;
       el.style.transform = '';
       const rect = el.getBoundingClientRect();
       const dx =
@@ -215,20 +223,17 @@ export function Menu({
     window.addEventListener('resize', clamp);
     return () => window.removeEventListener('resize', clamp);
   }, [open, align, children]);
-  if (!open) return null;
   return (
-    <div
-      ref={ref}
-      className="menu"
-      style={{
-        right: align === 'right' ? 0 : undefined,
-        left: align === 'left' ? 0 : undefined,
-        top: 'calc(100% + 6px)',
-      }}
-      role="menu"
-    >
-      {children}
-    </div>
+    <>
+      <span ref={anchor} hidden />
+      {open &&
+        createPortal(
+          <div ref={ref} className="menu" style={{ position: 'fixed' }} role="menu">
+            {children}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

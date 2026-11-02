@@ -9,7 +9,7 @@ import { houseKeyLabel, houseKeySentence } from '../../muse/connection';
 import { probeTextRoles } from '../../muse/probe';
 import { getSessionKey, setSessionKey, hasSessionKey } from '../../muse/sessionKey';
 import { wipeProject, readThemeFile } from '../../persist/save';
-import { PRESETS } from '../../design/presets';
+import { ThemePicker, applyDesignSystem } from '../../design/ThemePicker';
 import type { DesignTokens } from '../../types/tokens';
 
 const ROLE_ORDER: Array<
@@ -17,10 +17,7 @@ const ROLE_ORDER: Array<
 > = ['builder', 'architect', 'chat', 'contributor', 'image', 'sam', 'voice'];
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
-  const applyBatch = useProject((s) => s.applyBatch);
   const replaceDoc = useProject((s) => s.replaceDoc);
-  const setActivePreset = useUi((s) => s.setActivePreset);
-  const activePreset = useUi((s) => s.activePreset);
   const toast = useUi((s) => s.toast);
   const configured = useAgent((s) => s.configured);
   const demoMode = useAgent((s) => s.demoMode);
@@ -88,19 +85,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     // would spend the visitor's money to learn something we do not need.
     await probeTextRoles(models);
     toast('Probes finished — red is honest, not scary.', 'ok');
-  };
-
-  const applyPreset = (tokens: DesignTokens, id: string) => {
-    const res = applyBatch(
-      [{ op: 'setTokens', patch: { ...tokens.openuiTheme, title: tokens.title } }],
-      { source: 'user' },
-    );
-    if (res.errors.length) {
-      toast(res.errors[0].message, 'warn');
-      return;
-    }
-    setActivePreset(id);
-    toast(`${tokens.title} applied to every screen`, 'ok');
   };
 
   return (
@@ -437,27 +421,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             Import tokens…
           </Button>
         </div>
-        <div className="mw-detail-13">
-          {PRESETS.map((preset) => (
-            <button
-              type="button"
-              key={preset.id}
-              className="preset-card mw-detail-14"
-              data-selected={activePreset === preset.id}
-              onClick={() => applyPreset(preset.tokens, preset.id)}
-            >
-              <span className="preset-swatches">
-                <i style={{ background: preset.tokens.openuiTheme.brand_color }} />
-                <i style={{ background: preset.tokens.openuiTheme.secondary_color }} />
-                <i
-                  style={{ background: preset.tokens.openuiTheme.light_colors.openui_bg }}
-                />
-              </span>
-              <strong>{preset.name}</strong>
-              <span className="field-hint">{preset.blurb}</span>
-            </button>
-          ))}
-        </div>
+        <ThemePicker />
         <input
           ref={themeFile}
           type="file"
@@ -472,7 +436,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               const tokens = incoming as DesignTokens;
               if (!tokens?.openuiTheme)
                 throw new Error('That file has no openuiTheme block.');
-              applyPreset(tokens, 'imported');
+              applyDesignSystem(tokens.title || 'Imported theme', tokens.openuiTheme);
             } catch (err) {
               toast(
                 err instanceof Error ? err.message : 'Could not read that theme',
@@ -525,7 +489,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               return;
             }
             replaceDoc(fresh);
-            setActivePreset(null);
+            useUi.getState().setActivePreset(null);
             toast('Local project wiped', 'ok');
             onClose();
           }}

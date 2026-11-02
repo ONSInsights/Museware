@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { RotateCcw } from 'lucide-react';
 import type { DesignTokens } from '../types/tokens';
 import { COLOR_KEYS } from '../types/tokens';
@@ -230,6 +231,42 @@ export function ColorField({
   onScope?: (hex: string) => void;
 }) {
   const colors = tokens.openuiTheme.light_colors || {};
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(
+    null,
+  );
+  useLayoutEffect(() => {
+    if (!menuPosition || !menuRef.current) return;
+    const menu = menuRef.current;
+    menu.style.right = `${menuPosition.right}px`;
+    menu.style.top = `${Math.max(8, Math.min(menuPosition.top, window.innerHeight - menu.offsetHeight - 8))}px`;
+  }, [menuPosition]);
+  useEffect(() => {
+    if (!menuPosition) return;
+    const close = () => {
+      if (detailsRef.current) detailsRef.current.open = false;
+      setMenuPosition(null);
+    };
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!detailsRef.current?.contains(target) && !menuRef.current?.contains(target))
+        close();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', outside);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', outside);
+      document.removeEventListener('keydown', escape);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [menuPosition]);
   const d = useDraft(value, (next) => {
     if (onScope && /^#[0-9a-fA-F]{6}$/.test(next)) onScope(next);
     else onCommit(next);
@@ -266,36 +303,62 @@ export function ColorField({
           onBlur={d.commit}
           onKeyDown={d.onKeyDown}
         />
-        <details className="color-field-tokens">
+        <details
+          className="color-field-tokens"
+          ref={detailsRef}
+          onToggle={(e) => {
+            if (!e.currentTarget.open) {
+              setMenuPosition(null);
+              return;
+            }
+            const rect = e.currentTarget.getBoundingClientRect();
+            setMenuPosition({
+              top: rect.bottom,
+              right: Math.max(8, window.innerWidth - rect.right),
+            });
+          }}
+        >
           <summary aria-label={`Choose ${label} token`} title="Choose a color token">
             ▾
           </summary>
-          <div className="swatch-grid color-field-menu">
-            {allowTransparent && (
-              <button
-                type="button"
-                className="swatch swatch-transparent"
-                aria-label="Transparent"
-                data-selected={!d.draft}
-                onClick={() => onCommit('')}
-              />
+          {menuPosition &&
+            createPortal(
+              <div ref={menuRef} className="swatch-grid color-field-menu">
+                {allowTransparent && (
+                  <button
+                    type="button"
+                    className="swatch swatch-transparent"
+                    aria-label="Transparent"
+                    data-selected={!d.draft}
+                    onClick={() => {
+                      onCommit('');
+                      if (detailsRef.current) detailsRef.current.open = false;
+                      setMenuPosition(null);
+                    }}
+                  />
+                )}
+                {COLOR_KEYS.map((key) => (
+                  <button
+                    type="button"
+                    key={key}
+                    className="swatch"
+                    aria-label={key.replace(/_/g, '-')}
+                    data-tip={key.replace(/_/g, '-')}
+                    data-selected={currentVar === key}
+                    onClick={() => {
+                      onCommit(`var(--${key.replace(/_/g, '-')})`);
+                      if (detailsRef.current) detailsRef.current.open = false;
+                      setMenuPosition(null);
+                    }}
+                  >
+                    <svg aria-hidden="true" width="100%" height="100%">
+                      <rect width="100%" height="100%" fill={colors[key]} />
+                    </svg>
+                  </button>
+                ))}
+              </div>,
+              document.body,
             )}
-            {COLOR_KEYS.map((key) => (
-              <button
-                type="button"
-                key={key}
-                className="swatch"
-                aria-label={key.replace(/_/g, '-')}
-                data-tip={key.replace(/_/g, '-')}
-                data-selected={currentVar === key}
-                onClick={() => onCommit(`var(--${key.replace(/_/g, '-')})`)}
-              >
-                <svg aria-hidden="true" width="100%" height="100%">
-                  <rect width="100%" height="100%" fill={colors[key]} />
-                </svg>
-              </button>
-            ))}
-          </div>
         </details>
         {onClearOverride && (
           <button

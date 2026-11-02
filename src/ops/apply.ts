@@ -436,7 +436,17 @@ function applyOne(
       break;
     }
     case 'setTokens': {
-      const patch = op.patch as Record<string, unknown>;
+      const payload = op.patch as Record<string, unknown>;
+      const patch = op.replace ? (payload.openuiTheme as Record<string, unknown>) : payload;
+      if (!patch || typeof patch !== 'object' || Array.isArray(patch))
+        return [
+          error(
+            'E_BAD_OP',
+            'A complete theme is required for replacement',
+            undefined,
+            index,
+          ),
+        ];
       const theme = doc.tokens.openuiTheme;
       const hexish = /^#[0-9A-Fa-f]{6}$/;
       const checkColors = (map: unknown, label: string): OpError[] => {
@@ -469,8 +479,23 @@ function applyOne(
           ];
         }
       }
-      const nextTheme = { ...theme };
-      if (typeof patch.title === 'string') doc.tokens.title = patch.title;
+      if (
+        op.replace &&
+        (typeof patch.brand_color !== 'string' ||
+          typeof patch.secondary_color !== 'string' ||
+          !patch.light_colors ||
+          !patch.dark_colors)
+      )
+        return [
+          error(
+            'E_BAD_OP',
+            'A complete theme is required for replacement',
+            undefined,
+            index,
+          ),
+        ];
+      const nextTheme = op.replace ? ({} as typeof theme) : { ...theme };
+      if (typeof payload.title === 'string') doc.tokens.title = payload.title;
       for (const [k, v] of Object.entries(patch)) {
         if (v === undefined) continue;
         const nt = nextTheme as unknown as Record<string, unknown>;
@@ -517,8 +542,8 @@ function applyOne(
       nextTheme.brand_color = brand;
       nextTheme.secondary_color = secondary;
       if (
-        typeof patch.brand_color === 'string' ||
-        typeof patch.secondary_color === 'string'
+        !op.replace &&
+        (typeof patch.brand_color === 'string' || typeof patch.secondary_color === 'string')
       ) {
         applyPalette('light_colors', brand, secondary);
         applyPalette('dark_colors', brand, secondary);

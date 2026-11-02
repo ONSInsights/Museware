@@ -202,7 +202,7 @@ export type Op =
   | { op: 'removeScreen'; id: string }
   | { op: 'renameScreen'; id: string; name: string }
   | { op: 'setEntry'; id: string }
-  | { op: 'setTokens'; patch: Partial<ProjectDoc['tokens']> }
+  | { op: 'setTokens'; patch: Record<string, unknown>; replace?: boolean }
   | { op: 'saveComponent'; name: string; description: string; root: ComponentNode }
   | { op: 'placeComponent'; name: string; parentId: NodeId; index?: number };
 
@@ -217,6 +217,13 @@ export interface ProjectDoc {
   /** 2 = styles own layout (see persist/migrate.ts). Absent means v1. */
   layoutVersion?: number;
   format: 'museware/1';
+  /** Project schema v2 adds the project-owned theme library. */
+  schemaVersion?: number;
+  themeLibrary?: Array<{
+    name: string;
+    theme: import('./tokens').OpenUiTheme;
+    updatedAt: number;
+  }>;
   name: string;
   screens: ScreenDoc[];
   tokens: import('./tokens').DesignTokens;

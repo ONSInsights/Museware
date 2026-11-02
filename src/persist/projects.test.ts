@@ -4,6 +4,7 @@ import { openDB } from 'idb';
 import { describe, expect, it, vi } from 'vitest';
 import { createProject } from '../store/useProject';
 import { emptyScreen } from '../ops/screenOps';
+import { DIRECTION_PALETTES } from '../design/palettes';
 import {
   closeProject,
   createSavedProject,
@@ -69,4 +70,23 @@ describe('projects registry migration', () => {
     expect(await openProject(doomed)).toBeNull();
     expect((await listProjects()).some((p) => p.id === doomed)).toBe(false);
   });
+});
+
+it('persists retro-seeded themes when an existing project is opened', async () => {
+  const old = createProject('Old custom');
+  old.tokens.openuiTheme.brand_color = DIRECTION_PALETTES[1].hexes[0];
+  old.tokens.openuiTheme.secondary_color = DIRECTION_PALETTES[1].hexes[1];
+  delete old.themeLibrary;
+  delete old.schemaVersion;
+  const id = await createSavedProject(old);
+  const opened = await openProject(id);
+  expect(opened?.themeLibrary).toHaveLength(1);
+  expect(opened?.themeLibrary?.[0].name).toBe('Old custom');
+  const database = await openDB('museware', 2);
+  const saved = await database.get('projects', id);
+  expect(saved.themeLibrary).toEqual(opened?.themeLibrary);
+  const second = await openProject(id);
+  expect(second?.themeLibrary).toEqual(opened?.themeLibrary);
+  database.close();
+  await deleteSavedProject(id);
 });

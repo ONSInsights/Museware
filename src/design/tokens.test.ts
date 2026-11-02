@@ -114,3 +114,13 @@ describe('Museware shell sizing tokens', () => {
     expect(rule('chat-composer-status')).not.toMatch(/padding\s*:/);
   });
 });
+
+it('keeps inspector and rail on their declared tiers and launcher below modal', () => {
+  expect(
+    appCss.match(/\.inspector\s*\{[^}]*z-index:\s*var\(--mw-z-panels\)/s),
+  ).toBeTruthy();
+  expect(appCss.match(/\.rail\s*\{[^}]*z-index:\s*var\(--mw-z-chat\)/s)).toBeTruthy();
+  expect(css).toMatch(/--mw-z-launcher:\s*35;/);
+  expect(css).toMatch(/--mw-z-modal:\s*40;/);
+  expect(appCss).not.toMatch(/z-index:\s*calc\(var\(--mw-z-sticky\)\s*\+\s*[12]\)/);
+});

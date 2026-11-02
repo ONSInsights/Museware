@@ -52,7 +52,7 @@ export async function migrateCurrent(): Promise<void> {
   if (old && !migrated) {
     const doc = parseProjectDoc(old);
     const id = `p_${nanoid()}`;
-    await projects.put(old, id);
+    await projects.put(doc, id);
     await meta.put(metadata(id, doc), `project:${id}`);
     migratedId = id;
     await meta.put(true, 'legacy-migrated');
@@ -120,6 +120,7 @@ export async function openProject(id: string): Promise<ProjectDoc | null> {
     return null;
   }
   const doc = parseProjectDoc(raw);
+  if (JSON.stringify(raw) !== JSON.stringify(doc)) await tx.objectStore(STORE).put(doc, id);
   await tx.objectStore(META).put(id, ACTIVE);
   await tx.done;
   return doc;

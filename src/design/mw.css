@@ -283,7 +283,7 @@
   --mw-z-sticky: 20;
   --mw-z-popover: 30;
   --mw-z-modal: 40;
-  --mw-z-launcher: 45;
+  --mw-z-launcher: 35;
   --mw-z-toast: 50;
   --mw-z-tooltip: 60;
   /* Chat overlay stays at 25 so popups beat it; launcher is not the overlay. */

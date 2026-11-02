@@ -117,7 +117,7 @@ describe('inspector tells the truth', () => {
     expect(readFileSync('src/design/app.css', 'utf8')).toMatch(
       /\.chat-launcher\s*\{[^}]*z-index:\s*var\(--mw-z-launcher\)/,
     );
-    expect(readFileSync('src/design/mw.css', 'utf8')).toMatch(/--mw-z-launcher:\s*45/);
+    expect(readFileSync('src/design/mw.css', 'utf8')).toMatch(/--mw-z-launcher:\s*35/);
     expect(readFileSync('src/inspector/Fields.tsx', 'utf8')).not.toMatch(/\bstyle=/);
   });
 });

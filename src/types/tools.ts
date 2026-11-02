@@ -177,7 +177,11 @@ export const opSchema = z.discriminatedUnion('op', [
     name: z.string().min(1).max(40),
   }),
   z.object({ op: z.literal('setEntry'), id: screenIdSchema }),
-  z.object({ op: z.literal('setTokens'), patch: z.record(z.unknown()) }),
+  z.object({
+    op: z.literal('setTokens'),
+    patch: z.record(z.unknown()),
+    replace: z.boolean().optional(),
+  }),
   z.object({
     op: z.literal('saveComponent'),
     name: z.string().min(3).max(31),

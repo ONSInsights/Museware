@@ -160,6 +160,8 @@ describe('a tapped choice is a decision, not a new request', () => {
     const theme = useProject.getState().doc.tokens.openuiTheme;
     expect(theme.brand_color).toBe(BRAND);
     expect(theme.secondary_color).toBe(SECONDARY);
+    expect(useProject.getState().doc.themeLibrary).toHaveLength(1);
+    expect(useProject.getState().doc.themeLibrary![0].theme).toEqual(theme);
     // And it is in the receipt log, not just inferred.
     const rail = useProject.getState().doc.rail;
     expect(rail.some((r) => r.role === 'system' && r.text.includes(BRAND))).toBe(true);

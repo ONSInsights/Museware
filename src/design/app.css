@@ -1191,7 +1191,7 @@ a {
   bottom: 8px;
   border-radius: var(--mw-panel-radius);
   box-shadow: var(--mw-shadow-e3);
-  z-index: var(--mw-z-popover);
+  z-index: var(--mw-z-panels);
   border: 1px solid var(--mw-border);
   overflow: hidden;
   animation: rise-in var(--mw-motion-base) var(--mw-ease-out);
@@ -1369,7 +1369,7 @@ a {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  z-index: var(--mw-z-panels);
+  z-index: var(--mw-z-chat);
 }
 
 .rail[data-collapsed='true'] {
@@ -2837,6 +2837,7 @@ a {
   transition: border-color var(--mw-motion-fast) var(--mw-ease-out);
 }
 
+.preset-card[data-selected='true'],
 .preset-card:hover {
   border-color: var(--mw-accent-soft);
 }
@@ -3199,7 +3200,7 @@ button.how-card .field-hint {
     bottom: 0;
     width: var(--mw-left-w);
     box-shadow: var(--mw-shadow-e3);
-    z-index: var(--mw-z-popover);
+    z-index: var(--mw-z-panels);
   }
 
   /* Closed, the rail is one row docked on top of the tab bar. Open, it is a
@@ -3217,7 +3218,7 @@ button.how-card .field-hint {
     border-radius: 0;
     box-shadow: none;
     transition: height var(--mw-motion-slow) var(--mw-ease-out);
-    z-index: var(--mw-z-sticky);
+    z-index: var(--mw-z-chat);
   }
 
   .rail[data-open='true'] {
@@ -3715,7 +3716,7 @@ button.how-card .field-hint {
     border-top: 1px solid var(--mw-border);
     border-radius: 0;
     box-shadow: none;
-    z-index: var(--mw-z-sticky);
+    z-index: var(--mw-z-chat);
   }
 
   .rail[data-open='true'] {
@@ -3786,7 +3787,7 @@ button.how-card .field-hint {
     border-top: 1px solid var(--mw-border);
     border-radius: 16px 16px 0 0;
     box-shadow: var(--mw-shadow-e3);
-    z-index: calc(var(--mw-z-sticky) + 1);
+    z-index: var(--mw-z-panels);
   }
 
   .inspector {
@@ -3814,7 +3815,7 @@ button.how-card .field-hint {
     top: 0;
     bottom: 0;
     width: min(var(--mw-shell-geometry-320), 86vw);
-    z-index: calc(var(--mw-z-sticky) + 2);
+    z-index: var(--mw-z-panels);
     box-shadow: var(--mw-shadow-e3);
   }
 
@@ -4018,7 +4019,7 @@ button.how-card .field-hint {
   color: var(--mw-ink-2);
   box-shadow: var(--mw-shadow-e2);
   cursor: pointer;
-  z-index: var(--mw-z-popover);
+  z-index: var(--mw-z-panels);
 }
 
 .inspector-peek:hover {
@@ -5908,9 +5909,11 @@ button.how-card .field-hint {
   outline-offset: 1px;
 }
 .color-field-menu {
-  position: absolute;
+  position: fixed;
   right: 0;
-  top: 100%;
+  top: 0;
+  max-height: calc(100dvh - var(--mw-space-4));
+  overflow-y: auto;
   width: var(--mw-menu-w);
   padding: var(--mw-space-2);
   border: 1px solid var(--mw-border);

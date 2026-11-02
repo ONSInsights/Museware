@@ -304,7 +304,8 @@ describe('the shell actually renders', () => {
       useUi.getState().select(rootId);
     });
     fireEvent.click(screen.getByText('Style'));
-    const swatch = document.querySelector('.swatch[aria-label="openui-accent"]');
+    fireEvent.click(screen.getByLabelText('Choose Background token'));
+    const swatch = await screen.findByLabelText('openui-accent');
     expect(swatch).toBeTruthy();
     fireEvent.click(swatch!);
     const root = useProject.getState().doc.screens[0].root;
@@ -359,7 +360,7 @@ describe('the shell actually renders', () => {
     const more = document.querySelector('.topbar-mobile button');
     expect(more).toBeTruthy();
     fireEvent.click(more!);
-    const menu = document.querySelector('.topbar-mobile .menu');
+    const menu = document.querySelector('.menu[role=menu]');
     expect(menu).toBeTruthy();
     const inside = within(menu as HTMLElement);
     expect(inside.getByText(/Settings & models/)).toBeTruthy();

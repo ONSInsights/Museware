@@ -8,12 +8,10 @@ import { useUi } from '../store/useUi';
 import { emptyScreen } from '../ops/screenOps';
 
 beforeEach(() => {
-  useProject
-    .getState()
-    .replaceDoc({
-      ...createProject(),
-      screens: [emptyScreen('Screen 1', { id: 'screen_1', entry: true })],
-    });
+  useProject.getState().replaceDoc({
+    ...createProject(),
+    screens: [emptyScreen('Screen 1', { id: 'screen_1', entry: true })],
+  });
   useUi.setState({ activeScreenId: 'screen_1', selectedId: null });
 });
 afterEach(cleanup);
@@ -24,7 +22,7 @@ describe('screen switcher actions', () => {
     const menu = screen.getByRole('menu');
     expect(menu.querySelector('button')?.textContent).toContain('Add screen');
     expect(menu.closest('.screen-tabs')).toBeNull();
-    expect(menu.closest('.screen-switcher')).not.toBeNull();
+    expect(menu.parentElement).toBe(document.body); // Escapes the topbar stacking context.
     expect(screen.getByText('Duplicate current')).toBeTruthy();
     expect(screen.getByText('Delete current')).toBeTruthy();
   });
