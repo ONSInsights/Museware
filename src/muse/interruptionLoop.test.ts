@@ -32,12 +32,13 @@ it('turn call cap creates an in-memory pause card', async () => {
     useProject.getState().doc.rail.some((e) => String(e.card?.kind) === 'interrupted'),
   ).toBe(false);
 });
-it('an API failure creates an interruption card instead of a bare error card', async () => {
+it('an API failure ends in an error card', async () => {
   vi.mocked(chatStream).mockRejectedValue(new Error('offline'));
   await runAgentTurn('Build the tea page', { skipVerify: true });
-  expect(useAgent.getState().interruptionCard).toMatchObject({
-    reason: 'error',
-    message: 'offline',
-  });
-  expect(useProject.getState().doc.rail.some((e) => e.card?.kind === 'error')).toBe(false);
+  expect(useAgent.getState().interruptionCard).toBeNull();
+  expect(
+    useProject
+      .getState()
+      .doc.rail.some((e) => e.card?.kind === 'error' && e.card.data.message === 'offline'),
+  ).toBe(true);
 });

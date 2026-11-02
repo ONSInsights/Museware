@@ -77,8 +77,18 @@ export async function listProjects(): Promise<ProjectMeta[]> {
     )
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
+/** Session-only cards never enter saved projects or downloaded project files. */
+export function serializableProject(doc: ProjectDoc): ProjectDoc {
+  return {
+    ...doc,
+    rail: doc.rail.filter(
+      (entry) =>
+        !(entry.card?.data.turnCard === true && entry.card.data.phase !== 'receipt'),
+    ),
+  };
+}
 async function writeProject(id: string, doc: ProjectDoc, creating = false): Promise<void> {
-  const clean = JSON.parse(JSON.stringify(doc)) as ProjectDoc & {
+  const clean = JSON.parse(JSON.stringify(serializableProject(doc))) as ProjectDoc & {
     recoveredFromSchema?: unknown;
   };
   delete clean.recoveredFromSchema;
@@ -241,7 +251,9 @@ export async function wipeProject(id: string, replacement: ProjectDoc): Promise<
 }
 
 export function downloadProjectFile(doc: ProjectDoc) {
-  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(serializableProject(doc), null, 2)], {
+    type: 'application/json',
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

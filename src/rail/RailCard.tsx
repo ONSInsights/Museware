@@ -28,6 +28,8 @@ import { NodeBody } from '../canvas/NodeBody';
 import { runAgentTurn, stopAgent } from '../muse/loop';
 import { QUICK_SWATCHES } from '../design/palettes';
 import { KeyCard } from './KeyCard';
+import { InterruptedCard } from './InterruptedCard';
+import { isKeepalive } from '../muse/keepalive';
 
 export function assetSummary(assets: Array<{ state: string; reason?: string }>): string {
   const count = (state: string) => assets.filter((job) => job.state === state).length;
@@ -394,27 +396,59 @@ function ColorCard({ entry }: { entry: RailEntry }) {
 function LiveBuildCard({ entry }: { entry: RailEntry }) {
   const data = entry.card!.data;
   const busy = useAgent((s) => s.busy);
+  const interruption = useAgent((s) => s.interruptionCard);
   const timeline = Array.isArray(data.timeline)
-    ? (data.timeline as Array<{ at: number; text: string }>)
+    ? (data.timeline as Array<{ at: number; text: string }>).filter(
+        (item) => !isKeepalive(item.text),
+      )
     : [];
   const assets = Array.isArray(data.assets)
-    ? (data.assets as Array<{ state: string }>)
+    ? (data.assets as Array<{ nodeId: string; state: string; reason?: string }>)
     : [];
   const quality = Array.isArray(data.quality) ? (data.quality as string[]) : [];
   const done = assets.filter((item) => item.state === 'done').length;
+  const receipt = data.phase === 'receipt';
+  const interrupted = data.phase === 'interrupted' && interruption?.cardId === entry.id;
+  const count = typeof data.screens === 'number' ? data.screens : 0;
   return (
     <div
       className="railcard chat-card chat-card--work"
       role="group"
-      aria-label="Build progress"
+      aria-label={
+        receipt ? 'Build receipt' : interrupted ? 'Interrupted build' : 'Build progress'
+      }
     >
       <div className="railcard-head">
         <strong>{String(data.title || 'Building')}</strong>
       </div>
-      <div className="railcard-sub" aria-live="polite">
-        {String(data.elapsed || '0s')} · {Number(data.ops || 0)} ops
-        {assets.length ? ` · Images ${done}/${assets.length}` : ''}
-      </div>
+      {receipt ? (
+        <div className="railcard-sub">
+          {typeof data.total === 'number'
+            ? `${count} of ${data.total} screens completed`
+            : `${count} screen${count === 1 ? '' : 's'}`}
+        </div>
+      ) : (
+        !interrupted && (
+          <div className="railcard-sub" aria-live="polite">
+            {String(data.elapsed || '0s')} · {Number(data.ops || 0)} ops
+            {assets.length ? ` · Images ${done}/${assets.length}` : ''}
+          </div>
+        )
+      )}
+      {receipt && assets.length > 0 && (
+        <div className="asset-chips">
+          {assets.map((item, i) => (
+            <span
+              className="chip chip-static"
+              key={`${item.nodeId}-${i}`}
+              title={item.reason || item.state}
+            >
+              {item.nodeId}: {item.state}
+              {item.reason ? ` — ${item.reason}` : ''}
+            </span>
+          ))}
+        </div>
+      )}
       {timeline.length > 0 && (
         <details>
           <summary>Progress ({timeline.length})</summary>
@@ -441,7 +475,36 @@ function LiveBuildCard({ entry }: { entry: RailEntry }) {
           </div>
         </details>
       )}
-      {busy && (
+      {interrupted && <InterruptedCard embedded />}
+      {receipt && (
+        <>
+          <div className="card-actions">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={() => {
+                const first =
+                  useProject.getState().doc.screens.find((screen) => screen.entry) ||
+                  useProject.getState().doc.screens[0];
+                if (first) useUi.getState().setActiveScreen(first.id);
+                useUi.getState().setChatExpanded(false);
+                useUi.getState().setMobileRail(false);
+              }}
+            >
+              Open
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() => useUi.getState().setModal('exportOpen', true)}
+            >
+              Export
+            </button>
+          </div>
+          {Boolean(data.caption) && <p className="field-hint">{String(data.caption)}</p>}
+        </>
+      )}
+      {!receipt && !interrupted && busy && (
         <div className="card-actions">
           <button
             type="button"
@@ -673,7 +736,9 @@ function ThinkingCard({ entry }: { entry: RailEntry }) {
   const expanded = Boolean(data.expanded);
   const active = Boolean(data.active) && busy;
   const lines = Array.isArray(data.lines)
-    ? data.lines.filter((line): line is string => typeof line === 'string')
+    ? data.lines.filter(
+        (line): line is string => typeof line === 'string' && !isKeepalive(line),
+      )
     : [];
   return (
     <div className="thinking-card chat-card chat-card--work">
@@ -690,7 +755,12 @@ function ThinkingCard({ entry }: { entry: RailEntry }) {
         {active && <span className="spin" />} <strong>Thinking</strong>
         <span>
           {' '}
-          · {active ? liveLine || 'working…' : String(data.summary || 'Finished')}
+          ·{' '}
+          {active
+            ? liveLine && !isKeepalive(liveLine)
+              ? liveLine
+              : 'working…'
+            : String(data.summary || 'Finished')}
         </span>
         <span aria-hidden="true">{expanded ? ' ▴' : ' ▾'}</span>
       </button>
@@ -699,7 +769,7 @@ function ThinkingCard({ entry }: { entry: RailEntry }) {
           {lines.map((line, i) => (
             <p key={i}>{line}</p>
           ))}
-          {active && liveText && <p>{liveText}</p>}
+          {active && liveText && !isKeepalive(liveText) && <p>{liveText}</p>}
         </div>
       )}
     </div>

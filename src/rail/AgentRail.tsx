@@ -20,6 +20,7 @@ import { generateHeroImage } from '../muse/cards';
 import { transcribe } from '../muse/client';
 import { RailCard } from './RailCard';
 import { InterruptedCard } from './InterruptedCard';
+import { isKeepalive } from '../muse/keepalive';
 import type { RailEntry } from '../types/tree';
 
 const CALL_CAP = 24;
@@ -137,6 +138,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const setModal = useUi((s) => s.setModal);
   const busy = useAgent((s) => s.busy);
   const liveLine = useAgent((s) => s.liveLine);
+  const interruptionCard = useAgent((s) => s.interruptionCard);
   const liveText = useAgent((s) => s.liveText);
   const turnCalls = useAgent((s) => s.turnCalls);
   const sessionCents = useAgent((s) => s.sessionCents);
@@ -179,7 +181,11 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         : [],
     ),
   );
-  const visibleRail = rail.filter((entry) => !hiddenThinkingEntries.has(entry.id));
+  const visibleRail = rail.filter(
+    (entry) =>
+      !hiddenThinkingEntries.has(entry.id) &&
+      !(entry.role !== 'user' && isKeepalive(entry.text)),
+  );
   const visible = showAll ? visibleRail : visibleRail.slice(-VISIBLE);
 
   useLayoutEffect(() => {
@@ -332,7 +338,11 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
       <button type="button" className="rail-peek" onClick={() => setMobileRail(true)}>
         <Sparkles size={14} className="chat-accent-icon" />
         <span className="chat-grow chat-align-left">
-          {busy ? liveLine || 'muse is working…' : 'Talk to muse — swipe up'}
+          {busy
+            ? liveLine && !isKeepalive(liveLine)
+              ? liveLine
+              : 'muse is working…'
+            : 'Talk to muse — swipe up'}
         </span>
         {busy && (
           <span
@@ -504,7 +514,11 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
               fresh={Date.now() - entry.at < 1200}
             />
           ))}
-        {!filter && <InterruptedCard />}
+        {!filter &&
+          (!interruptionCard?.cardId ||
+            !rail.some((entry) => entry.id === interruptionCard.cardId)) && (
+            <InterruptedCard />
+          )}
       </div>
 
       <div className="composer">

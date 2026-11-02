@@ -41,12 +41,14 @@ import {
   type LintFinding,
 } from './qualityLint';
 import { beginTurnJournal, endTurnJournal } from './turnJournal';
+import { isKeepalive } from './keepalive';
 import {
   startBuildPresenter,
   stopBuildPresenter,
-  refreshBuildPresenter,
   buildTimeline,
   buildCardId,
+  buildCaption,
+  finishBuildPresenter,
 } from './buildPresenter';
 import {
   autoIllustrate,
@@ -271,7 +273,7 @@ export function stopAgent(): void {
 
 function addSystem(text: string) {
   if (buildTimeline(text)) return;
-  if (/still working…|silence is normal/i.test(text)) {
+  if (isKeepalive(text)) {
     console.debug(text);
     return;
   }
@@ -280,6 +282,7 @@ function addSystem(text: string) {
 
 function addAgent(text: string) {
   if (!text.trim()) return undefined;
+  if (buildCaption(text)) return undefined;
   return useProject.getState().addRail({ role: 'agent', text: text.slice(0, 4000) });
 }
 
@@ -1726,22 +1729,35 @@ export async function runAgentTurn(
     startBuildPresenter(journal);
   }
   useAgent.getState().setInterruptionCard(null);
+  let terminal: 'receipt' | 'interrupted' | 'failed' | 'discard' = 'discard';
+  let terminalMessage = '';
   const interrupted = (reason: 'error' | 'stopped' | 'cap', message?: string) => {
+    terminal = reason === 'error' ? 'failed' : 'interrupted';
+    terminalMessage = message || '';
     endTurnJournal(journal);
     useAgent
       .getState()
-      .setInterruptionCard({ kind: 'interrupted', journal, reason, message });
+      .setInterruptionCard(
+        reason === 'error'
+          ? null
+          : { kind: 'interrupted', journal, reason, message, cardId: buildCardId() },
+      );
   };
 
   if (useAgent.getState().demoMode) {
     const { runDemoTurn } = await import('./demo/agent');
     try {
       await runDemoTurn(userText, { stopSignal: controller.signal, turnScreenAdds });
+      terminal = journal.entries.length ? 'receipt' : 'discard';
     } catch (err) {
       if (err instanceof MuseError && err.code === 'aborted') interrupted('stopped');
       else interrupted('error', err instanceof Error ? err.message : String(err));
     } finally {
-      refreshBuildPresenter();
+      finishBuildPresenter(terminal, {
+        screens: useProject.getState().doc.screens.length,
+        message: terminalMessage,
+        retryText: userText,
+      });
       stopBuildPresenter();
       journal.unsubscribe?.();
       stopHeartbeat();
@@ -1805,6 +1821,7 @@ export async function runAgentTurn(
       role: opts.role || (wonder ? 'architect' : 'builder'),
       effort: opts.effort || (wonder ? 'max' : 'medium'),
     });
+    if (result.changed && !result.choiceAsked) terminal = 'receipt';
     if (repairFollowup) {
       repairSummary(flaggedImages);
       const now = useProject.getState().doc;
@@ -1850,6 +1867,10 @@ export async function runAgentTurn(
         buildCardId(),
         () => reserveImageAttempt(imageBudget),
       );
+      if (controller.signal.aborted) {
+        interrupted('stopped');
+        return;
+      }
       await verifyGate(
         userText,
         useProject.getState().doc,
@@ -1857,6 +1878,10 @@ export async function runAgentTurn(
         imageBudget,
         before,
       );
+      if (controller.signal.aborted) {
+        interrupted('stopped');
+        return;
+      }
     }
     const entryBefore = before.screens.find((screen) => screen.entry);
     if (
@@ -1883,9 +1908,20 @@ export async function runAgentTurn(
     ) {
       wrapError(err, userText);
       interrupted('error', err.message);
+      terminal = 'discard';
     } else interrupted('error', err instanceof Error ? err.message : String(err));
   } finally {
-    refreshBuildPresenter();
+    const currentScreens = useProject.getState().doc.screens;
+    const changedScreens = currentScreens.filter(
+      (screen) =>
+        JSON.stringify(screen) !==
+        JSON.stringify(before.screens.find((old) => old.id === screen.id)),
+    ).length;
+    finishBuildPresenter(terminal, {
+      screens: changedScreens,
+      message: terminalMessage,
+      retryText: userText,
+    });
     stopBuildPresenter();
     journal.unsubscribe?.();
     stopHeartbeat();
@@ -2258,6 +2294,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
   );
   const completed = new Set<string>();
   const finishedScreens = new Set<string>();
+  let queueFailure = '';
   try {
     for (let i = 0; i < targets.length; i += 1) {
       if (controller.signal.aborted) break;
@@ -2482,8 +2519,8 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       if (!controller.signal.aborted)
         addAgent(
           useAgent.getState().verification === 'pass' && count === targets.length
-            ? `${count} screen${count === 1 ? '' : 's'} ready — your tokens, real components, and it runs. Hit ▶ Run.`
-            : `${count} of ${targets.length} screens completed. Check the progress and quality notes above before relying on the result.`,
+            ? 'Your tokens and components are ready to explore.'
+            : 'Check the quality notes before relying on the result.',
         );
     } else {
       for (const id of completed)
@@ -2493,9 +2530,28 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       addSystem('Stopped — finished screens stay, the queue clears.');
     }
   } catch (err) {
-    wrapError(err, 'Continue the build.');
+    queueFailure = err instanceof Error ? err.message : String(err);
+    useAgent.getState().setError(queueFailure);
   } finally {
-    refreshBuildPresenter();
+    const stopped = controller?.signal.aborted;
+    if (stopped) {
+      endTurnJournal(queueJournal);
+      useAgent.getState().setInterruptionCard({
+        kind: 'interrupted',
+        journal: queueJournal,
+        reason: 'stopped',
+        cardId: card.id,
+      });
+    }
+    finishBuildPresenter(
+      stopped ? 'interrupted' : queueFailure || !completed.size ? 'failed' : 'receipt',
+      {
+        screens: completed.size,
+        total: targets.length,
+        message: queueFailure || (!completed.size ? 'No screens completed the build.' : ''),
+        retryText: 'Continue the build.',
+      },
+    );
     stopBuildPresenter();
     queueJournal.unsubscribe?.();
     stopHeartbeat();

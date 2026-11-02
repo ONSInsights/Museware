@@ -1,6 +1,7 @@
 import { useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
 import type { TurnJournal } from './turnJournal';
+import { isKeepalive } from './keepalive';
 
 let active: {
   id: string;
@@ -37,6 +38,7 @@ export function startBuildPresenter(journal: TurnJournal): string {
       data: {
         ...card.card?.data,
         turnCard: true,
+        phase: 'live',
         title: 'Building',
         startedAt: Date.now(),
         ops: 0,
@@ -86,45 +88,47 @@ export function refreshBuildPresenter() {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => /^\[(?:warn|block)\]/i.test(line));
-  useProject
-    .getState()
-    .patchRail(card.id, {
-      card: {
-        ...card.card,
-        data: {
-          ...card.card.data,
-          elapsed,
-          ops,
-          assets: assets.map((job) => ({ ...job })),
-          imageDone,
-          quality,
-          ...(agent.progress
-            ? { parts: agent.progress.parts, title: agent.progress.title }
-            : {}),
-        },
+  if (
+    !quality.length &&
+    agent.reviewNotes &&
+    ['problems', 'unverified'].includes(agent.verification)
+  )
+    quality.push(`[warn] ${agent.reviewNotes}`);
+  useProject.getState().patchRail(card.id, {
+    card: {
+      ...card.card,
+      data: {
+        ...card.card.data,
+        elapsed,
+        ops,
+        assets: assets.map((job) => ({ ...job })),
+        imageDone,
+        quality,
+        ...(agent.progress
+          ? { parts: agent.progress.parts, title: agent.progress.title }
+          : {}),
       },
-    });
+    },
+  });
 }
 
 export function buildTimeline(text: string): boolean {
   const card = current();
   if (!card?.card || !text.trim()) return false;
-  if (/still working…|silence is normal/i.test(text)) {
+  if (isKeepalive(text)) {
     console.debug(text);
     return true;
   }
   const timeline = Array.isArray(card.card.data.timeline) ? card.card.data.timeline : [];
-  useProject
-    .getState()
-    .patchRail(card.id, {
-      card: {
-        ...card.card,
-        data: {
-          ...card.card.data,
-          timeline: [...timeline, { at: Date.now(), text: text.slice(0, 4000) }],
-        },
+  useProject.getState().patchRail(card.id, {
+    card: {
+      ...card.card,
+      data: {
+        ...card.card.data,
+        timeline: [...timeline, { at: Date.now(), text: text.slice(0, 4000) }],
       },
-    });
+    },
+  });
   return true;
 }
 export function buildCardId(): string | undefined {
@@ -136,4 +140,75 @@ export function stopBuildPresenter() {
   active.unsubProject();
   active.unsubAgent();
   active = null;
+}
+
+export function buildCaption(text: string): boolean {
+  const card = current();
+  if (!active || !card?.card || !active.journal.entries.length || !text.trim())
+    return false;
+  useProject.getState().patchRail(card.id, {
+    card: {
+      ...card.card,
+      data: { ...card.card.data, caption: text.trim().slice(0, 4000) },
+    },
+  });
+  return true;
+}
+
+/** Transform the original card, and place it after every other turn object. */
+export function finishBuildPresenter(
+  phase: 'receipt' | 'interrupted' | 'failed' | 'discard',
+  details: { screens?: number; total?: number; message?: string; retryText?: string } = {},
+) {
+  refreshBuildPresenter();
+  const card = current();
+  if (!card?.card) return;
+  if (phase === 'discard') {
+    const timeline = Array.isArray(card.card.data.timeline)
+      ? (card.card.data.timeline as Array<{ text?: string }>)
+      : [];
+    useProject.getState().patchRail(card.id, {
+      text: 'Thinking',
+      card: {
+        kind: 'thinking',
+        state: 'answered',
+        data: {
+          ...card.card.data,
+          turnCard: false,
+          active: false,
+          expanded: false,
+          summary: 'Finished',
+          lines: timeline.map((item) => item.text || '').filter(Boolean),
+        },
+      },
+    });
+    return;
+  }
+  const project = useProject.getState();
+  const title =
+    phase === 'receipt'
+      ? `Built · ${project.doc.name}`
+      : phase === 'interrupted'
+        ? 'Build interrupted'
+        : 'That did not finish';
+  project.patchRail(card.id, {
+    text: title,
+    card: {
+      kind: phase === 'failed' ? 'error' : 'progress',
+      state:
+        phase === 'failed' ? 'pending' : phase === 'receipt' ? 'answered' : 'cancelled',
+      data: { ...card.card.data, phase, title, ...details },
+    },
+  });
+  useProject.setState((state) => {
+    const found = state.doc.rail.find((item) => item.id === card.id);
+    return found
+      ? {
+          doc: {
+            ...state.doc,
+            rail: [...state.doc.rail.filter((item) => item.id !== card.id), found],
+          },
+        }
+      : {};
+  });
 }

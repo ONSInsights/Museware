@@ -1,4 +1,13 @@
 import { nameProjectAfterBuild } from '../projectName';
+import {
+  buildCardId,
+  buildTimeline,
+  buildCaption,
+  startBuildPresenter,
+  finishBuildPresenter,
+  stopBuildPresenter,
+} from '../buildPresenter';
+import { beginTurnJournal, endTurnJournal } from '../turnJournal';
 /**
  * The local muse — a deterministic stand-in that exercises the REAL pipeline
  * (cards, blueprint, ops, progress, verify) when no API key is present, so the
@@ -34,10 +43,12 @@ function addRail(entry: Omit<RailEntry, 'id' | 'at'>) {
 }
 
 function system(text: string) {
+  if (buildTimeline(text)) return;
   addRail({ role: 'system', text });
 }
 
 function agent(text: string) {
+  if (buildCaption(text)) return;
   addRail({ role: 'agent', text });
 }
 
@@ -215,19 +226,23 @@ async function askDirection(template: DemoTemplate, opts: DemoOpts) {
 
 async function buildFromScreens(screens: ScreenDoc[], parts: string[], opts: DemoOpts) {
   const startedAt = Date.now();
-  const progressCard = card(
-    'progress',
-    {
-      title: 'Building screens',
-      parts: parts.map((label, i) => ({
-        id: screens[i]?.id || `p${i}`,
-        label,
-        state: 'queued',
-      })),
-      startedAt,
-    },
-    'Building screens',
-  );
+  const existingId = buildCardId();
+  const progressCard =
+    (existingId &&
+      useProject.getState().doc.rail.find((entry) => entry.id === existingId)) ||
+    card(
+      'progress',
+      {
+        title: 'Building screens',
+        parts: parts.map((label, i) => ({
+          id: screens[i]?.id || `p${i}`,
+          label,
+          state: 'queued',
+        })),
+        startedAt,
+      },
+      'Building screens',
+    );
   useAgent.getState().setProgress({
     title: 'Building screens',
     startedAt,
@@ -240,7 +255,8 @@ async function buildFromScreens(screens: ScreenDoc[], parts: string[], opts: Dem
   });
 
   for (let i = 0; i < screens.length; i += 1) {
-    if (opts.stopSignal.aborted) throw new MuseError('aborted', 'Stopped');
+    if (opts.stopSignal.aborted || useAgent.getState().stopRequested())
+      throw new MuseError('aborted', 'Stopped');
     const partId = screens[i].id;
     useAgent.getState().patchPart(partId, { state: 'active' });
     useAgent
@@ -251,6 +267,8 @@ async function buildFromScreens(screens: ScreenDoc[], parts: string[], opts: Dem
         kind: 'progress',
         state: 'pending',
         data: {
+          ...(useProject.getState().doc.rail.find((entry) => entry.id === progressCard.id)
+            ?.card?.data || {}),
           title: `Screens ${i + 1} of ${screens.length}`,
           parts: useAgent.getState().progress?.parts || [],
           startedAt,
@@ -290,6 +308,8 @@ async function buildFromScreens(screens: ScreenDoc[], parts: string[], opts: Dem
       kind: 'progress',
       state: 'answered',
       data: {
+        ...(useProject.getState().doc.rail.find((entry) => entry.id === progressCard.id)
+          ?.card?.data || {}),
         title: 'Screens built',
         parts: useAgent.getState().progress?.parts || [],
         startedAt,
@@ -354,6 +374,10 @@ export async function startDemoBuild(mode: 'blueprint' | 'steady' | 'fast'): Pro
   if (agentState.busy) return;
   agentState.startTurn();
   const controller = new AbortController();
+  const journal = beginTurnJournal('Build the approved blueprint');
+  const cardId = startBuildPresenter(journal);
+  let terminal: 'receipt' | 'interrupted' | 'failed' = 'receipt';
+  let failure = '';
   const opts: DemoOpts = { stopSignal: controller.signal, turnScreenAdds: 0 };
   const doc = useProject.getState().doc;
   const text = doc.blueprint?.text || '';
@@ -383,6 +407,7 @@ export async function startDemoBuild(mode: 'blueprint' | 'steady' | 'fast'): Pro
       opts,
     );
     await verify(opts, text.slice(0, 200));
+    if (useAgent.getState().stopRequested()) throw new MuseError('aborted', 'Stopped');
     const built = useProject
       .getState()
       .doc.screens.filter((s) => screens.some((x) => x.id === s.id));
@@ -400,11 +425,28 @@ export async function startDemoBuild(mode: 'blueprint' | 'steady' | 'fast'): Pro
       system('Fast mode: per-screen review skipped, the final gate still ran.');
   } catch (err) {
     if (err instanceof MuseError && err.code === 'aborted') {
+      terminal = 'interrupted';
+      endTurnJournal(journal);
+      useAgent
+        .getState()
+        .setInterruptionCard({ kind: 'interrupted', journal, reason: 'stopped', cardId });
       system('Stopped — finished screens stay.');
     } else {
-      system(`Build failed: ${err instanceof Error ? err.message : String(err)}`);
+      terminal = 'failed';
+      failure = err instanceof Error ? err.message : String(err);
+      system(`Build failed: ${failure}`);
     }
   } finally {
+    finishBuildPresenter(terminal, {
+      screens:
+        useAgent.getState().progress?.parts.filter((part) => part.state === 'done')
+          .length || 0,
+      total: screens.length,
+      message: failure,
+      retryText: 'Build the approved blueprint',
+    });
+    stopBuildPresenter();
+    journal.unsubscribe?.();
     useAgent.getState().endTurn();
     useAgent.getState().setProgress(null);
   }

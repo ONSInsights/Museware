@@ -4,7 +4,7 @@ import { canStartOver, continuationPrompt, restartTurn } from '../muse/turnJourn
 import { runAgentTurn } from '../muse/loop';
 
 /** Session-only UI; no interruption cards enter the saved project. */
-export function InterruptedCard() {
+export function InterruptedCard({ embedded = false }: { embedded?: boolean }) {
   const card = useAgent((s) => s.interruptionCard);
   const busy = useAgent((s) => s.busy);
   const doc = useProject((s) => s.doc);
@@ -19,7 +19,11 @@ export function InterruptedCard() {
   );
   const allowed = canStartOver(card.journal);
   return (
-    <div className="railcard chat-card" role="group" aria-label="Interrupted build">
+    <div
+      className={embedded ? undefined : 'railcard chat-card'}
+      role={embedded ? undefined : 'group'}
+      aria-label={embedded ? undefined : 'Interrupted build'}
+    >
       <div className="railcard-head">
         <strong>
           {card.reason === 'cap'

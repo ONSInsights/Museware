@@ -49,12 +49,14 @@ describe('the local engine end to end', () => {
     expect(doc.screens.length).toBeGreaterThan(0);
     expect(doc.screens.filter((s) => s.entry)).toHaveLength(1);
     expect(doc.opLog.length).toBeGreaterThan(0);
-    expect(doc.rail.some((entry) => /Verified|PASS/.test(entry.text))).toBe(true);
+    expect(doc.rail.some((entry) => /Verified|PASS/.test(JSON.stringify(entry)))).toBe(
+      true,
+    );
     expect(useAgent.getState().busy).toBe(false);
     expect(doc.blueprint?.decided).toBe(true);
-    expect(doc.rail.filter((entry) => entry.text === '✓ Blueprint approved')).toHaveLength(
-      1,
-    );
+    expect(
+      doc.rail.filter((entry) => JSON.stringify(entry).includes('✓ Blueprint approved')),
+    ).toHaveLength(1);
 
     // The canvas the user sees is the tree that was built.
     const built = doc.screens[0];

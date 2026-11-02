@@ -123,6 +123,7 @@ interface AgentStore {
   interrupted: boolean;
   interruptionCard: {
     kind: 'interrupted';
+    cardId?: string;
     journal: TurnJournal;
     reason: 'error' | 'stopped' | 'cap';
     message?: string;

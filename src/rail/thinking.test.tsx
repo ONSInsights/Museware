@@ -28,7 +28,7 @@ describe('thinking card', () => {
     const toggle = screen.getByRole('button', { name: /Thinking/ });
     expect(toggle.textContent).toContain('stacking the hero');
     fireEvent.click(toggle);
-    expect(screen.getByText('Still working…')).toBeTruthy();
+    expect(screen.queryByText('Still working…')).toBeNull();
     act(() => {
       useProject
         .getState()

@@ -597,6 +597,10 @@ useAgent.subscribe((state, previous) => {
   if (!state.busy && previous.busy) {
     const current = project.doc.rail.find((item) => item.id === thinkingId);
     if (!current?.card) return;
+    if (current.card.data.turnCard === true) {
+      thinkingId = null;
+      return;
+    }
     const parts: string[] = [];
     if (project.doc.blueprint?.text && project.doc.blueprint.text !== beforeBlueprint)
       parts.push('Planned');
