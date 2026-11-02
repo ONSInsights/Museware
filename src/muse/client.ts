@@ -655,7 +655,7 @@ export async function chatStream(opts: ChatOptions): Promise<ChatResult> {
         attempt += 1;
         opts.onNotice?.(
           res.status === 429
-            ? `Rate limited — waiting ${Math.round(wait / 1000)}s. Silence is normal.`
+            ? `Rate limited — waiting ${Math.round(wait / 1000)}s.`
             : `muse returned ${res.status} — retrying in ${Math.round(wait / 1000)}s.`,
         );
         await delay(wait, opts.signal);

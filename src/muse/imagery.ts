@@ -349,7 +349,10 @@ export async function illustrateTargets(
       break;
     }
   }
-  if (useProject.getState().documentEpoch === documentEpoch)
+  if (
+    useProject.getState().documentEpoch === documentEpoch &&
+    outcomes.some((outcome) => outcome.ok)
+  )
     rail(
       `Images: ${outcomes.filter((outcome) => outcome.ok).length} of 6 generated (manual pass).`,
     );
@@ -484,7 +487,7 @@ export async function queueAssetTargets(
     publish();
     const generated = jobs.filter((job) => job.state === 'done').length;
     const totalCap = useProject.getState().doc.automatedImageBudget?.cap ?? cap;
-    rail(`Images: ${generated} of ${totalCap} generated (this pass).`);
+    if (generated) rail(`Images: ${generated} of ${totalCap} generated (this pass).`);
     const skipped = jobs.filter((job) => job.state === 'skipped');
     const budgetSkipped = skipped.filter((job) =>
       /automated image call cap/i.test(job.reason || ''),

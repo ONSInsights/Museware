@@ -167,7 +167,8 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
 
   const hiddenThinkingEntries = new Set(
     rail.flatMap((entry) =>
-      entry.card?.kind === 'thinking' && Array.isArray(entry.card.data.entryIds)
+      (entry.card?.kind === 'thinking' || entry.card?.kind === 'progress') &&
+      Array.isArray(entry.card.data.entryIds)
         ? entry.card.data.entryIds.filter((id): id is string => typeof id === 'string')
         : [],
     ),

@@ -82,7 +82,12 @@ describe('tool history sanitation', () => {
       useProject
         .getState()
         .doc.rail.some(
-          (entry) => entry.text === 'Checking the canvas.' && entry.reasoningReplayed,
+          (entry) =>
+            entry.reasoningReplayed &&
+            Array.isArray(entry.card?.data.timeline) &&
+            entry.card.data.timeline.some(
+              (item: { text?: string }) => item.text === 'Checking the canvas.',
+            ),
         ),
     ).toBe(true);
   });

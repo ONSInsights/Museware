@@ -134,7 +134,7 @@ describe('build imagery', () => {
     useAgent.setState({ keySource: 'env', houseKey: 'exhausted' });
     await autoIllustrate(['tea'], 'tea', 2);
     const lines = useProject.getState().doc.rail.map((r) => r.text);
-    expect(lines).toContain('Images: 0 of 2 generated (this pass).');
+    expect(lines).not.toContain('Images: 0 of 2 generated (this pass).');
     expect(lines.some((line) => line.includes('image budget spent'))).toBe(false);
   });
   it('generates strictly one at a time and updates pending states', async () => {

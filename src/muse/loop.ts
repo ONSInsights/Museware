@@ -263,6 +263,10 @@ export function stopAgent(): void {
 }
 
 function addSystem(text: string) {
+  if (/still working…|silence is normal/i.test(text)) {
+    console.debug(text);
+    return;
+  }
   useProject.getState().addRail({ role: 'system', text });
 }
 
@@ -283,20 +287,33 @@ function addCard(
   });
 }
 
-function startHeartbeat(anchor: number) {
+function startHeartbeat(_anchor: number) {
+  // Network keepalives are diagnostics, not conversational progress.
   stopHeartbeat();
-  heartbeatTimer = setInterval(() => {
-    if (!useAgent.getState().busy) return;
-    const secs = Math.round((Date.now() - anchor) / 1000);
-    if (secs < 40) return;
-    const mins = Math.floor(secs / 60);
-    const label = mins >= 1 ? `${mins}m${String(secs % 60).padStart(2, '0')}s` : `${secs}s`;
-    useAgent
-      .getState()
-      .setLive(
-        `Still working… ${label}. Silence is normal. (${useAgent.getState().liveLine || 'muse is thinking'})`,
-      );
-  }, 15000);
+}
+
+function recordNarration(text: string): ReturnType<typeof addAgent> {
+  if (!text.trim()) return;
+  const project = useProject.getState();
+  const card = [...project.doc.rail]
+    .reverse()
+    .find(
+      (entry) =>
+        (entry.card?.kind === 'thinking' || entry.card?.kind === 'progress') &&
+        entry.card.state === 'pending',
+    );
+  if (!card?.card) return;
+  const timeline = Array.isArray(card.card.data.timeline) ? card.card.data.timeline : [];
+  project.patchRail(card.id, {
+    card: {
+      ...card.card,
+      data: {
+        ...card.card.data,
+        timeline: [...timeline, { at: Date.now(), text: text.slice(0, 4000) }],
+      },
+    },
+  });
+  return card;
 }
 
 function stopHeartbeat() {
@@ -725,7 +742,9 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
     }
 
     let assistantRailId =
-      result.text && !opts.scope && !opts.repairIds ? addAgent(result.text) : undefined;
+      result.text && !opts.scope && !opts.repairIds
+        ? recordNarration(result.text)
+        : undefined;
     const repaired = result.toolCalls.map((call, index) => ({
       call,
       id: call.id || `call_${calls}_${call.name}_${index}`,
@@ -756,7 +775,7 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
 
     if (usable.length && result.reasoningEncrypted) {
       if (!assistantRailId && !opts.scope && !opts.repairIds)
-        assistantRailId = addAgent('Applying the next tool actions.');
+        assistantRailId = recordNarration('Applying the next tool actions.');
       replayRailId = assistantRailId?.id;
     }
     let endTurn = false;
@@ -2173,15 +2192,24 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       "The plan's screen headers were not in a format I could split — building it as ONE screen from the whole plan.",
     );
   }
-  const card = addCard(
-    'progress',
-    {
-      title: 'Building screens',
-      parts: targets.map((s) => ({ id: s.id, label: s.name, state: 'queued' })),
-      startedAt,
+  // The turn's existing card becomes the queue card; never append a duplicate.
+  const pending = [...useProject.getState().doc.rail]
+    .reverse()
+    .find((entry) => entry.card?.kind === 'thinking' && entry.card.state === 'pending');
+  const card = pending ?? addCard('progress', {}, 'Building screens');
+  useProject.getState().patchRail(card.id, {
+    text: 'Building screens',
+    card: {
+      kind: 'progress',
+      state: 'pending',
+      data: {
+        ...(card.card?.data || {}),
+        title: 'Building screens',
+        parts: targets.map((s) => ({ id: s.id, label: s.name, state: 'queued' })),
+        startedAt,
+      },
     },
-    'Building screens',
-  );
+  });
   useAgent.getState().setProgress({
     title: 'Building screens',
     startedAt,
@@ -2251,6 +2279,8 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           kind: 'progress',
           state: 'pending',
           data: {
+            ...(useProject.getState().doc.rail.find((entry) => entry.id === card.id)?.card
+              ?.data || {}),
             title: `Screens ${i + 1} of ${targets.length}`,
             parts: useAgent.getState().progress?.parts || [],
             assets:
@@ -2366,6 +2396,8 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         kind: 'progress',
         state: stopped ? 'cancelled' : 'answered',
         data: {
+          ...(useProject.getState().doc.rail.find((entry) => entry.id === card.id)?.card
+            ?.data || {}),
           title: stopped
             ? 'Stopped'
             : completed.size === targets.length
