@@ -13,7 +13,7 @@ import {
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import { useAgent } from '../store/useAgent';
-import { runAgentTurn, stopAgent } from '../muse/loop';
+import { runAgentTurn, runScopedAction, stopAgent } from '../muse/loop';
 import { recreateFromScreenshot } from '../muse/screenshot';
 import { generateHeroImage } from '../muse/cards';
 import { transcribe } from '../muse/client';
@@ -64,9 +64,30 @@ function Ring({ value, cap }: { value: number; cap: number }) {
   );
 }
 
-function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean }) {
+export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean }) {
   if (entry.role === 'card') return <RailCard entry={entry} />;
-  if (entry.role === 'system') return <div className="sys-pill">{entry.text}</div>;
+  if (entry.role === 'system')
+    return (
+      <div className="sys-pill">
+        {entry.text}
+        {entry.scopedBatch && (
+          <button
+            type="button"
+            className="chip"
+            onClick={() => {
+              const batch = entry.scopedBatch!;
+              void runScopedAction(batch.nodeId, batch.instruction, true, {
+                screenId: batch.screenId,
+                type: batch.type,
+                count: batch.count,
+              });
+            }}
+          >
+            Apply to all {entry.scopedBatch.count} {entry.scopedBatch.type}s on this screen
+          </button>
+        )}
+      </div>
+    );
   if (entry.role === 'user')
     return (
       <div className="rail-msg user">

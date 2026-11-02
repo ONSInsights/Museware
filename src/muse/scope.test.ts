@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyScreen } from '../ops/screenOps';
 import { createProject, useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
+import { useUi } from '../store/useUi';
 import type { ComponentNode } from '../types/tree';
 import { chatStream, type ChatResult } from './client';
 import { decisionLedger, runScopedAction } from './loop';
@@ -159,5 +160,172 @@ describe('scoped redesign', () => {
     const nodes = useProject.getState().doc.screens[0].root.children;
     expect(nodes[0].children[0].props.text).toBe('text_aaa');
     expect(nodes[1].children[0].props.text).toBe('Other edit');
+  });
+});
+
+describe('scoped edits that listen', () => {
+  it('routes text intent to full mode and supplies design law and current state', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setProps', id: 'text_aaa', props: { text: 'Shop now' } }],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Change the label to Shop now', true);
+    const sent = vi.mocked(chatStream).mock.calls[0][0].messages;
+    expect(sent[0].content).toContain('Design law: colors ONLY');
+    expect(sent[0].content).toContain('fontWeight stays on the 500/600/700 scale');
+    expect(sent[0].content).toContain('setStyles MERGES');
+    expect(sent[1].content).toContain('CURRENT STATE: props={"text":"text_aaa"} styles={}');
+    expect(
+      useProject.getState().doc.screens[0].root.children[0].children[0].props.text,
+    ).toBe('Shop now');
+    expect(
+      useProject.getState().doc.rail.some((r) => r.text.includes('content + style edit')),
+    ).toBe(true);
+  });
+  it('names content operations that a styles-only run drops', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            { op: 'setProps', id: 'text_aaa', props: { text: 'no' } },
+            { op: 'setText', id: 'text_aaa', text: 'no' },
+            { op: 'setStyles', id: 'text_aaa', styles: { color: 'blue' } },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Make it blue', true);
+    expect(
+      useProject
+        .getState()
+        .doc.rail.some((r) =>
+          r.text.includes(
+            'dropped: setProps(text), setText — content edits need the full edit mode',
+          ),
+        ),
+    ).toBe(true);
+  });
+  it('warns about rgba in a changed style and undoes exactly its group', async () => {
+    const before = structuredClone(useProject.getState().doc.screens);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            {
+              op: 'setStyles',
+              id: 'text_aaa',
+              styles: { boxShadow: '0 2px 4px rgba(0,0,0,.2)' },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Add a shadow', true);
+    expect(
+      useProject
+        .getState()
+        .doc.rail.some((r) =>
+          r.text.includes('warn: raw color in boxShadow — use a token'),
+        ),
+    ).toBe(true);
+    const toast = useUi.getState().toasts.at(-1);
+    expect(toast?.action?.label).toBe('Undo');
+    toast?.action?.run();
+    expect(useProject.getState().doc.screens).toEqual(before);
+  });
+  it('refuses a stale undo rather than undoing a later edit', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setStyles', id: 'text_aaa', styles: { color: 'blue' } }],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Blue', true);
+    const action = useUi.getState().toasts.at(-1)?.action;
+    useProject
+      .getState()
+      .applyBatch([{ op: 'setText', id: 'text_bbb', text: 'Later' }], { source: 'user' });
+    action?.run();
+    expect(
+      useProject.getState().doc.screens[0].root.children[1].children[0].props.text,
+    ).toBe('Later');
+  });
+  it('batches only same-type nodes on the same screen, in one undo group', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setStyles', id: 'text_aaa', styles: { color: 'blue' } }],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Blue', true);
+    const batch = useProject.getState().doc.rail.find((r) => r.scopedBatch)?.scopedBatch;
+    expect(batch).toMatchObject({
+      nodeId: 'text_aaa',
+      screenId: 'aaa',
+      type: 'text',
+      count: 2,
+      instruction: 'Blue',
+    });
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            { op: 'setStyles', id: 'text_aaa', styles: { color: 'red' } },
+            { op: 'setStyles', id: 'text_bbb', styles: { color: 'red' } },
+            { op: 'setStyles', id: 'section_a', styles: { color: 'red' } },
+            { op: 'setStyles', id: 'text_ccc', styles: { color: 'red' } },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction(batch!.nodeId, batch!.instruction, true, {
+      screenId: batch!.screenId,
+      type: batch!.type,
+    });
+    const doc = useProject.getState().doc;
+    expect(doc.screens[0].root.children[0].children[0].styles.color).toBe('red');
+    expect(doc.screens[0].root.children[1].children[0].styles.color).toBe('red');
+    expect(doc.screens[0].root.children[0].styles.color).toBeUndefined();
+    expect(doc.screens[1].root.children[0].styles.color).toBeUndefined();
+    useProject.getState().undo();
+    expect(
+      useProject.getState().doc.screens[0].root.children[0].children[0].styles.color,
+    ).toBe('blue');
+    expect(
+      useProject.getState().doc.screens[0].root.children[1].children[0].styles.color,
+    ).toBeUndefined();
+  });
+  it('discards a partial batch instead of claiming all widgets were changed', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setStyles', id: 'text_aaa', styles: { color: 'blue' } }],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Blue', true, { screenId: 'aaa', type: 'text' });
+    expect(
+      useProject.getState().doc.screens[0].root.children[0].children[0].styles.color,
+    ).toBeUndefined();
+    expect(
+      useProject
+        .getState()
+        .doc.rail.some((r) => r.text.includes('did not cover every matching widget')),
+    ).toBe(true);
+  });
+  it('refuses a batch over 20 without a model call', async () => {
+    const doc = structuredClone(useProject.getState().doc);
+    doc.screens[0].root.children.push(
+      ...Array.from({ length: 19 }, (_, i) => node(`extra_${i}`, 'text')),
+    );
+    useProject.getState().replaceDoc(doc);
+    await runScopedAction('text_aaa', 'Blue', true, { screenId: 'aaa', type: 'text' });
+    expect(chatStream).not.toHaveBeenCalled();
+    expect(useUi.getState().toasts.at(-1)?.text).toContain('limited to 20');
   });
 });

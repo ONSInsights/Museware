@@ -451,6 +451,7 @@ function formatErrors(errors: OpError[]): string {
 
 interface ScopedDraft {
   rootId: string;
+  rootIds?: ReadonlySet<string>;
   screenId: string;
   stylesOnly: boolean;
   initial: string;
@@ -889,15 +890,26 @@ async function runTool(
       if (opts.scope) {
         const filtered = filterScopedOps(
           opts.scope.doc,
-          opts.scope.rootId,
+          opts.scope.rootIds || opts.scope.rootId,
           a.ops,
           opts.scope.stylesOnly,
         );
         opts.scope.dropped += filtered.dropped;
-        if (filtered.dropped)
+        if (filtered.dropped) {
+          const content = filtered.droppedOps.flatMap((raw) => {
+            const op = raw as { op?: string; props?: Record<string, unknown> };
+            if (!opts.scope?.stylesOnly || !['setText', 'setProps'].includes(op?.op || ''))
+              return [];
+            return [
+              op.op === 'setProps'
+                ? `setProps(${Object.keys(op.props || {}).join(', ') || 'content'})`
+                : 'setText',
+            ];
+          });
           addSystem(
-            `scope:${opts.scope.rootId} — dropped ${filtered.dropped} out-of-scope or unsafe operation(s).`,
+            `scope:${opts.scope.rootId} — dropped ${filtered.dropped} out-of-scope or unsafe operation(s)${content.length ? `; dropped: ${content.join(', ')} — content edits need the full edit mode` : ''}.`,
           );
+        }
         if (!filtered.allowed.length)
           return {
             text: 'E_SCOPE: no permitted operations; explicit ids are required on added nodes.',
@@ -1724,6 +1736,7 @@ export async function runScopedAction(
   nodeId: string,
   instruction: string,
   stylesOnly = false,
+  batch?: { screenId: string; type: string; count?: number },
 ): Promise<void> {
   if (running) {
     useUi.getState().toast('muse is already working — Stop first.', 'warn');
@@ -1736,12 +1749,40 @@ export async function runScopedAction(
     useUi.getState().toast('That selection no longer exists.', 'warn');
     return;
   }
+  if (batch && (hit.screen.id !== batch.screenId || hit.node.type !== batch.type)) {
+    useUi.getState().toast('That widget or screen has changed; start a new edit.', 'warn');
+    return;
+  }
+  const targets: (typeof hit.node)[] = [];
+  if (batch)
+    walk(hit.screen.root, (n) => {
+      if (n.type === batch.type) targets.push(n);
+    });
+  else targets.push(hit.node);
+  if (batch?.count !== undefined && targets.length !== batch.count) {
+    useUi.getState().toast('The matching widgets changed; start a new edit.', 'warn');
+    return;
+  }
+  if (targets.length > 20) {
+    useUi
+      .getState()
+      .toast('Batch edits are limited to 20 widgets; no changes made.', 'warn');
+    return;
+  }
+  const widgetEdit = stylesOnly;
+  const contentIntent = /\b(text|label|say|copy|rename|icon|placeholder|title)\b/i.test(
+    instruction,
+  );
+  if (contentIntent) stylesOnly = false;
   if (useAgent.getState().demoMode) {
     addSystem(`scope:${nodeId} — scoped redesign requires a muse key; nothing changed.`);
     return;
   }
+  if (contentIntent) addSystem(`scope:${nodeId} — content + style edit`);
+  const initialTargets = new Map(targets.map((n) => [n.id, JSON.stringify(n)]));
   const scope: ScopedDraft = {
     rootId: nodeId,
+    rootIds: batch ? new Set(targets.map((n) => n.id)) : undefined,
     screenId: hit.screen.id,
     stylesOnly,
     initial: JSON.stringify(hit.node),
@@ -1777,11 +1818,11 @@ export async function runScopedAction(
       messages: [
         {
           role: 'system',
-          content: `You are editing ONLY subtree ${nodeId}. ${stylesOnly ? 'Use setStyles only on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'} Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
+          content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? '' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles only on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} Design law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
         },
         {
           role: 'user',
-          content: `Instruction: ${instruction.slice(0, 1000)}\nSELECTED SUBTREE:\n${subtreeOutline(hit.node)}`,
+          content: `Instruction: ${instruction.slice(0, 1000)}\n${targets.map((n) => `WIDGET ${n.id} CURRENT STATE: props=${JSON.stringify(n.props)} styles=${JSON.stringify(n.styles)}\nSELECTED SUBTREE:\n${subtreeOutline(n)}`).join('\n')}`,
         },
       ],
     });
@@ -1798,12 +1839,41 @@ export async function runScopedAction(
       status = 'success';
       return;
     }
+    if (batch) {
+      const touched = new Set(scope.ops.map((op) => (op as { id?: string }).id));
+      if (targets.some((n) => !touched.has(n.id))) {
+        addSystem(
+          `scope:${nodeId} — batch did not cover every matching widget; staged changes discarded.`,
+        );
+        return;
+      }
+    }
     const current = findNodeInDoc(useProject.getState().doc, nodeId);
     if (
       !current ||
       useProject.getState().documentEpoch !== documentEpoch ||
       current.screen.id !== scope.screenId ||
-      JSON.stringify(current.node) !== scope.initial
+      JSON.stringify(current.node) !== scope.initial ||
+      targets.some((n) => {
+        const now = findNodeInDoc(useProject.getState().doc, n.id);
+        return (
+          !now ||
+          now.screen.id !== scope.screenId ||
+          JSON.stringify(now.node) !== initialTargets.get(n.id)
+        );
+      }) ||
+      (batch &&
+        (() => {
+          const screen = useProject
+            .getState()
+            .doc.screens.find((s) => s.id === scope.screenId);
+          let count = 0;
+          if (screen)
+            walk(screen.root, (n) => {
+              if (n.type === batch.type) count++;
+            });
+          return count !== targets.length;
+        })())
     ) {
       addSystem(
         `scope:${nodeId} — selection changed while muse was working; staged changes discarded to protect your edits.`,
@@ -1818,9 +1888,64 @@ export async function runScopedAction(
       return;
     }
     status = 'success';
-    addSystem(
-      `scope:${nodeId} — section ${nodeId} ${stylesOnly ? 'restyled' : 'redesigned'} at ${new Date().toISOString()}; ${scope.ops.length} changes in one undo group${scope.dropped ? `, ${scope.dropped} blocked` : ''}.`,
+    const after = useProject.getState();
+    const undoGroup = after.undoStack[after.undoStack.length - 1];
+    const epoch = after.documentEpoch;
+    useUi
+      .getState()
+      .toast(
+        `Restyled ${String(hit.node.props.name || hit.node.props.text || hit.node.type)} —`,
+        'ok',
+        {
+          label: 'Undo',
+          run: () => {
+            const state = useProject.getState();
+            if (
+              state.documentEpoch !== epoch ||
+              state.undoStack[state.undoStack.length - 1] !== undoGroup
+            ) {
+              useUi
+                .getState()
+                .toast('Undo is no longer the latest edit; nothing was undone.', 'warn');
+              return;
+            }
+            state.undo();
+          },
+        },
+      );
+    const changedIds = new Set(
+      scope.ops.map((raw) => (raw as { id?: string }).id).filter(Boolean),
     );
+    const screen = after.doc.screens.find((s) => s.id === scope.screenId);
+    const warnings = screen
+      ? lintScreen(screen, after.doc.tokens, new Set(), after.doc.kind).filter(
+          (f) =>
+            f.code === 'token' &&
+            f.severity === 'warn' &&
+            changedIds.has(f.nodeId) &&
+            f.message.startsWith('raw color in '),
+        )
+      : [];
+    const sameType: string[] = [];
+    if (!batch && screen)
+      walk(screen.root, (n) => {
+        if (n.type === hit.node.type) sameType.push(n.id);
+      });
+    useProject.getState().addRail({
+      role: 'system',
+      text: `scope:${nodeId} — section ${nodeId} ${stylesOnly ? 'restyled' : 'redesigned'} at ${new Date().toISOString()}; ${scope.ops.length} ${scope.ops.length === 1 ? 'change' : 'changes'} applied in one undo group${scope.dropped ? `, ${scope.dropped} blocked` : ''}${warnings.length ? ` · warn: ${warnings.map((f) => f.message).join('; ')}` : ''}.`,
+      ...(!batch && widgetEdit && sameType.length > 1 && sameType.length <= 20
+        ? {
+            scopedBatch: {
+              nodeId,
+              screenId: scope.screenId,
+              type: hit.node.type,
+              instruction,
+              count: sameType.length,
+            },
+          }
+        : {}),
+    });
   } catch (err) {
     addSystem(
       `scope:${nodeId} — action failed; no staged changes applied: ${err instanceof Error ? err.message : String(err)}`,

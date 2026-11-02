@@ -314,6 +314,7 @@ export const useProject = create<ProjectStore>((set, get) => ({
       role: entry.role,
       text: entry.text,
       ...(entry.reasoningReplayed ? { reasoningReplayed: true } : {}),
+      ...(entry.scopedBatch ? { scopedBatch: entry.scopedBatch } : {}),
       ...(entry.card ? { card: entry.card } : {}),
     });
     set((s) => ({ doc: { ...s.doc, rail: [...s.doc.rail, full].slice(-RAIL_CAP) } }));

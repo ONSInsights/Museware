@@ -318,11 +318,14 @@ export function lintScreen(
       for (const [key, value] of Object.entries(styles)) {
         if (value && typeof value === 'object')
           checkStyles(value as Record<string, unknown>);
-        else if (typeof value === 'string')
+        else if (typeof value === 'string') {
           for (const hex of value.match(/#[0-9a-f]{6}\b/gi) || []) {
             const token = colors.get(hex.toLowerCase());
             if (token) add(node, 'warn', 'token', `${key} uses ${hex}; ${token} exists`);
           }
+          if (/rgba?\s*\(/i.test(value))
+            add(node, 'warn', 'token', `raw color in ${key} — use a token`);
+        }
       }
     };
     checkStyles(node.styles);

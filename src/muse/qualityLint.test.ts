@@ -340,3 +340,16 @@ describe('quality lint and gate', () => {
     expect(vi.mocked(chatStream)).toHaveBeenCalledTimes(1);
   });
 });
+
+it('warns on rgb and rgba style values with a token suggestion', () => {
+  const s = useProject.getState().doc.screens[0];
+  s.root.children[0].styles = {
+    color: 'rgb(1, 2, 3)',
+    boxShadow: '0 1px 2px rgba(0,0,0,.3)',
+  };
+  const messages = lintScreen(s)
+    .filter((f) => f.code === 'token')
+    .map((f) => f.message);
+  expect(messages).toContain('raw color in color — use a token');
+  expect(messages).toContain('raw color in boxShadow — use a token');
+});

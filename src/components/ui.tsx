@@ -241,6 +241,18 @@ export function Toasts() {
       {toasts.map((t) => (
         <div className="toast" key={t.id} data-tone={t.tone}>
           <span className="mw-shell-util-17">{t.text}</span>
+          {t.action && (
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                dismiss(t.id);
+                t.action?.run();
+              }}
+            >
+              {t.action.label}
+            </button>
+          )}
           <button
             type="button"
             className="icon-btn icon-btn-sm"

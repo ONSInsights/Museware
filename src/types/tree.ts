@@ -168,6 +168,13 @@ export interface RailEntry {
   role: 'user' | 'agent' | 'system' | 'card';
   text: string;
   reasoningReplayed?: boolean;
+  scopedBatch?: {
+    nodeId: string;
+    screenId: string;
+    type: ComponentNode['type'];
+    instruction: string;
+    count: number;
+  };
   card?: {
     kind:
       | 'build_choice'

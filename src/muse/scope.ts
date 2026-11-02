@@ -4,19 +4,27 @@ import type { ComponentNode, ProjectDoc } from '../types/tree';
 /** Evaluate against the current staged tree, not an untrusted model-provided list. */
 export function filterScopedOps(
   doc: ProjectDoc,
-  rootId: string,
+  rootId: string | ReadonlySet<string>,
   ops: unknown[],
   stylesOnly = false,
-): { allowed: unknown[]; dropped: number } {
-  const root = findNodeInDoc(doc, rootId)?.node;
+): { allowed: unknown[]; dropped: number; droppedOps: unknown[] } {
+  const roots = typeof rootId === 'string' ? new Set([rootId]) : rootId;
+  const batch = typeof rootId !== 'string';
   const ids = new Set<string>();
   const collect = (node: ComponentNode) => {
     ids.add(node.id);
     node.children.forEach(collect);
   };
-  if (root) collect(root);
+  for (const id of roots) {
+    const root = findNodeInDoc(doc, id)?.node;
+    if (root) {
+      if (batch) ids.add(id);
+      else collect(root);
+    }
+  }
   const allowed: unknown[] = [];
   let dropped = 0;
+  const droppedOps: unknown[] = [];
   const newIds = (node: unknown): string[] | null => {
     if (!node || typeof node !== 'object') return null;
     const n = node as { id?: unknown; children?: unknown };
@@ -36,15 +44,23 @@ export function filterScopedOps(
     const op = raw as { op?: string; id?: string; parentId?: string; node?: unknown };
     let ok = false;
     if (op && typeof op === 'object') {
-      if (stylesOnly) ok = op.op === 'setStyles' && op.id === rootId;
+      if (batch)
+        ok =
+          typeof op.id === 'string' &&
+          ids.has(op.id) &&
+          (stylesOnly
+            ? op.op === 'setStyles'
+            : ['setStyles', 'setProps', 'setText', 'rename'].includes(op.op || ''));
+      else if (stylesOnly)
+        ok = op.op === 'setStyles' && typeof op.id === 'string' && roots.has(op.id);
       else if (['setProps', 'setStyles', 'setText', 'rename'].includes(op.op || ''))
         ok = typeof op.id === 'string' && ids.has(op.id);
       else if (op.op === 'remove')
-        ok = typeof op.id === 'string' && op.id !== rootId && ids.has(op.id);
+        ok = typeof op.id === 'string' && !roots.has(op.id) && ids.has(op.id);
       else if (op.op === 'move')
         ok =
           typeof op.id === 'string' &&
-          op.id !== rootId &&
+          !roots.has(op.id) &&
           ids.has(op.id) &&
           typeof op.parentId === 'string' &&
           ids.has(op.parentId);
@@ -52,14 +68,17 @@ export function filterScopedOps(
         const added = newIds(op.node);
         ok = Boolean(
           added &&
-            new Set(added).size === added.length &&
-            added.every((id) => !findNodeInDoc(doc, id) && !ids.has(id)),
+          new Set(added).size === added.length &&
+          added.every((id) => !findNodeInDoc(doc, id) && !ids.has(id)),
         );
         if (ok) added!.forEach((id) => ids.add(id));
       }
     }
     if (ok) allowed.push(raw);
-    else dropped += 1;
+    else {
+      dropped += 1;
+      droppedOps.push(raw);
+    }
   }
-  return { allowed, dropped };
+  return { allowed, dropped, droppedOps };
 }

@@ -91,8 +91,8 @@ export function buildProjectIndex(
       });
       if (hit) {
         const node = hit as ComponentNode;
-        lines.push(
-          `SELECTION: ${node.id} (${node.type}) props=${JSON.stringify(node.props).slice(0, 200)}`,
+        lines.unshift(
+          `SELECTED: ${node.id} (${node.type}) props=${JSON.stringify(node.props).slice(0, 200)}`,
         );
         break;
       }

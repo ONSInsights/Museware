@@ -113,7 +113,7 @@ describe('a Row gets the fields a Row needs', () => {
 
   it('offers scoped redesign and restyle controls for a container', () => {
     expect(screen.getByRole('button', { name: /Redesign this section/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Restyle this widget/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Edit this widget/i })).toBeTruthy();
     expect(screen.getByLabelText('Scoped design instruction')).toBeTruthy();
   });
 
@@ -204,7 +204,7 @@ describe('a Heading gets type fields, not container fields', () => {
   });
 
   it('offers widget restyle without a section redesign action', () => {
-    expect(screen.getByRole('button', { name: /Restyle this widget/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Edit this widget/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Redesign this section/i })).toBeNull();
   });
 

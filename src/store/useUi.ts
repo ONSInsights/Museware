@@ -22,6 +22,7 @@ export interface Toast {
   id: string;
   text: string;
   tone: 'ok' | 'warn' | 'danger' | 'neutral';
+  action?: { label: string; run: () => void };
 }
 
 interface UiStore {
@@ -82,7 +83,7 @@ interface UiStore {
   ) => void;
   setColorCard: (req: ColorCardRequest | null) => void;
   setTheme: (t: 'dark' | 'light' | 'auto') => void;
-  toast: (text: string, tone?: Toast['tone']) => void;
+  toast: (text: string, tone?: Toast['tone'], action?: Toast['action']) => void;
   dismissToast: (id: string) => void;
   setPaletteFilter: (f: string) => void;
   startPrompt: (text: string) => void;
@@ -259,13 +260,16 @@ export const useUi = create<UiStore>((set, get) => ({
     }
     set({ theme });
   },
-  toast: (text, tone = 'neutral') => {
+  toast: (text, tone = 'neutral', action) => {
     toastSeq += 1;
     const id = `t${toastSeq}`;
-    set((s) => ({ toasts: [...s.toasts, { id, text, tone }].slice(-3) }));
-    setTimeout(() => {
-      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
-    }, 4200);
+    set((s) => ({ toasts: [...s.toasts, { id, text, tone, action }].slice(-3) }));
+    setTimeout(
+      () => {
+        set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+      },
+      action ? 6000 : 4200,
+    );
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setPaletteFilter: (paletteFilter) => set({ paletteFilter }),

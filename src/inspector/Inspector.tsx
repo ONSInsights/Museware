@@ -744,7 +744,7 @@ export function Inspector() {
           <input
             className="input"
             aria-label="Scoped design instruction"
-            placeholder="Optional: describe the change"
+            placeholder="Describe a style or content change"
             value={scopeInstruction}
             maxLength={1000}
             onChange={(event) => setScopeInstruction(event.target.value)}
@@ -773,12 +773,12 @@ export function Inspector() {
               void runScopedAction(
                 node.id,
                 scopeInstruction.trim() ||
-                  'Restyle this widget while preserving its content and structure.',
+                  'Improve this widget’s styling while preserving its existing wording and structure.',
                 true,
               )
             }
           >
-            <Sparkles size={13} /> Restyle this widget
+            <Sparkles size={13} /> Edit this widget
           </button>
         </div>
         <div className="mw-shell-util-16">
