@@ -5,7 +5,13 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { Canvas } from './Canvas';
 import { CanvasStyle } from './NodeView';
-import { generateCss, generateFullCss, MOTION_DICTIONARY, UTILITY_CSS } from './cssGen';
+import {
+  generateCss,
+  generateFullCss,
+  MOTION_DICTIONARY,
+  SWITCH_MOTION_CSS,
+  UTILITY_CSS,
+} from './cssGen';
 import { useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
 import type { ComponentNode } from '../types/tree';
@@ -44,7 +50,9 @@ it('sets the editor scrolling frame and preserves the definite wrapper', () => {
 it('floors clipped nodes and marquee only in the editor, never dividers', () => {
   const doc = fixture();
   const base = generateFullCss(doc);
-  expect(base).toBe(`${generateCss(doc)}\n${MOTION_DICTIONARY}\n${UTILITY_CSS}`);
+  expect(base).toBe(
+    `${generateCss(doc)}\n${MOTION_DICTIONARY}\n${SWITCH_MOTION_CSS}\n${UTILITY_CSS}`,
+  );
   expect(generateFullCss(doc, { editScope: false })).toBe(base);
   const edit = generateFullCss(doc, { editScope: true, scrollModel: 'web' });
   for (const id of ['marquee_test', 'clipped', 'clipped2'])

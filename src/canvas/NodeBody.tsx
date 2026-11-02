@@ -1,6 +1,8 @@
 import { sampleRows } from './nodeSamples';
 import {
   useState,
+  useRef,
+  useEffect,
   createContext,
   useContext,
   type CSSProperties,
@@ -11,6 +13,7 @@ import {
 import type { Action, ComponentNode, ProjectDoc } from '../types/tree';
 import { isVisible, runActions, screenSlugForLabel, useRuntime } from '../preview/runtime';
 import { nodeClass } from './cssGen';
+import { enterPanel } from './reveal';
 import { avatarPlaceholder, placeholderImage } from './placeholder';
 import { Icon } from './Icon';
 import { MotionCanvas, VideoContent } from './MotionCanvas';
@@ -124,6 +127,24 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
     (s) => s.assetDocumentEpoch === epoch && s.assetsPending.has(node.id),
   );
   const [tab, setTab] = useState(0);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const previousTab = useRef(tab);
+  useEffect(() => {
+    if (
+      node.type === 'tabs' &&
+      mode === 'run' &&
+      !staticExport &&
+      node.children.length === asList(node.props.items).length &&
+      previousTab.current !== tab
+    ) {
+      const panel = node.children[tab];
+      if (panel)
+        enterPanel(
+          tabsRef.current?.querySelector<HTMLElement>(`.${nodeClass(panel.id)}`) || null,
+        );
+    }
+    previousTab.current = tab;
+  }, [tab, mode, node, staticExport]);
   const cls = nodeClass(node.id);
   const state = mode === 'run' && runtime ? runtime.state : null;
   if (!isVisible(node, state)) return null;
@@ -191,7 +212,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       const items = asList(p.items);
       const panels = node.children || [];
       return (
-        <div className={cls}>
+        <div className={cls} ref={tabsRef}>
           <div className="mw-tab-strip">
             {items.map((item, i) => (
               <button

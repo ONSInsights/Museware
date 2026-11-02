@@ -4,9 +4,11 @@ import { expect, it } from 'vitest';
 import { COMPONENT_SPECS, MOTION_PROP } from '../types/library';
 import { createProject } from '../store/useProject';
 import { emptyScreen } from '../ops/screenOps';
-import { generateFullCss, MOTION_DICTIONARY } from './cssGen';
-const TOKEN_LINE =
-  '.mw-app{--mw-motion-fast:160ms;--mw-motion-med:280ms;--mw-motion-slow:480ms;--mw-ease-out:cubic-bezier(.22,1,.36,1)}';
+import { generateFullCss, MOTION_DICTIONARY, SWITCH_MOTION_CSS } from './cssGen';
+const TOKEN_LINE = readFileSync(
+  new URL('./fixtures/motion-token-contract.css', import.meta.url),
+  'utf8',
+).trim();
 function fixture() {
   const doc = createProject('KOYO');
   const screen = emptyScreen('Home', { id: 'home', entry: true });
@@ -43,9 +45,12 @@ it('the old CSS is byte-identical except the inert dictionary and token line', (
     'utf8',
   );
   const css = generateFullCss(fixture());
-  expect(css.replace(`${TOKEN_LINE}\n`, '').replace(`${MOTION_DICTIONARY}\n`, '')).toBe(
-    old,
-  );
+  expect(
+    css
+      .replace(`${TOKEN_LINE}\n`, '')
+      .replace(`${MOTION_DICTIONARY}\n`, '')
+      .replace(`${SWITCH_MOTION_CSS}\n`, ''),
+  ).toBe(old);
 });
 it('emits only selected presets with reduced-motion completeness and bounded delays', () => {
   const doc = fixture();

@@ -30,6 +30,7 @@ export function startSite(
   data: SiteData,
   mountMotion: Motion,
   armReveals?: (root: HTMLElement) => void,
+  enterPanel?: (element: HTMLElement | null) => void,
 ): void {
   document.querySelectorAll<HTMLElement>('.mw-app').forEach((root) => armReveals?.(root));
   if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
@@ -98,8 +99,11 @@ export function startSite(
         s.name.toLowerCase() === target.toLowerCase(),
     );
     if (!screen) return;
+    const changed = typeof state.__screen === 'string' && state.__screen !== screen.id;
     document.querySelectorAll<HTMLElement>('[data-screen]').forEach((el) => {
       el.hidden = el.dataset.screen !== screen.id;
+      if (changed && !el.hidden)
+        enterPanel?.(el.querySelector<HTMLElement>('.mw-app') || el);
     });
     state.__screen = screen.id;
     refresh();
@@ -160,8 +164,11 @@ export function startSite(
           button.dataset.active = String(button.dataset.siteTab === index);
       });
       element.querySelectorAll<HTMLElement>('[data-site-panel]').forEach((panel) => {
-        if (panel.parentElement === element)
+        if (panel.parentElement === element) {
+          const wasHidden = panel.hidden;
           panel.hidden = panel.dataset.sitePanel !== index;
+          if (wasHidden && !panel.hidden) enterPanel?.(panel);
+        }
       });
       run(node.events?.change);
       return;

@@ -97,10 +97,10 @@ export function buildSingleHtml(input: ProjectDoc): string {
     'export function mountMotion',
     'function mountMotion',
   );
-  const reveal = revealSource.replace('export function armReveals', 'function armReveals');
+  const reveal = revealSource.replaceAll('export function ', 'function ');
   const metadata = safeScriptJson({ nodes, screens, entry: entry?.id || '' });
   const script =
-    `document.documentElement.dataset.theme=typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';\n${motion}\n${reveal}\n(${startSite.toString()})(${metadata},mountMotion,armReveals);`.replace(
+    `document.documentElement.dataset.theme=typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';\n${motion}\n${reveal}\n(${startSite.toString()})(${metadata},mountMotion,armReveals,enterPanel);`.replace(
       /<\/script/gi,
       '<\\/script',
     );

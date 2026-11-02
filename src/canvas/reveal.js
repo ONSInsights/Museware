@@ -35,3 +35,22 @@ export function armReveals(root, options = {}) {
     targets.forEach((target) => target.classList.remove('is-in'));
   };
 }
+
+// One arrival move, shared by screen and tab switches; reduced motion stays instant.
+export function enterPanel(element) {
+  if (
+    !element ||
+    (typeof matchMedia === 'function' &&
+      matchMedia('(prefers-reduced-motion: reduce)').matches)
+  )
+    return;
+  element.classList.remove('mw-enter');
+  void element.offsetWidth;
+  element.classList.add('mw-enter');
+  const done = (event) => {
+    if (event.target !== element) return;
+    element.classList.remove('mw-enter');
+    element.removeEventListener('animationend', done);
+  };
+  element.addEventListener('animationend', done);
+}

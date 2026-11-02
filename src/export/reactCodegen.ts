@@ -400,7 +400,7 @@ export function generateProjectFiles(doc: ProjectDoc): Record<string, string> {
   files['src/motion.js'] = motionSource;
   files['src/reveal.js'] = revealSource;
   files['src/reveal.d.ts'] =
-    'export function armReveals(root: HTMLElement | null, options?: { noArm?: boolean }): () => void;';
+    'export function armReveals(root: HTMLElement | null, options?: { noArm?: boolean }): () => void;\nexport function enterPanel(element: HTMLElement | null): void;';
   files['src/motion.d.ts'] =
     'export function mountMotion(canvas: HTMLCanvasElement, options?: { preset?: string; speed?: number; interactive?: boolean }): () => void;';
   files['src/MotionCanvas.tsx'] = `import { useEffect, useRef, useState } from 'react';
@@ -444,7 +444,8 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
 `;
 
   files['src/runtime.tsx'] =
-    `import { Children, createContext, useContext, useState, type ReactNode } from 'react';
+    `import { Children, createContext, useContext, useState, useRef, useLayoutEffect, type ReactNode } from 'react';
+import { enterPanel } from './reveal';
 import type { Action } from './types';
 
 export function matchesValue(actual: unknown, expected: unknown): boolean {
@@ -496,8 +497,14 @@ export function useSetScreen(): (id: string) => void {
 
 export function TabsBlock({ items, children }: { items: string[]; children: ReactNode }) {
   const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const previous = useRef(active);
+  useLayoutEffect(() => {
+    if (previous.current !== active) enterPanel(root.current?.lastElementChild as HTMLElement | null);
+    previous.current = active;
+  }, [active]);
   return (
-    <div>
+    <div ref={root}>
       <div className="mw-tab-strip">
         {items.map((item, i) => (
           <button key={item} className="mw-tab" data-active={i === active} onClick={() => setActive(i)}>{item}</button>
@@ -509,7 +516,9 @@ export function TabsBlock({ items, children }: { items: string[]; children: Reac
 }
 `;
 
-  files['src/App.tsx'] = `import { useEffect, useMemo, useState } from 'react';
+  files['src/App.tsx'] =
+    `import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { enterPanel } from './reveal';
 import { AppContext, SCREENS, slug, matchesValue } from './runtime';
 import type { Action } from './types';
 ${doc.screens.map((s) => `import { ${pascal(s.id)}Screen } from './screens/${pascal(s.id)}';`).join('\n')}
@@ -522,6 +531,11 @@ const START = ${str(entry?.id || '')};
 
 export default function App() {
   const [screen, setScreen] = useState(START);
+  const previousScreen = useRef(screen);
+  useLayoutEffect(() => {
+    if (previousScreen.current !== screen) enterPanel(document.querySelector<HTMLElement>('.mw-app'));
+    previousScreen.current = screen;
+  }, [screen]);
   const [state, setState] = useState<Record<string, unknown>>({});
   const [toastText, setToastText] = useState<string | null>(null);
 

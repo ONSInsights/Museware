@@ -705,6 +705,8 @@ export const MOTION_DICTIONARY = `@keyframes mw-rise{from{opacity:0;transform:tr
 @keyframes mw-slide{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
 @keyframes mw-scale{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}`;
 
+export const SWITCH_MOTION_CSS = `:where(.mw-enter){animation:mw-rise var(--mw-motion-med) var(--mw-ease-out) both}`;
+
 export const UTILITY_CSS = `@container mw (min-width:600px){.mw-app{--type-display:var(--type-display-md);--type-title:var(--type-title-md);--gap-section:var(--gap-section-md);--pad-screen:var(--pad-screen-md)}}
 @container mw (min-width:1024px){.mw-app{--type-display:var(--type-display-lg);--type-title:var(--type-title-lg);--gap-section:var(--gap-section-lg);--pad-screen:var(--pad-screen-lg)}}
 :where(.mw-sec-head){display:flex;flex-direction:column;align-items:flex-start;gap:10px}:where(.mw-section[data-align="center"] .mw-sec-head){align-items:center;text-align:center}.mw-sec-eyebrow{display:inline-flex;padding:5px 10px;border:1px solid currentColor;border-radius:999px;font-size:12px}.mw-sec-title{margin:0;font-family:var(--font-heading);font-size:var(--type-title);line-height:1.15;text-wrap:balance}.mw-sec-sub{margin:0;max-width:60ch;font-size:var(--type-body);line-height:1.6}:where(.mw-section[data-surface="sunk"]){background:var(--openui-sunk)}:where(.mw-section[data-surface="elevated"]){background:var(--openui-elevated)}:where(.mw-section[data-surface="accent"]){background:var(--openui-accent);color:var(--openui-text-on-accent)}:where(.mw-section[data-surface="glow"]){background:radial-gradient(circle at 80% 10%,var(--openui-accent-subtle),transparent 60%),var(--openui-elevated)}:where(.mw-section[data-surface]:not([data-surface="plain"])){padding:var(--pad-card);border-radius:var(--radius-card)}:where(.mw-section[data-bleed="true"]){margin-inline:calc(-1 * var(--pad-screen));width:calc(100% + 2 * var(--pad-screen));max-width:none}
@@ -778,5 +780,5 @@ export function generateFullCss(
   doc: ProjectDoc,
   options: { editScope?: boolean; scrollModel?: 'phone' | 'web' } = {},
 ): string {
-  return `${generateCss(doc, options)}\n${MOTION_DICTIONARY}\n${UTILITY_CSS}`;
+  return `${generateCss(doc, options)}\n${MOTION_DICTIONARY}\n${SWITCH_MOTION_CSS}\n${UTILITY_CSS}`;
 }

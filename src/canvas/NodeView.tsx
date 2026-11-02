@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
-import { armReveals } from './reveal';
+import { armReveals, enterPanel } from './reveal';
 import type { ProjectDoc, ScreenDoc } from '../types/tree';
 import { NodeBody } from './NodeBody';
 import { generateFullCss } from './cssGen';
@@ -40,6 +40,12 @@ export function NodeView({
   noMotionArm?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const previousScreen = useRef(screen.id);
+  useLayoutEffect(() => {
+    if (mode === 'run' && !noMotionArm && previousScreen.current !== screen.id)
+      enterPanel(root.current);
+    previousScreen.current = screen.id;
+  }, [mode, noMotionArm, screen.id]);
   useLayoutEffect(
     () => (mode === 'run' ? armReveals(root.current, { noArm: noMotionArm }) : undefined),
     [mode, noMotionArm, screen.id],
