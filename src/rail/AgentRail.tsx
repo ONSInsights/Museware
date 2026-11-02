@@ -18,6 +18,7 @@ import { recreateFromScreenshot } from '../muse/screenshot';
 import { generateHeroImage } from '../muse/cards';
 import { transcribe } from '../muse/client';
 import { RailCard } from './RailCard';
+import { InterruptedCard } from './InterruptedCard';
 import type { RailEntry } from '../types/tree';
 
 const CALL_CAP = 24;
@@ -486,6 +487,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
               fresh={Date.now() - entry.at < 1200}
             />
           ))}
+        {!filter && <InterruptedCard />}
       </div>
 
       <div className="composer">

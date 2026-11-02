@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { RailEntry } from '../types/tree';
+import type { TurnJournal } from '../muse/turnJournal';
 import type { BudgetState, HouseKeyState } from '../muse/client';
 
 export interface ModelRoleInfo {
@@ -120,6 +121,13 @@ interface AgentStore {
   reviewNotes: string | null;
   verification: 'idle' | 'running' | 'pass' | 'problems' | 'unverified';
   interrupted: boolean;
+  interruptionCard: {
+    kind: 'interrupted';
+    journal: TurnJournal;
+    reason: 'error' | 'stopped' | 'cap';
+    message?: string;
+  } | null;
+  setInterruptionCard: (card: AgentStore['interruptionCard']) => void;
   lastError: string | null;
   busySignatures: string[];
   startTurn: () => void;
@@ -200,6 +208,8 @@ export const useAgent = create<AgentStore>((set, get) => ({
   imageWarnings: new Set<string>(),
   imageWarningEpoch: null,
   pendingRetry: null,
+  interruptionCard: null,
+  setInterruptionCard: (interruptionCard) => set({ interruptionCard }),
   screenshotPreview: null,
   setScreenshotPreview: (screenshotPreview) => set({ screenshotPreview }),
   wonder: (() => {

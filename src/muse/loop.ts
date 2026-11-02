@@ -35,6 +35,7 @@ import { entryScreen, findNodeInDoc, clone, walk } from '../ops/treeUtils';
 import { applyOps } from '../ops/apply';
 import { filterScopedOps } from './scope';
 import { lintScreen, lintRemovedImageVoids, type LintFinding } from './qualityLint';
+import { beginTurnJournal, endTurnJournal } from './turnJournal';
 import {
   autoIllustrate,
   illustrateTargets,
@@ -624,6 +625,7 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
             : TOOL_DEFS,
         signal: controller?.signal,
         onText: (t) => useAgent.getState().appendText(t),
+        onRetry: () => useAgent.getState().resetText(),
         onNotice: (n) => addSystem(n),
       });
       if (replayRailId) {
@@ -1616,6 +1618,7 @@ export interface TurnOptions {
   role?: 'builder' | 'architect';
   effort?: string;
   silent?: boolean;
+  resumeJournal?: string;
   skipVerify?: boolean;
   /** Set when this turn is the answer to a choice card the user just tapped. */
   pick?: PickDirective;
@@ -1642,14 +1645,24 @@ export async function runAgentTurn(
   const startedAt = Date.now();
   startHeartbeat(startedAt);
   const before = useProject.getState().doc;
+  const journal = beginTurnJournal(userText);
+  useAgent.getState().setInterruptionCard(null);
+  const interrupted = (reason: 'error' | 'stopped' | 'cap', message?: string) => {
+    endTurnJournal(journal);
+    useAgent
+      .getState()
+      .setInterruptionCard({ kind: 'interrupted', journal, reason, message });
+  };
 
   if (useAgent.getState().demoMode) {
     const { runDemoTurn } = await import('./demo/agent');
     try {
       await runDemoTurn(userText, { stopSignal: controller.signal, turnScreenAdds });
     } catch (err) {
-      if (!(err instanceof MuseError && err.code === 'aborted')) wrapError(err, userText);
+      if (err instanceof MuseError && err.code === 'aborted') interrupted('stopped');
+      else interrupted('error', err instanceof Error ? err.message : String(err));
     } finally {
+      journal.unsubscribe?.();
       stopHeartbeat();
       useAgent.getState().endTurn();
       running = false;
@@ -1661,11 +1674,10 @@ export async function runAgentTurn(
   }
 
   try {
-    const messages = contextMessages(
-      before,
-      userText,
-      pickTurn ? [pickReceipt(pickTurn)] : [],
-    );
+    const messages = contextMessages(before, userText, [
+      ...(pickTurn ? [pickReceipt(pickTurn)] : []),
+      ...(opts.resumeJournal ? [opts.resumeJournal] : []),
+    ]);
     // Wonder mode (§6.1): an opt-in, 4x-priced planning round on the architect
     // role. Only the FIRST turn — before anything exists to fill — and never
     // for the routine edits that follow.
@@ -1724,9 +1736,11 @@ export async function runAgentTurn(
       );
     }
     if (result.stopped) {
-      addSystem(
-        `Stopped — ${useProject.getState().doc.opLog.length - before.opLog.length} batches applied, nothing lost.`,
-      );
+      interrupted('stopped');
+      return;
+    }
+    if (!result.finished && !result.choiceAsked && result.calls >= TURN_CALL_CAP) {
+      interrupted('cap');
       return;
     }
     if (result.changed && !result.choiceAsked && !opts.skipVerify) {
@@ -1776,12 +1790,21 @@ export async function runAgentTurn(
       addAgent("That's where this turn landed. Look it over, or tell me the next move.");
     }
   } catch (err) {
-    if (err instanceof MuseError && err.code === 'aborted') {
-      addSystem('Stopped — applied batches stay, nothing lost.');
-    } else {
+    if (err instanceof MuseError && err.code === 'aborted') interrupted('stopped');
+    else if (
+      err instanceof MuseError &&
+      [
+        'house_key_exhausted',
+        'house_key_rejected',
+        'house_key_rate_limited',
+        'no_key',
+      ].includes(err.code)
+    ) {
       wrapError(err, userText);
-    }
+      interrupted('error', err.message);
+    } else interrupted('error', err instanceof Error ? err.message : String(err));
   } finally {
+    journal.unsubscribe?.();
     stopHeartbeat();
     useAgent.getState().endTurn();
     running = false;

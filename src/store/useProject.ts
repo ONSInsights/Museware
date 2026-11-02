@@ -3,6 +3,7 @@ import { useAgent } from './useAgent';
 import { nanoid } from 'nanoid';
 import type {
   CustomComponent,
+  OpEntry,
   MockRow,
   ProjectDoc,
   RailEntry,
@@ -120,6 +121,11 @@ interface ProjectStore {
     rawOps: unknown[],
     opts: { source: 'agent' | 'user'; screenAddsThisTurn?: number; lesson?: string },
   ) => ApplyResult;
+  restoreInterruptedTurn: (
+    before: ProjectDoc,
+    anchor: Snapshot | undefined,
+    entries: OpEntry[],
+  ) => boolean;
   undo: () => string | null;
   redo: () => string | null;
   addDesignNote: (line: string) => void;
@@ -304,6 +310,45 @@ export const useProject = create<ProjectStore>((set, get) => ({
       undoStack: state.undoStack.slice(0, -1),
       redoStack: [...state.redoStack, snapshotOf(state.doc)].slice(-50),
       lastResult: result,
+    });
+    return true;
+  },
+
+  restoreInterruptedTurn: (before, anchor, entries) => {
+    const state = get();
+    const position = anchor ? state.undoStack.indexOf(anchor) : state.undoStack.length;
+    if (anchor && position < 0) return false;
+    const current = state.doc;
+    let notes = current.designNotes;
+    for (const entry of entries)
+      for (const op of entry.batch) {
+        const id = 'id' in op ? op.id : 'parentId' in op ? op.parentId : 'global';
+        notes = appendDesignNote(notes, `user REVERTED ${op.op} on ${id} — do not repeat`);
+      }
+    const doc: ProjectDoc = {
+      ...current,
+      screens: before.screens,
+      tokens: before.tokens,
+      customComponents: before.customComponents,
+      kind: before.kind,
+      name: before.name,
+      blueprint: before.blueprint,
+      designNotes: notes,
+      opLog: [
+        ...current.opLog,
+        {
+          at: Date.now(),
+          source: 'user' as const,
+          batch: [],
+          summary: 'undo interrupted turn',
+        },
+      ].slice(-2000),
+      updatedAt: Date.now(),
+    };
+    set({
+      doc,
+      undoStack: state.undoStack.slice(0, position),
+      redoStack: [...state.redoStack, snapshotOf(current)].slice(-50),
     });
     return true;
   },

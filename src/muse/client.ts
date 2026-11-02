@@ -547,6 +547,9 @@ export interface ChatOptions {
   signal?: AbortSignal;
   onText?: (text: string) => void;
   onNotice?: (notice: string) => void;
+  onRetry?: () => void;
+  /** Tests may shorten the per-call deadline. */
+  timeoutMs?: number;
   /** Tests override the backoff ladder. */
   backoffMs?: number[];
   minGapMs?: number;
@@ -554,11 +557,11 @@ export interface ChatOptions {
 
 /**
  * One muse call. SSE tool-call accumulation by index, usage captured, aborts
- * honoured, 429/5xx backed off (2s/8s/30s, max 3) with an honest notice.
+ * honoured, with one retry after 1.5s for transient failures.
  */
 export async function chatStream(opts: ChatOptions): Promise<ChatResult> {
   const started = Date.now();
-  const backoff = opts.backoffMs || [2000, 8000, 30000];
+  const backoff = opts.backoffMs?.[0] ?? 1500;
   let attempt = 0;
   for (;;) {
     await pace(opts.signal, opts.minGapMs ?? PACE_FLOOR);
@@ -569,7 +572,24 @@ export async function chatStream(opts: ChatOptions): Promise<ChatResult> {
       finishReason: 'stop',
     };
     let res: Response;
+    const timeout =
+      typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(opts.timeoutMs ?? 120_000)
+        : (() => {
+            const c = new AbortController();
+            setTimeout(() => c.abort(), opts.timeoutMs ?? 120_000);
+            return c.signal;
+          })();
+    const combined = new AbortController();
+    const abort = () => combined.abort();
+    if (opts.signal?.aborted || timeout.aborted) abort();
+    else {
+      opts.signal?.addEventListener('abort', abort, { once: true });
+      timeout.addEventListener('abort', abort, { once: true });
+    }
+    const signal = combined.signal;
     try {
+      if (opts.signal?.aborted) throw new MuseError('aborted', 'Stopped');
       res = await fetch('/api/muse/chat', {
         method: 'POST',
         headers: headers(),
@@ -582,14 +602,15 @@ export async function chatStream(opts: ChatOptions): Promise<ChatResult> {
           max_tokens: opts.maxTokens ?? 4096,
           include_reasoning: true,
         }),
-        signal: opts.signal,
+        signal,
       });
     } catch (err) {
       if (opts.signal?.aborted) throw new MuseError('aborted', 'Stopped');
-      if (attempt < 2) {
+      if (attempt < 1) {
         attempt += 1;
-        opts.onNotice?.(`Network hiccup — retrying in ${backoff[attempt - 1] / 1000}s.`);
-        await delay(backoff[attempt - 1], opts.signal);
+        opts.onRetry?.();
+        opts.onNotice?.(`Network hiccup — retrying in ${backoff / 1000}s.`);
+        await delay(backoff, opts.signal);
         continue;
       }
       throw new MuseError('network', err instanceof Error ? err.message : 'network error');
@@ -628,8 +649,9 @@ export async function chatStream(opts: ChatOptions): Promise<ChatResult> {
           info.detail,
         );
       }
-      if ((res.status === 429 || res.status >= 500) && attempt < backoff.length) {
-        const wait = backoff[attempt] ?? 30000;
+      if ((res.status === 429 || res.status >= 500) && attempt < 1) {
+        const wait = backoff;
+        opts.onRetry?.();
         attempt += 1;
         opts.onNotice?.(
           res.status === 429
@@ -673,10 +695,11 @@ export async function chatStream(opts: ChatOptions): Promise<ChatResult> {
       }
     } catch (err) {
       if (opts.signal?.aborted) throw new MuseError('aborted', 'Stopped');
-      if (attempt < 1 && !state.text && !state.toolCalls.size) {
+      if (attempt < 1) {
         attempt += 1;
+        opts.onRetry?.();
         opts.onNotice?.('Stream dropped — retrying once.');
-        await delay(1200, opts.signal);
+        await delay(backoff, opts.signal);
         continue;
       }
       throw new MuseError('stream', err instanceof Error ? err.message : 'stream failed');
