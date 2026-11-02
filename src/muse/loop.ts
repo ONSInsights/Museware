@@ -910,7 +910,7 @@ async function runTool(
             ];
           });
           addSystem(
-            `scope:${opts.scope.rootId} — dropped ${filtered.dropped} out-of-scope or unsafe operation(s)${content.length ? `; dropped: ${content.join(', ')} — content edits need the full edit mode` : ''}.`,
+            `scope:${opts.scope.rootId} — dropped ${filtered.dropped} out-of-scope or unsafe operation(s)${content.length ? `; dropped: ${content.join(', ')} — use style-semantic select, toggle, icon or tone props, or flip the box to full edit` : ''}.`,
           );
         }
         if (!filtered.allowed.length)
@@ -1583,6 +1583,7 @@ export async function runAgentTurn(
   userText: string,
   opts: TurnOptions = {},
 ): Promise<void> {
+  userText = userText.slice(0, 8000);
   if (running) {
     useUi.getState().toast('muse is already working — Stop first.', 'warn');
     return;
@@ -1825,22 +1826,38 @@ export async function runScopedAction(
   startHeartbeat(Date.now());
   let status: 'success' | 'failed' = 'failed';
   try {
-    const result = await executeToolLoop({
-      scope,
-      maxCalls: 12,
-      role: 'builder',
-      effort: 'medium',
-      messages: [
-        {
-          role: 'system',
-          content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? '' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles only on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${BUILDER_PROPS_PRIMER}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
-        },
-        {
-          role: 'user',
-          content: `Instruction: ${instruction.slice(0, 1000)}\n${targets.map((n) => `WIDGET ${n.id} CURRENT STATE: props=${JSON.stringify(n.props)} styles=${JSON.stringify(n.styles)}\nSELECTED SUBTREE:\n${subtreeOutline(n)}`).join('\n')}`,
-        },
-      ],
-    });
+    const scopedMessages = (): Array<{ role: 'system' | 'user'; content: string }> => [
+      {
+        role: 'system',
+        content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? ' and setProps for library select, toggle, icon or tone props' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles and setProps only for library select, toggle, icon or tone props on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${BUILDER_PROPS_PRIMER}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
+      },
+      {
+        role: 'user',
+        content: `Instruction: ${instruction.slice(0, 1000)}\n${targets.map((n) => `WIDGET ${n.id} CURRENT STATE: props=${JSON.stringify(n.props)} styles=${JSON.stringify(n.styles)}\nSELECTED SUBTREE:\n${subtreeOutline(n)}`).join('\n')}`,
+      },
+    ];
+    const run = () =>
+      executeToolLoop({
+        scope,
+        maxCalls: 12,
+        role: 'builder',
+        effort: 'medium',
+        messages: scopedMessages(),
+      });
+    let result = await run();
+    if (
+      stylesOnly &&
+      result.finished &&
+      !result.stopped &&
+      !controller.signal.aborted &&
+      !scope.ops.length &&
+      scope.dropped > 0
+    ) {
+      addSystem(`scope:${nodeId} — retrying with content edits allowed`);
+      stylesOnly = false;
+      scope.stylesOnly = false;
+      result = await run();
+    }
     if (result.stopped || controller.signal.aborted) {
       addSystem(`scope:${nodeId} — stopped; staged changes discarded.`);
       return;

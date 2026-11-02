@@ -62,6 +62,7 @@ interface UiStore {
   toasts: Toast[];
   paletteFilter: string;
   draft: string;
+  draftTrimmed: boolean;
   activePreset: string | null;
   setRoute: (r: Route, projectId?: string) => void;
   select: (id: string | null) => void;
@@ -180,6 +181,7 @@ export const useUi = create<UiStore>((set, get) => ({
   toasts: [],
   paletteFilter: preferences.paletteFilter,
   draft: '',
+  draftTrimmed: false,
   activePreset: null,
 
   setRoute: (route, projectId) => {
@@ -288,10 +290,16 @@ export const useUi = create<UiStore>((set, get) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setPaletteFilter: (paletteFilter) => set({ paletteFilter }),
   startPrompt: (text) => {
-    set({ draft: text, railCollapsed: false, mobileRailOpen: true });
+    set({
+      draft: text.slice(0, 8000),
+      draftTrimmed: text.length > 8000,
+      railCollapsed: false,
+      mobileRailOpen: true,
+    });
     get().setChatExpanded(true);
   },
-  setDraft: (draft) => set({ draft }),
+  setDraft: (draft) =>
+    set({ draft: draft.slice(0, 8000), draftTrimmed: draft.length > 8000 }),
   setActivePreset: (activePreset) => set({ activePreset }),
 }));
 

@@ -166,7 +166,7 @@ describe('PR-A components and responsive laws', () => {
     expect(source).toContain('<details><summary>Why?</summary>');
     const css = files['src/nodes.css'];
     expect(css).toContain(
-      '@container mw (min-width:600px){.mw-nav[data-variant="floating"]',
+      '@container mw (min-width:600px){:where(.mw-nav[data-variant="floating"])',
     );
     expect(css).toContain('prefers-reduced-motion:reduce');
     expect(css).toContain('.mw-accordion details');

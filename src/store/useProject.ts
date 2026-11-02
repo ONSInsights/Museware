@@ -340,7 +340,7 @@ export const useProject = create<ProjectStore>((set, get) => ({
       id: entry.id || nanoid(),
       at: entry.at || Date.now(),
       role: entry.role,
-      text: entry.text,
+      text: entry.role === 'user' ? entry.text.slice(0, 8000) : entry.text,
       ...(entry.reasoningReplayed ? { reasoningReplayed: true } : {}),
       ...(entry.scopedBatch ? { scopedBatch: entry.scopedBatch } : {}),
       ...(entry.card ? { card: entry.card } : {}),

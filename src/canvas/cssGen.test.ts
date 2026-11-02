@@ -340,3 +340,42 @@ describe('Wave 3 responsive defaults', () => {
     expect(UTILITY_CSS).toContain('mw-browser-frame');
   });
 });
+
+describe('variant defaults yield to explicit node styles', () => {
+  it('emits zero-specificity defaults and retains explicit decisions, including library-shaped values', () => {
+    expect(UTILITY_CSS).toContain(':where(.mw-nav[data-variant="minimal"])');
+    expect(UTILITY_CSS).toContain(':where(.mw-section[data-surface="sunk"])');
+    expect(UTILITY_CSS).toContain(
+      ':where(.mw-marquee[data-variant="pills"] .mw-marquee-item)',
+    );
+    expect(UTILITY_CSS).toContain(':where(.mw-hero[data-layout="centered"] .mw-hero-copy)');
+    expect(UTILITY_CSS).toContain(':where(.mw-card[data-variant="glass"])');
+    const css = cssOf(
+      node('nav_min', 'navbar', {}, { variant: 'minimal' }),
+      node(
+        'nav_style',
+        'navbar',
+        { background: 'var(--openui-accent)' },
+        { variant: 'minimal' },
+      ),
+      node('card_x', 'card', { background: 'var(--openui-elevated)' }, { variant: 'sunk' }),
+      node(
+        'hero_x',
+        'hero',
+        {
+          background:
+            'linear-gradient(135deg, var(--openui-accent), var(--openui-secondary))',
+          align: 'start',
+        },
+        { surface: 'sunk', layout: 'split' },
+      ),
+    );
+    expect(ruleFor(css, 'nav_min')).not.toContain('background:');
+    expect(ruleFor(css, 'nav_style')).toContain('background:var(--openui-accent)');
+    expect(ruleFor(css, 'card_x')).toContain('background:var(--openui-elevated)');
+    expect(ruleFor(css, 'hero_x')).toContain('background:linear-gradient');
+    expect(css).not.toContain(
+      '.n-hero_x{display:grid;grid-template-columns:1fr 1fr;align-items:center}',
+    );
+  });
+});

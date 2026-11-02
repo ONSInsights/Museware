@@ -115,6 +115,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const rail = useProject((s) => s.doc.rail);
   const doc = useProject((s) => s.doc);
   const setDraft = useUi((s) => s.setDraft);
+  const draftTrimmed = useUi((s) => s.draftTrimmed);
   const draft = useUi((s) => s.draft);
   const railCollapsed = useUi((s) => s.railCollapsed);
   const setChatExpanded = useUi((s) => s.setChatExpanded);
@@ -213,7 +214,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   })();
 
   const send = async (text?: string) => {
-    const value = (text ?? draft).trim();
+    const value = (text ?? draft).slice(0, 8000).trim();
     if (!value) return;
     if (useAgent.getState().busy) {
       toast('muse is already working — Stop first.', 'warn');
@@ -510,6 +511,19 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
           <textarea
             value={draft}
             rows={1}
+            maxLength={8000}
+            onPaste={(event) => {
+              const pasted = event.clipboardData.getData('text');
+              const element = event.currentTarget;
+              const combined =
+                draft.slice(0, element.selectionStart) +
+                pasted +
+                draft.slice(element.selectionEnd);
+              if (combined.length > 8000) {
+                event.preventDefault();
+                setDraft(combined);
+              }
+            }}
             placeholder={
               doc.screens.length
                 ? 'Ask muse, or drag on the canvas — same tree, same undo.'
@@ -577,6 +591,14 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             </button>
           </div>
         </div>
+        {draft.length > 4000 && (
+          <div className="field-hint">long message — consider splitting it</div>
+        )}
+        {draftTrimmed && (
+          <div className="field-hint" role="status">
+            message trimmed to the first 8000 characters
+          </div>
+        )}
         <div className="rail-status chat-composer-status">
           <span
             className={demoMode ? 'badge-dot' : 'badge-dot'}

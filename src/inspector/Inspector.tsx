@@ -232,6 +232,23 @@ export function Inspector() {
   const writeEvents = (name: 'tap' | 'change' | 'submit', actions: Action[]) =>
     run([{ op: 'setProps', id: node.id, props: { events: { [name]: actions } } }]);
 
+  const dispatchScope = (stylesOnly: boolean) => {
+    const submitted = scopeInstruction;
+    const instruction =
+      submitted.trim() ||
+      (stylesOnly
+        ? 'Improve this widget’s styling while preserving its existing wording and structure.'
+        : 'Redesign this section to be polished, coherent, and appropriate for its content.');
+    setScopeInstruction('');
+    try {
+      void runScopedAction(node.id, instruction, stylesOnly).catch(() => {
+        setScopeInstruction((current) => current || submitted);
+      });
+    } catch {
+      setScopeInstruction((current) => current || submitted);
+    }
+  };
+
   return (
     <aside className="inspector" data-open={propertiesOpen}>
       <div className="inspector-head">
@@ -726,45 +743,44 @@ export function Inspector() {
 
       <div className="inspector-foot">
         <div className="scope-design-card">
-          <input
+          <textarea
             className="input"
+            rows={2}
             aria-label="Scoped design instruction"
             placeholder="Describe a style or content change"
             value={scopeInstruction}
             maxLength={1000}
-            onChange={(event) => setScopeInstruction(event.target.value)}
-          />
-          {isContainerType(node.type) && (
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary btn-block"
-              disabled={agentBusy}
-              onClick={() =>
-                void runScopedAction(
-                  node.id,
-                  scopeInstruction.trim() ||
-                    'Redesign this section to be polished, coherent, and appropriate for its content.',
-                )
-              }
-            >
-              <Sparkles size={13} /> Redesign this section
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary btn-block"
             disabled={agentBusy}
-            onClick={() =>
-              void runScopedAction(
-                node.id,
-                scopeInstruction.trim() ||
-                  'Improve this widget’s styling while preserving its existing wording and structure.',
-                true,
-              )
-            }
-          >
-            <Sparkles size={13} /> Edit this widget
-          </button>
+            onChange={(event) => setScopeInstruction(event.target.value.slice(0, 1000))}
+          />
+          {scopeInstruction.length > 600 && (
+            <span className="field-hint">{scopeInstruction.length}/1000</span>
+          )}
+          {agentBusy ? (
+            <div className="scope-editing-status" role="status">
+              <LoaderCircle size={14} className="image-spinner" /> Muse is editing this
+              widget…
+            </div>
+          ) : (
+            <>
+              {isContainerType(node.type) && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary btn-block"
+                  onClick={() => dispatchScope(false)}
+                >
+                  <Sparkles size={13} /> Redesign this section
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary btn-block"
+                onClick={() => dispatchScope(true)}
+              >
+                <Sparkles size={13} /> Edit this widget
+              </button>
+            </>
+          )}
         </div>
         <div className="mw-shell-util-16">
           <button

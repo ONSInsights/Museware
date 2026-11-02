@@ -205,10 +205,66 @@ describe('scoped edits that listen', () => {
         .getState()
         .doc.rail.some((r) =>
           r.text.includes(
-            'dropped: setProps(text), setText — content edits need the full edit mode',
+            'dropped: setProps(text), setText — use style-semantic select, toggle, icon or tone props, or flip the box to full edit',
           ),
         ),
     ).toBe(true);
+  });
+  it('allows navbar variant but rejects a mixed style and content operation', async () => {
+    const page = useProject.getState().doc.screens[0];
+    page.root.children[0].children.push(node('nav_aaa', 'navbar'));
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            { op: 'setProps', id: 'nav_aaa', props: { variant: 'glass' } },
+            {
+              op: 'setProps',
+              id: 'nav_aaa',
+              props: { variant: 'minimal', brand: 'Changed' },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('nav_aaa', 'Make it glass', true);
+    const nav = useProject.getState().doc.screens[0].root.children[0].children[1];
+    expect(nav.props.variant).toBe('glass');
+    expect(nav.props.brand).toBeUndefined();
+    expect(
+      useProject
+        .getState()
+        .doc.rail.some((r) => r.text.includes('or flip the box to full edit')),
+    ).toBe(true);
+    expect(vi.mocked(chatStream)).toHaveBeenCalledTimes(2);
+  });
+  it('retries exactly once in full subtree mode when all operations were blocked', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', { ops: [{ op: 'setText', id: 'text_aaa', text: 'First' }] }),
+      )
+      .mockResolvedValueOnce(finish())
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            { op: 'setText', id: 'text_aaa', text: 'Retried' },
+            { op: 'setText', id: 'text_bbb', text: 'Forbidden' },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('section_a', 'Make it better', true);
+    const doc = useProject.getState().doc;
+    expect(doc.screens[0].root.children[0].children[0].props.text).toBe('Retried');
+    expect(doc.screens[0].root.children[1].children[0].props.text).toBe('text_bbb');
+    expect(
+      doc.rail.filter((r) => r.text.includes('retrying with content edits allowed')),
+    ).toHaveLength(1);
+    expect(vi.mocked(chatStream)).toHaveBeenCalledTimes(4);
+    expect(vi.mocked(chatStream).mock.calls[2][0].messages[1].content).toContain(
+      'Instruction: Make it better',
+    );
+    expect(useProject.getState().undoStack).toHaveLength(1);
   });
   it('warns about rgba in a changed style and undoes exactly its group', async () => {
     const before = structuredClone(useProject.getState().doc.screens);

@@ -1,5 +1,6 @@
 import { findNodeInDoc } from '../ops/treeUtils';
 import type { ComponentNode, ProjectDoc } from '../types/tree';
+import { spec } from '../types/library';
 
 /** Evaluate against the current staged tree, not an untrusted model-provided list. */
 export function filterScopedOps(
@@ -41,7 +42,27 @@ export function filterScopedOps(
   };
   // Evolve the allowed ID set in-order, so an added child can be edited in the same batch.
   for (const raw of ops) {
-    const op = raw as { op?: string; id?: string; parentId?: string; node?: unknown };
+    const op = raw as {
+      op?: string;
+      id?: string;
+      parentId?: string;
+      node?: unknown;
+      props?: unknown;
+    };
+    const target = typeof op?.id === 'string' ? findNodeInDoc(doc, op.id)?.node : undefined;
+    const styleProps =
+      op?.op === 'setProps' &&
+      target &&
+      op.props &&
+      typeof op.props === 'object' &&
+      !Array.isArray(op.props) &&
+      Object.keys(op.props).length > 0 &&
+      Object.keys(op.props).every((key) =>
+        spec(target.type)?.props.some(
+          (prop) =>
+            prop.key === key && ['select', 'toggle', 'icon', 'tone'].includes(prop.kind),
+        ),
+      );
     let ok = false;
     if (op && typeof op === 'object') {
       if (batch)
@@ -49,10 +70,13 @@ export function filterScopedOps(
           typeof op.id === 'string' &&
           ids.has(op.id) &&
           (stylesOnly
-            ? op.op === 'setStyles'
+            ? op.op === 'setStyles' || Boolean(styleProps)
             : ['setStyles', 'setProps', 'setText', 'rename'].includes(op.op || ''));
       else if (stylesOnly)
-        ok = op.op === 'setStyles' && typeof op.id === 'string' && roots.has(op.id);
+        ok =
+          (op.op === 'setStyles' || Boolean(styleProps)) &&
+          typeof op.id === 'string' &&
+          roots.has(op.id);
       else if (['setProps', 'setStyles', 'setText', 'rename'].includes(op.op || ''))
         ok = typeof op.id === 'string' && ids.has(op.id);
       else if (op.op === 'remove')
@@ -68,8 +92,8 @@ export function filterScopedOps(
         const added = newIds(op.node);
         ok = Boolean(
           added &&
-          new Set(added).size === added.length &&
-          added.every((id) => !findNodeInDoc(doc, id) && !ids.has(id)),
+            new Set(added).size === added.length &&
+            added.every((id) => !findNodeInDoc(doc, id) && !ids.has(id)),
         );
         if (ok) added!.forEach((id) => ids.add(id));
       }
