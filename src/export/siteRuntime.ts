@@ -27,6 +27,12 @@ type Motion = (
 ) => void;
 
 export function startSite(data: SiteData, mountMotion: Motion): void {
+  if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+    document
+      .querySelectorAll<HTMLElement>('.mw-marquee[data-static="true"]')
+      .forEach((el) => {
+        delete el.dataset.static;
+      });
   const state: Record<string, unknown> = {};
   const byId = new Map(data.nodes.map((node) => [node.id, node]));
   const elements = (id: string) =>

@@ -63,28 +63,32 @@ export function placeholderImage(
   for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) % 9973;
   const variant = opts.variant || 'wide';
   const c1 = mix(a, bg, 0.12);
-  const c2 = mix(b, bg, 0.06);
+  const c2 = mix(b, bg, 0.1);
   const c3 = mix(a, b, 0.5);
-  const circles =
-    variant === 'card'
-      ? `<circle cx="${w * 0.78}" cy="${h * 0.3}" r="${h * 0.36}" fill="${c3}" opacity="0.55"/>
-         <circle cx="${w * 0.22}" cy="${h * 0.85}" r="${h * 0.28}" fill="${c2}" opacity="0.8"/>`
-      : `<circle cx="${w * 0.82}" cy="${h * 0.22}" r="${h * 0.5}" fill="${c3}" opacity="0.5"/>
-         <circle cx="${w * 0.2}" cy="${h * 0.9}" r="${h * 0.42}" fill="${c2}" opacity="0.75"/>
-         <path d="M0 ${h * 0.72} Q ${w * 0.3} ${h * 0.5} ${w * 0.58} ${h * 0.7} T ${w} ${h * 0.55} L ${w} ${h} L 0 ${h} Z" fill="${c1}" opacity="0.9"/>`;
-  const marks = Array.from({ length: 4 }).map((_, i) => {
-    const x = 40 + ((hash + i * 137) % Math.max(60, w - 160));
-    const y = 40 + ((hash * (i + 2) + i * 71) % Math.max(60, h - 160));
-    return `<rect x="${x}" y="${y}" width="${18 + (i % 3) * 10}" height="6" rx="3" fill="${palette(tokens).ink}" opacity="${0.12 + i * 0.03}"/>`;
-  });
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/>
-  </linearGradient></defs>
-  <rect width="${w}" height="${h}" fill="url(#g)"/>
-  ${circles}
-  <circle cx="${w * 0.5}" cy="${h * 0.5}" r="${Math.min(w, h) * 0.16}" fill="none" stroke="${bg}" stroke-opacity="0.55" stroke-width="2"/>
-  ${marks.join('')}
+  const c4 = mix(bg, a, 0.48);
+  const family = ['horizon', 'orbital', 'dune', 'pane'][hash % 4];
+  const angle = (hash % 35) - 17;
+  const focusX = w * (0.35 + (hash % 30) / 100);
+  const focusY = h * (0.28 + (hash % 23) / 100);
+  const familyArt =
+    family === 'orbital'
+      ? `<ellipse cx="${focusX}" cy="${focusY}" rx="${w * 0.28}" ry="${h * 0.22}" fill="${c3}" opacity=".38"/><ellipse cx="${focusX}" cy="${focusY}" rx="${w * 0.35}" ry="${h * 0.3}" fill="none" stroke="${bg}" stroke-opacity=".42" stroke-width="2"/>`
+      : family === 'dune'
+        ? `<path d="M0 ${h * 0.62} Q ${w * 0.35} ${h * 0.26} ${w * 0.65} ${h * 0.61} T ${w} ${h * 0.44} V${h} H0Z" fill="${c3}" opacity=".48"/>`
+        : family === 'pane'
+          ? `<rect x="${w * 0.12}" y="${h * 0.12}" width="${w * 0.38}" height="${h * 0.7}" rx="${Math.min(w, h) * 0.08}" fill="${c3}" opacity=".3"/><rect x="${w * 0.52}" y="${h * 0.2}" width="${w * 0.32}" height="${h * 0.58}" rx="${Math.min(w, h) * 0.08}" fill="${bg}" opacity=".13"/>`
+          : `<circle cx="${focusX}" cy="${focusY}" r="${Math.min(w, h) * 0.24}" fill="${c3}" opacity=".36"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" data-family="${family}" data-variant="${variant}">
+  <defs>
+    <linearGradient id="mesh" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${c1}"/><stop offset="35%" stop-color="${c4}"/><stop offset="68%" stop-color="${c3}"/><stop offset="100%" stop-color="${c2}"/></linearGradient>
+    <radialGradient id="light"><stop offset="0%" stop-color="${bg}" stop-opacity=".55"/><stop offset="100%" stop-color="${bg}" stop-opacity="0"/></radialGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="3" seed="${hash % 97}" stitchTiles="stitch"/></filter>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#mesh)"/>
+  <ellipse cx="${focusX}" cy="${focusY}" rx="${w * 0.65}" ry="${h * 0.7}" fill="url(#light)"/>
+  <g transform="rotate(${angle} ${w / 2} ${h / 2})">${familyArt}<path d="M ${-w * 0.1} ${h * 0.83} Q ${w * 0.45} ${h * 0.49} ${w * 1.1} ${h * 0.72}" fill="none" stroke="${bg}" stroke-opacity=".42" stroke-width="${Math.max(2, h * 0.012)}"/></g>
+  <path d="M0 ${h * 0.82} Q ${w * 0.5} ${h * 0.68} ${w} ${h * 0.8} V${h} H0Z" fill="${c2}" opacity=".46"/>
+  <rect width="${w}" height="${h}" filter="url(#grain)" opacity=".07"/>
 </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

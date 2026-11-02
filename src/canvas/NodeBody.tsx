@@ -262,7 +262,23 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
         </span>
       );
     case 'image': {
-      const src = imageSrc || placeholderImage(doc.tokens, { seed: node.id, height: 420 });
+      const aspect = String(node.styles.aspectRatio || '').match(
+        /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/,
+      );
+      const ratio =
+        aspect && Number(aspect[2])
+          ? Number(aspect[1]) / Number(aspect[2])
+          : Number(p.assetAspectWidth) > 0 && Number(p.assetAspectHeight) > 0
+            ? Number(p.assetAspectWidth) / Number(p.assetAspectHeight)
+            : 16 / 10;
+      const src =
+        imageSrc ||
+        placeholderImage(doc.tokens, {
+          seed: node.id,
+          width: Math.max(1, Math.round(420 * Math.min(10, Math.max(0.1, ratio)))),
+          height: 420,
+          variant: 'wide',
+        });
       return (
         <div className={cls} {...tapProps}>
           <img
@@ -927,6 +943,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       return (
         <div
           className={`${cls} mw-marquee`}
+          data-static={mode === 'edit' || staticExport ? 'true' : undefined}
           data-variant={asText(p.variant, 'wordmarks')}
           style={
             {
