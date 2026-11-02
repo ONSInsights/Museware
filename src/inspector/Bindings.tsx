@@ -1,6 +1,7 @@
 import type { Action, ComponentNode, ScreenDoc } from '../types/tree';
 import { useUi } from '../store/useUi';
 import { useRunState } from '../store/useRunState';
+import { InspSection } from '../components/InspSection';
 
 function bindings(screen: ScreenDoc): Map<string, string[]> {
   const result = new Map<string, string[]>();
@@ -24,18 +25,16 @@ function bindings(screen: ScreenDoc): Map<string, string[]> {
 export function Bindings({
   screen,
   running = false,
+  disclosure = false,
 }: {
   screen: ScreenDoc;
   running?: boolean;
+  disclosure?: boolean;
 }) {
   const values = useRunState((s) => s.values);
   const entries = bindings(screen);
-  return (
-    <div className="insp-section bindings-section">
-      <div className="insp-section-head">
-        <span className="eyebrow">Bindings on this screen</span>
-        <span className="faint mw-shell-util-12">{entries.size}</span>
-      </div>
+  const content = (
+    <>
       {!entries.size ? (
         <p className="field-hint">
           No state yet. Add a <span className="mono">bindKey</span> to an input to make the
@@ -66,6 +65,25 @@ export function Bindings({
           ))}
         </div>
       )}
+    </>
+  );
+  if (disclosure)
+    return (
+      <InspSection
+        label="Bindings on this screen"
+        defaultOpen
+        headExtra={<span className="faint mw-shell-util-12">{entries.size}</span>}
+      >
+        {content}
+      </InspSection>
+    );
+  return (
+    <div className="insp-section bindings-section">
+      <div className="insp-section-head">
+        <span className="eyebrow">Bindings on this screen</span>
+        <span className="faint mw-shell-util-12">{entries.size}</span>
+      </div>
+      {content}
     </div>
   );
 }

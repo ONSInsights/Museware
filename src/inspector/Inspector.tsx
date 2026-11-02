@@ -25,6 +25,7 @@ import { duplicateNodeBatch } from '../ops/screenOps';
 import { ThemePicker } from '../design/ThemePicker';
 import { Icon } from '../canvas/Icon';
 import { Segmented } from '../components/ui';
+import { InspSection } from '../components/InspSection';
 import { ActionEditor } from './ActionEditor';
 import { DataBlock } from './DataBlock';
 import { Bindings } from './Bindings';
@@ -309,10 +310,7 @@ export function Inspector() {
         {tab === 'props' && (
           <>
             {(node.type === 'hero' || node.type === 'image' || node.type === 'card') && (
-              <div className="insp-section">
-                <div className="insp-section-head">
-                  <span className="eyebrow">Illustration</span>
-                </div>
+              <InspSection label="Illustration" defaultOpen>
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
@@ -357,23 +355,28 @@ export function Inspector() {
                       : ' Current key balance is not known here.'}{' '}
                   A successful image is saved in the project and can be undone.
                 </p>
-              </div>
+              </InspSection>
             )}
-            <div className="insp-section">
-              <div className="insp-section-head">
-                <span className="eyebrow">Layer</span>
-                {parent ? (
+            <InspSection
+              label="Layer"
+              defaultOpen
+              headExtra={
+                parent ? (
                   <button
                     type="button"
                     className="chip mw-shell-util-11"
-                    onClick={() => select(parent.parent.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      select(parent.parent.id);
+                    }}
                   >
                     <LayersIcon size={10} /> {parent.parent.id}
                   </button>
                 ) : (
                   <span className="faint mw-shell-util-12">root</span>
-                )}
-              </div>
+                )
+              }
+            >
               <TextField
                 label="Name"
                 value={node.name || ''}
@@ -384,15 +387,12 @@ export function Inspector() {
                 }}
               />
               <p className="field-hint">{info?.hint}</p>
-            </div>
+            </InspSection>
 
             {(['Content', 'Behavior', 'Advanced'] as const).map(
               (group) =>
                 (info?.props || []).some((def) => def.group === group) && (
-                  <div className="insp-section" key={group}>
-                    <div className="insp-section-head">
-                      <span className="eyebrow">{group}</span>
-                    </div>
+                  <InspSection key={group} label={group} defaultOpen>
                     {(info?.props || [])
                       .filter((def) => def.group === group)
                       .map((def) => {
@@ -561,7 +561,7 @@ export function Inspector() {
                           />
                         );
                       })}
-                  </div>
+                  </InspSection>
                 ),
             )}
             {(info?.props || []).length === 0 && (
@@ -572,10 +572,7 @@ export function Inspector() {
               </p>
             )}
 
-            <div className="insp-section">
-              <div className="insp-section-head">
-                <span className="eyebrow">Visibility rule</span>
-              </div>
+            <InspSection label="Visibility rule" defaultOpen>
               <SelectField
                 label="Visibility"
                 value={
@@ -656,7 +653,7 @@ export function Inspector() {
                   }}
                 />
               )}
-            </div>
+            </InspSection>
           </>
         )}
 
@@ -706,13 +703,11 @@ export function Inspector() {
               </div>
             )}
             {EVENT_COPY.filter((ev) => eventsFor(node.type).includes(ev.name)).map((ev) => (
-              <div className="insp-section" key={ev.name}>
-                <div className="insp-section-head">
-                  <span className="eyebrow">
-                    {ev.label}{' '}
-                    {eventValue(ev.name).length ? `· ${eventValue(ev.name).length}` : ''}
-                  </span>
-                </div>
+              <InspSection
+                key={ev.name}
+                label={`${ev.label}${eventValue(ev.name).length ? ` · ${eventValue(ev.name).length}` : ''}`}
+                defaultOpen
+              >
                 <p className="field-hint">{ev.hint}</p>
                 {eventValue(ev.name).map((action, index) => (
                   <span
@@ -737,7 +732,7 @@ export function Inspector() {
                   screens={doc.screens}
                   onChange={(next) => writeEvents(ev.name, next)}
                 />
-              </div>
+              </InspSection>
             ))}
           </>
         )}
@@ -949,10 +944,7 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
         </button>
       </div>
       <div className="inspector-body">
-        <div className="insp-section">
-          <div className="insp-section-head">
-            <span className="eyebrow">Screen</span>
-          </div>
+        <InspSection label="Screen" defaultOpen>
           <TextField
             label="Name"
             value={screen.name}
@@ -1014,15 +1006,15 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
           <p className="field-hint">
             Run mode, the export router and a fresh reload all open this screen first.
           </p>
-        </div>
+        </InspSection>
 
-        <Bindings screen={screen} running={runMode} />
+        <Bindings screen={screen} running={runMode} disclosure />
 
-        <div className="insp-section">
-          <div className="insp-section-head">
-            <span className="eyebrow">Design system</span>
-            <span className="faint mw-shell-util-12">{doc.tokens.title}</span>
-          </div>
+        <InspSection
+          label="Design system"
+          defaultOpen
+          headExtra={<span className="faint mw-shell-util-12">{doc.tokens.title}</span>}
+        >
           <ThemePicker compact />
           <div className="token-row">
             <span className="field-label mw-shell-util-17">Accent</span>
@@ -1040,12 +1032,9 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
             Brand colours rewrite accent, pressed, text-on-brand and border-accent in both
             modes.
           </p>
-        </div>
+        </InspSection>
 
-        <div className="insp-section">
-          <div className="insp-section-head">
-            <span className="eyebrow">Ask</span>
-          </div>
+        <InspSection label="Ask" defaultOpen>
           <button
             type="button"
             className="btn btn-sm btn-secondary btn-block"
@@ -1057,7 +1046,7 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
           >
             <Sparkles size={13} /> Restyle this screen
           </button>
-        </div>
+        </InspSection>
       </div>
     </aside>
   );

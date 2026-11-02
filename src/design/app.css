@@ -5337,10 +5337,20 @@ button.how-card .field-hint {
   letter-spacing: 0.06em;
   font-weight: 600;
 }
-.inspector .insp-section-head::before {
+.inspector details > .insp-section-head::before {
   content: '▾';
   font-size: var(--mw-fs-11);
   margin-right: var(--mw-space-1);
+}
+.inspector details:not([open]) > .insp-section-head::before {
+  content: '▸';
+}
+.inspector summary.insp-section-head {
+  cursor: pointer;
+  list-style: none;
+}
+.inspector summary.insp-section-head::-webkit-details-marker {
+  display: none;
 }
 .inspector .insp-section-head {
   justify-content: flex-start;

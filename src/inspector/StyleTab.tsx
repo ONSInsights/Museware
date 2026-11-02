@@ -5,6 +5,7 @@ import { useUi } from '../store/useUi';
 import { isContainerType, isTextType, spec } from '../types/library';
 import { styleSectionsFor, type StyleFieldDef, type StyleGroup } from '../types/styleDict';
 import { Segmented } from '../components/ui';
+import { InspSection } from '../components/InspSection';
 import {
   ColorField,
   NumberField,
@@ -262,14 +263,11 @@ export function StyleTab({ node, tokens, isRoot, breakpoint, ...writers }: Props
   return (
     <>
       {sections.map((section) => (
-        <details
-          className="insp-section"
+        <InspSection
           key={section.group}
-          open={['Layout', 'Space', 'Size'].includes(section.group) || undefined}
+          label={sectionHeading(section.group, node)}
+          defaultOpen={['Layout', 'Space', 'Size'].includes(section.group)}
         >
-          <summary className="insp-section-head">
-            <span className="eyebrow">{sectionHeading(section.group, node)}</span>
-          </summary>
           {section.group === 'Layout' && isGrid && breakpoint !== 'compact' && (
             <ColumnsField node={node} writers={writers} />
           )}
@@ -283,7 +281,7 @@ export function StyleTab({ node, tokens, isRoot, breakpoint, ...writers }: Props
               breakpoint={breakpoint}
             />
           ))}
-        </details>
+        </InspSection>
       ))}
       <p className="field-hint">
         Tokens first — the swatches are the theme, so one edit restyles everything that uses
