@@ -312,12 +312,13 @@ for (const [themeName, map] of [
 /*
  * Three boxes have to agree before match-parent means anything:
  *   .frame-viewport / .run-frame  →  a SET height
- *   .mw-app                       →  100% of it (not min-height — that is not a height)
+ *   canvas .mw-css-root            →  100% of the frame (not min-height)
+ *   run .mw-app                    →  100% of its frame
  *   screen (cssGen)               →  height:100% + overflow-y:auto when it scrolls
  * Break any link and the child's 100% resolves to auto again, silently.
  */
 const HEIGHT_CHAIN = [
-  ['.frame-viewport .mw-app', 'the canvas app wrapper'],
+  ['.frame-viewport > .mw-css-root', 'the canvas root wrapper'],
   ['.run-frame .mw-app', 'the run-mode app wrapper'],
   ['.run-frame', 'the run-mode frame for both app and web'],
 ];

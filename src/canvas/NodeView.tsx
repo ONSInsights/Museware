@@ -6,10 +6,18 @@ import { materializeCss, screenLookVariables } from '../design/materialize';
 import { useResolvedCanvasTheme } from '../design/theme';
 import { RuntimeContext, type RuntimeApi } from '../preview/runtime';
 
-export function CanvasStyle({ doc, scope }: { doc: ProjectDoc; scope?: string }) {
+export function CanvasStyle({
+  doc,
+  scope,
+  editScope = false,
+}: {
+  doc: ProjectDoc;
+  scope?: string;
+  editScope?: boolean;
+}) {
   const css = useMemo(
-    () => `${materializeCss(doc.tokens, scope)}\n${generateFullCss(doc)}`,
-    [doc, scope],
+    () => `${materializeCss(doc.tokens, scope)}\n${generateFullCss(doc, { editScope })}`,
+    [doc, scope, editScope],
   );
   return <style data-museware-css>{css}</style>;
 }

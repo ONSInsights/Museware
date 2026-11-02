@@ -328,7 +328,7 @@ export function Canvas() {
             />
           </div>
         </div>
-        <CanvasStyle doc={doc} />
+        <CanvasStyle doc={doc} editScope />
       </div>
     );
   }
@@ -497,7 +497,7 @@ export function Canvas() {
                 setEditing({ id, value: String(node.props.text ?? ''), box });
               }}
             >
-              <CanvasStyle doc={doc} />
+              <CanvasStyle doc={doc} editScope />
               <NodeView doc={doc} screen={screen} mode="edit" />
 
               {hoverBox && hoverId && hoverId !== selectedId && !drag.active && (

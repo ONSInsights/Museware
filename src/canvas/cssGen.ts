@@ -466,7 +466,10 @@ function responsiveBlocks(node: ComponentNode): string[] {
 }
 
 /** One CSS bundle for canvas, Run mode AND export — the single source of truth. */
-export function generateCss(doc: ProjectDoc): string {
+export function generateCss(
+  doc: ProjectDoc,
+  options: { editScope?: boolean } = {},
+): string {
   const rules: string[] = [
     '.mw-css-root,.mw-app{container-type:inline-size;container-name:mw;font-family:var(--font-body);color:var(--openui-text-primary);background:var(--openui-bg);-webkit-font-smoothing:antialiased}',
     '.mw-app{--type-display:var(--type-display-base);--type-title:var(--type-title-base);--pad-screen:var(--pad-screen-base);--gap-section:var(--gap-section-base)}',
@@ -520,7 +523,17 @@ export function generateCss(doc: ProjectDoc): string {
           (decl) => node.type !== 'grid' || !/^grid-template-columns\s*:/i.test(decl),
         ),
       ];
+      // Marquee clipping comes from its shared utility, rather than its node rule.
+      const clipped =
+        node.type === 'marquee' ||
+        decls.some((decl) => /^overflow(?:-y)?\s*:\s*(?:hidden|clip)\s*$/i.test(decl));
       rules.push(renderRule(`.${nodeClass(node.id)}`, decls));
+      if (options.editScope && node.type !== 'divider' && clipped)
+        rules.push(
+          renderRule(`.frame-viewport .${nodeClass(node.id)}`, [
+            'min-height:var(--mw-hug-min)',
+          ]),
+        );
       if (
         node.type === 'button' &&
         !rowButtons.has(node.id) &&
@@ -694,6 +707,9 @@ export const UTILITY_CSS = `@container mw (min-width:600px){.mw-app{--type-displ
 .mw-list-divided .mw-row-item{border:none;border-radius:0;border-bottom:1px solid var(--openui-border-default);background:transparent;padding-inline:0}
 .mw-list-divided .mw-row-item:last-child{border-bottom:none}`;
 
-export function generateFullCss(doc: ProjectDoc): string {
-  return `${generateCss(doc)}\n${UTILITY_CSS}`;
+export function generateFullCss(
+  doc: ProjectDoc,
+  options: { editScope?: boolean } = {},
+): string {
+  return `${generateCss(doc, options)}\n${UTILITY_CSS}`;
 }

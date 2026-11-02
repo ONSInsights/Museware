@@ -74,6 +74,9 @@
   --mw-space-5: 20px;
   --mw-space-6: 24px;
 
+  /* hug content is a floor — a widget may never collapse to nothing on the canvas */
+  --mw-hug-min: 28px;
+
   --mw-space-8: 40px;
 
   --mw-space-10: 64px;

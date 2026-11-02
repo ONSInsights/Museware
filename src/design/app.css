@@ -1021,6 +1021,7 @@ a {
 .frame-viewport {
   flex: 1;
   overflow: auto;
+  overflow-y: auto;
   position: relative;
   container-type: inline-size;
   container-name: mw;
@@ -1033,9 +1034,13 @@ a {
  * Scoped to the canvas viewport and the run frame, so the landing-page previews
  * (which crop to their own box) keep their auto height.
  */
-.frame-viewport > .mw-css-root,
-.frame-viewport .mw-app {
+.frame-viewport > .mw-css-root {
   height: 100%;
+}
+.frame-viewport .mw-app,
+.frame-viewport .mw-app > [class^='n-'] {
+  height: auto;
+  min-height: 100%;
 }
 
 .canvas-empty {
