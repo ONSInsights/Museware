@@ -8,6 +8,8 @@ import { useUi } from '../store/useUi';
 import { buildTokenSheet } from './tokenSheet';
 import { buildProjectIndex } from './projectIndex';
 import { BUILDER_PROPS_PRIMER } from './propsPrimer';
+import { buildScopeContext, scopedPrimer } from './scopeContext';
+import { preferenceNote } from './designMemory';
 import { nameProjectAfterBuild } from './projectName';
 import { canvasOutline, subtreeOutline } from './canvasOutline';
 import { parseBlueprint, blueprintScreenSections } from './blueprintParse';
@@ -418,7 +420,7 @@ function contextMessages(
     { role: 'system', content: `${SYSTEM_PROMPT}\n\nTOKEN SHEET (design law):\n${sheet}` },
     {
       role: 'system',
-      content: `CANVAS INDEX:\n${index}\n\n${decisionLedger(doc)}${extraSystem.length ? `\n${extraSystem.join('\n')}` : ''}`,
+      content: `CANVAS INDEX:\n${index}\n\n${decisionLedger(doc)}\nPROJECT MEMORY (honor and cite relevant preferences):\n${(doc.designNotes || []).slice(-10).join('\n') || 'none'}${extraSystem.length ? `\n${extraSystem.join('\n')}` : ''}`,
     },
     ...history(),
     { role: 'user', content: userText },
@@ -461,6 +463,8 @@ interface ScopedDraft {
   doc: ProjectDoc;
   ops: unknown[];
   dropped: number;
+  dropReasons: string[];
+  summary: string;
   receipt: {
     model: string;
     promptChars: number;
@@ -596,7 +600,20 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
         tools: opts.scope
           ? TOOL_DEFS.filter((t) =>
               ['read_canvas', 'edit_canvas', 'finish'].includes(t.function.name),
-            )
+            ).map((tool) => ({
+              ...tool,
+              function: {
+                ...tool.function,
+                description: tool.function.description?.replace(
+                  BUILDER_PROPS_PRIMER,
+                  [...(opts.scope?.rootIds || [opts.scope!.rootId])]
+                    .map((id) => findNodeInDoc(opts.scope!.doc, id)?.node)
+                    .filter((node): node is NonNullable<typeof node> => Boolean(node))
+                    .map(scopedPrimer)
+                    .join('\n'),
+                ),
+              },
+            }))
           : opts.repairIds
             ? TOOL_DEFS.filter((t) =>
                 (opts.repairStyleOnly
@@ -819,8 +836,14 @@ async function runTool(
   switch (name) {
     case 'read_canvas':
       if (opts.scope) {
-        const hit = findNodeInDoc(doc, opts.scope.rootId);
-        return { text: hit ? subtreeOutline(hit.node) : 'Scoped node no longer exists.' };
+        const roots = opts.scope.rootIds || [opts.scope.rootId];
+        const outlines = [...roots]
+          .map((id) => findNodeInDoc(doc, id)?.node)
+          .filter((node): node is NonNullable<typeof node> => Boolean(node))
+          .map(subtreeOutline);
+        return {
+          text: outlines.length ? outlines.join('\n') : 'Scoped node no longer exists.',
+        };
       }
       return { text: buildProjectIndex(doc, { selectionId: useUi.getState().selectedId }) };
 
@@ -899,6 +922,16 @@ async function runTool(
         );
         opts.scope.dropped += filtered.dropped;
         if (filtered.dropped) {
+          opts.scope.dropReasons.push(
+            ...filtered.droppedOps.map((raw) => {
+              const op = raw as {
+                op?: string;
+                id?: string;
+                props?: Record<string, unknown>;
+              };
+              return `${op?.op || 'operation'}${op?.op === 'setProps' ? `(${Object.keys(op.props || {}).join(', ')})` : ''} on ${op?.id || 'unknown'} was blocked by the styles-only or subtree guard`;
+            }),
+          );
           const content = filtered.droppedOps.flatMap((raw) => {
             const op = raw as { op?: string; props?: Record<string, unknown> };
             if (!opts.scope?.stylesOnly || !['setText', 'setProps'].includes(op?.op || ''))
@@ -1091,6 +1124,7 @@ async function runTool(
 
     case 'finish': {
       const a = args as { summary: string };
+      if (opts.scope) opts.scope.summary = String(a.summary || '').slice(0, 1000);
       if (!opts.scope && !opts.repairIds) {
         useProject.getState().snapshotProjectTheme();
         addAgent(a.summary);
@@ -1790,6 +1824,16 @@ export async function runScopedAction(
     instruction,
   );
   if (contentIntent) stylesOnly = false;
+  const preference = preferenceNote(instruction, 'global');
+  if (preference)
+    useProject
+      .getState()
+      .addDesignNote(
+        preference.replace(
+          'user preference:',
+          `user preference for ${nodeId} (${hit.node.type}):`,
+        ),
+      );
   if (useAgent.getState().demoMode) {
     addSystem(`scope:${nodeId} — scoped redesign requires a muse key; nothing changed.`);
     return;
@@ -1805,6 +1849,8 @@ export async function runScopedAction(
     doc: clone(before),
     ops: [],
     dropped: 0,
+    dropReasons: [],
+    summary: '',
     receipt: {
       model: '',
       promptChars: 0,
@@ -1829,11 +1875,18 @@ export async function runScopedAction(
     const scopedMessages = (): Array<{ role: 'system' | 'user'; content: string }> => [
       {
         role: 'system',
-        content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? ' and setProps for library select, toggle, icon or tone props' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles and setProps only for library select, toggle, icon or tone props on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${BUILDER_PROPS_PRIMER}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
+        content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? ' and setProps for library select, toggle, icon or tone props' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles and setProps only for library select, toggle, icon or tone props on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${targets.map(scopedPrimer).join('\n')}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Honor and cite relevant project memory in your response. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
       },
       {
         role: 'user',
-        content: `Instruction: ${instruction.slice(0, 1000)}\n${targets.map((n) => `WIDGET ${n.id} CURRENT STATE: props=${JSON.stringify(n.props)} styles=${JSON.stringify(n.styles)}\nSELECTED SUBTREE:\n${subtreeOutline(n)}`).join('\n')}`,
+        content: buildScopeContext(
+          useProject.getState().doc,
+          nodeId,
+          instruction,
+          !stylesOnly && scope.dropReasons.length
+            ? `${scope.dropped} dropped: ${scope.dropReasons[0]}; content setProps are now permitted within the original scope.`
+            : '',
+        ),
       },
     ];
     const run = () =>
@@ -1856,6 +1909,7 @@ export async function runScopedAction(
       addSystem(`scope:${nodeId} — retrying with content edits allowed`);
       stylesOnly = false;
       scope.stylesOnly = false;
+      scope.summary = '';
       result = await run();
     }
     if (result.stopped || controller.signal.aborted) {
@@ -1912,7 +1966,9 @@ export async function runScopedAction(
       );
       return;
     }
-    const commit = useProject.getState().applyBatch(scope.ops, { source: 'agent' });
+    const commit = useProject
+      .getState()
+      .applyBatch(scope.ops, { source: 'agent', lesson: instruction });
     if (commit.errors.length) {
       addSystem(
         `scope:${nodeId} — could not apply the staged changes: ${formatErrors(commit.errors)}`,
@@ -1920,6 +1976,7 @@ export async function runScopedAction(
       return;
     }
     status = 'success';
+    if (scope.summary.trim()) addAgent(scope.summary);
     const after = useProject.getState();
     const undoGroup = after.undoStack[after.undoStack.length - 1];
     const epoch = after.documentEpoch;

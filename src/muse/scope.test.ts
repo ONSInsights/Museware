@@ -176,10 +176,12 @@ describe('scoped edits that listen', () => {
     const sent = vi.mocked(chatStream).mock.calls[0][0].messages;
     expect(sent[0].content).toContain('Design law: colors ONLY');
     expect(sent[0].content).toContain('WIDGET PROPS from the library:');
-    expect(sent[0].content).toContain('chart{');
+    expect(sent[0].content).toContain('text{');
+    expect(sent[0].content).not.toContain('chart{');
     expect(sent[0].content).toContain('fontWeight stays on the 500/600/700 scale');
     expect(sent[0].content).toContain('setStyles MERGES');
-    expect(sent[1].content).toContain('CURRENT STATE: props={"text":"text_aaa"} styles={}');
+    expect(sent[1].content).toContain('CURRENT LOOK:');
+    expect(sent[1].content).toContain('text_aaa');
     expect(
       useProject.getState().doc.screens[0].root.children[0].children[0].props.text,
     ).toBe('Shop now');
@@ -264,7 +266,60 @@ describe('scoped edits that listen', () => {
     expect(vi.mocked(chatStream).mock.calls[2][0].messages[1].content).toContain(
       'Instruction: Make it better',
     );
+    expect(vi.mocked(chatStream).mock.calls[2][0].messages[1].content).toContain(
+      'setText on text_aaa was blocked',
+    );
+    expect(vi.mocked(chatStream).mock.calls[2][0].messages[1].content).toContain(
+      'content setProps are now permitted',
+    );
     expect(useProject.getState().undoStack).toHaveLength(1);
+  });
+  it('preserves scoped preferences for later widgets and slices the tool primer too', async () => {
+    useProject
+      .getState()
+      .doc.screens[0].root.children[0].children.push(node('nav_main', 'navbar'));
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setStyles', id: 'nav_main', styles: { position: 'sticky' } }],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('nav_main', 'always stay sticky', true);
+    expect(
+      useProject
+        .getState()
+        .doc.designNotes?.some(
+          (n) =>
+            n.includes('global: user preference for nav_main') &&
+            n.includes('always stay sticky'),
+        ),
+    ).toBe(true);
+    const call = vi.mocked(chatStream).mock.calls[0][0];
+    expect(call.messages[0].content).toContain('navbar{');
+    expect(call.messages[0].content).not.toContain('chart{');
+    const tool = (
+      call.tools as Array<{ function: { name: string; description?: string } }>
+    ).find((t) => t.function.name === 'edit_canvas');
+    expect(tool?.function.description).toContain('navbar{');
+    expect(tool?.function.description).not.toContain('chart{');
+  });
+  it('reports the blocked setProps reason and count to the single retry', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setProps', id: 'text_aaa', props: { variant: 'glass' } }],
+        }),
+      )
+      .mockResolvedValueOnce(finish())
+      .mockResolvedValueOnce(
+        reply('edit_canvas', { ops: [{ op: 'setText', id: 'text_aaa', text: 'changed' }] }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Make it better', true);
+    const retry = vi.mocked(chatStream).mock.calls[2][0].messages[1].content;
+    expect(retry).toContain('1 dropped: setProps(variant) on text_aaa was blocked');
+    expect(retry).toContain('content setProps are now permitted');
   });
   it('warns about rgba in a changed style and undoes exactly its group', async () => {
     const before = structuredClone(useProject.getState().doc.screens);

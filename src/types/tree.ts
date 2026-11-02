@@ -218,7 +218,7 @@ export interface ProjectDoc {
   /** 2 = styles own layout (see persist/migrate.ts). Absent means v1. */
   layoutVersion?: number;
   format: 'museware/1';
-  /** Project schema v2 adds the project-owned theme library. */
+  /** Project schema v3 adds the persistent design memory. */
   schemaVersion?: number;
   themeLibrary?: Array<{
     name: string;
@@ -231,6 +231,7 @@ export interface ProjectDoc {
   screens: ScreenDoc[];
   tokens: import('./tokens').DesignTokens;
   opLog: OpEntry[];
+  designNotes?: string[];
   rail: RailEntry[];
   kind: 'web' | 'app';
   customComponents: CustomComponent[];

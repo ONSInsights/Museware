@@ -82,7 +82,11 @@ export const projectSchema = z
     format: z.literal('museware/1'),
     name: z.string().min(1).max(80).default('Untitled project'),
     projectNameLocked: z.boolean().optional(),
-    schemaVersion: z.number().default(2),
+    schemaVersion: z.number().default(3),
+    designNotes: z
+      .array(z.string().max(240))
+      .default([])
+      .transform((notes) => [...new Set(notes)].slice(-30)),
     themeLibrary: z
       .array(
         z.object({
@@ -141,6 +145,9 @@ export function parseProjectDoc(input: unknown): ProjectDoc {
       ...cloneTheme(MUSEWARE_DEFAULT_THEME),
       ...(parsed.tokens as typeof parsed.tokens),
     },
+    rail: parsed.rail.map((entry) =>
+      entry.role === 'user' ? { ...entry, text: entry.text.slice(0, 8000) } : entry,
+    ),
     screens: parsed.screens.map((s) => ({
       ...s,
       root: {
@@ -154,6 +161,6 @@ export function parseProjectDoc(input: unknown): ProjectDoc {
   if (!doc.screens.length) doc.screens = [];
   if (doc.screens.length && !doc.screens.some((s) => s.entry)) doc.screens[0].entry = true;
   doc.layoutVersion = Math.max(2, doc.layoutVersion || 2);
-  doc.schemaVersion = Math.max(2, doc.schemaVersion || 0);
+  doc.schemaVersion = Math.max(3, doc.schemaVersion || 0);
   return seedProjectTheme(doc);
 }

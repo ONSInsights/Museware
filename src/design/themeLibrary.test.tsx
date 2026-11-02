@@ -27,7 +27,7 @@ describe('project theme library', () => {
   it('retro-seeds an independent full clone once, on migration and open', () => {
     const old = legacy();
     const parsed = parseProjectDoc(old);
-    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.schemaVersion).toBe(3);
     expect(parsed.themeLibrary).toHaveLength(1);
     expect(parsed.themeLibrary![0].name).toBe('KOYO Tea Landing');
     expect(parsed.themeLibrary![0].theme).toEqual(old.tokens.openuiTheme);

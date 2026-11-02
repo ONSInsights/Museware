@@ -14,6 +14,7 @@ import { applyOps, type ApplyResult } from '../ops/apply';
 import { clone } from '../ops/treeUtils';
 import { collectIds } from '../ops/ids';
 import { seedProjectTheme } from '../design/themeLibrary';
+import { appendDesignNote, preferenceNote } from '../muse/designMemory';
 
 const RAIL_CAP = 400;
 const CARD_DATA_CAP = 8000;
@@ -25,12 +26,14 @@ export interface Snapshot {
   kind: 'web' | 'app';
   name: string;
   blueprint?: ProjectDoc['blueprint'];
+  agentChange?: Array<{ id: string; what: string }>;
 }
 
 export function createProject(name = 'Untitled project'): ProjectDoc {
   return {
     format: 'museware/1',
-    schemaVersion: 2,
+    schemaVersion: 3,
+    designNotes: [],
     themeLibrary: [],
     name,
     screens: [],
@@ -115,10 +118,11 @@ interface ProjectStore {
   replaceDoc: (doc: ProjectDoc) => void;
   applyBatch: (
     rawOps: unknown[],
-    opts: { source: 'agent' | 'user'; screenAddsThisTurn?: number },
+    opts: { source: 'agent' | 'user'; screenAddsThisTurn?: number; lesson?: string },
   ) => ApplyResult;
   undo: () => string | null;
   redo: () => string | null;
+  addDesignNote: (line: string) => void;
   setName: (name: string) => void;
   setDataRows: (screenId: string, key: string, rows: MockRow[]) => boolean;
   setKind: (kind: 'web' | 'app') => void;
@@ -245,7 +249,32 @@ export const useProject = create<ProjectStore>((set, get) => ({
       set({ lastResult: result });
       return result;
     }
-    const undoStack = [...state.undoStack, snapshotOf(before)].slice(-50);
+    const snap = snapshotOf(before);
+    if (opts.source === 'agent' && result.applied.length) {
+      const first = result.applied[0];
+      const id = 'id' in first ? first.id : 'parentId' in first ? first.parentId : 'global';
+      const what = result.applied
+        .map((op) => {
+          if (op.op === 'setProps') return `setProps ${JSON.stringify(op.props)}`;
+          if (op.op === 'setStyles') return `setStyles ${JSON.stringify(op.styles)}`;
+          return op.op;
+        })
+        .join(', ')
+        .slice(0, 120);
+      const ids = [
+        ...new Set(
+          result.applied.map((op) =>
+            'id' in op ? op.id : 'parentId' in op ? op.parentId : 'global',
+          ),
+        ),
+      ];
+      snap.agentChange = ids.map((id) => ({ id, what }));
+      const lesson = opts.lesson
+        ? `user requested ${opts.lesson.slice(0, 100)}; applied ${what}`
+        : `applied ${what}`;
+      result.doc.designNotes = appendDesignNote(result.doc.designNotes, `${id}: ${lesson}`);
+    }
+    const undoStack = [...state.undoStack, snap].slice(-50);
     set({ doc: result.doc, undoStack, redoStack: [], lastResult: result });
     return result;
   },
@@ -291,10 +320,18 @@ export const useProject = create<ProjectStore>((set, get) => ({
     };
     const next = fromSnapshot(snap, doc);
     next.opLog = [...doc.opLog, entry].slice(-2000);
+    for (const change of snap.agentChange || [])
+      next.designNotes = appendDesignNote(
+        next.designNotes,
+        `user REVERTED ${change.what} on ${change.id} — do not repeat`,
+      );
     set({
       doc: next,
       undoStack: undoStack.slice(0, -1),
-      redoStack: [...redoStack, snapshotOf(doc)].slice(-50),
+      redoStack: [
+        ...redoStack,
+        { ...snapshotOf(doc), agentChange: snap.agentChange },
+      ].slice(-50),
     });
     return 'undo';
   },
@@ -311,7 +348,10 @@ export const useProject = create<ProjectStore>((set, get) => ({
     set({
       doc: next,
       redoStack: redoStack.slice(0, -1),
-      undoStack: [...undoStack, snapshotOf(doc)].slice(-50),
+      undoStack: [
+        ...undoStack,
+        { ...snapshotOf(doc), agentChange: snap.agentChange },
+      ].slice(-50),
     });
     return 'redo';
   },
@@ -333,6 +373,15 @@ export const useProject = create<ProjectStore>((set, get) => ({
       };
     }),
 
+  addDesignNote: (line) =>
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        designNotes: appendDesignNote(state.doc.designNotes, line),
+        updatedAt: Date.now(),
+      },
+    })),
+
   setKind: (kind) => set((s) => ({ doc: { ...s.doc, kind, updatedAt: Date.now() } })),
 
   addRail: (entry) => {
@@ -345,7 +394,16 @@ export const useProject = create<ProjectStore>((set, get) => ({
       ...(entry.scopedBatch ? { scopedBatch: entry.scopedBatch } : {}),
       ...(entry.card ? { card: entry.card } : {}),
     });
-    set((s) => ({ doc: { ...s.doc, rail: [...s.doc.rail, full].slice(-RAIL_CAP) } }));
+    set((s) => {
+      const note = full.role === 'user' ? preferenceNote(full.text) : null;
+      return {
+        doc: {
+          ...s.doc,
+          rail: [...s.doc.rail, full].slice(-RAIL_CAP),
+          ...(note ? { designNotes: appendDesignNote(s.doc.designNotes, note) } : {}),
+        },
+      };
+    });
     if (
       (full.role === 'system' ||
         (full.role === 'agent' && full.text === 'Applying the next tool actions.')) &&
