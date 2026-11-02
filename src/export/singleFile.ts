@@ -9,7 +9,7 @@ import type { ProjectDoc } from '../types/tree';
 import { clone, walk } from '../ops/treeUtils';
 import { auditFlattenedDom } from './auditCodegen';
 import { startSite } from './siteRuntime';
-import { extractAssets } from './assets';
+import { decodeData, extractAssets } from './assets';
 
 /* Every emitted local path is relative; absolute /paths are forbidden for subpath hosting.
  * Local media import remains forbidden while validation permits only HTTPS/data.
@@ -105,12 +105,25 @@ export function buildSingleHtml(input: ProjectDoc): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(doc.name)}</title><meta name="description" content="${esc(doc.name)}"><style>${css}</style></head><body>${content}<div id="site-toast" role="status" hidden></div><script>${script}</script></body></html>`;
 }
 
-/** Folder form reuses exactly the same page and runtime; only large data images move. */
+/** Folder form reuses the same page and runtime with all images as files. */
 export function buildHtmlFolder(doc: ProjectDoc): Record<string, string | Uint8Array> {
   const extracted = extractAssets(doc);
   let html = buildSingleHtml(extracted.doc);
   for (const asset of extracted.mappings)
     html = html.replaceAll(asset.sentinel, `./${asset.path}`);
+  // NodeBody generates SVG placeholders for missing images; keep them swappable too.
+  const placeholders = new Map<string, string>();
+  html = html.replace(/src="(data:image\/[^"<>]+)"/gi, (attribute, data: string) => {
+    const decoded = decodeData(data.replace(/&amp;/g, '&'));
+    if (!decoded) throw new Error('An embedded image could not be extracted.');
+    let path = placeholders.get(data);
+    if (!path) {
+      path = `assets/placeholder-${placeholders.size + 1}.${decoded.ext}`;
+      placeholders.set(data, path);
+      extracted.files[path] = decoded.bytes;
+    }
+    return attribute.replace(data, `./${path}`);
+  });
   const readme = `# Publish on GitHub Pages
 
 1. Create a repository at https://github.com/new and upload the extracted contents, including index.html and the assets folder if present, to the repository root.

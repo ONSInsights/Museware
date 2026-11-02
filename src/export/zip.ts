@@ -21,7 +21,10 @@ export async function buildExportFiles(
       updated = updated
         .replaceAll(`{"${sentinel}"}`, `{${variable}}`)
         .replaceAll(`="${sentinel}"`, `={${variable}}`);
-      imports.push(`import ${variable} from '../${assetPath}';`);
+      const isKnownImage = /\.(png|jpg|jpeg|gif|svg|webp|avif|ico|bmp)$/i.test(assetPath);
+      imports.push(
+        `import ${variable} from '../${assetPath}${isKnownImage ? '' : '?url'}';`,
+      );
     }
     generated[path] = `${imports.join('\n')}\n${updated}`;
   }

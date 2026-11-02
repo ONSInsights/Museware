@@ -1,19 +1,28 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Copy } from 'lucide-react';
+import { Button } from '../../components/ui';
 import { useUi } from '../../store/useUi';
+import type { ExportFormat } from '../../export/exportFormat';
 
 type Flow = 'pages' | 'drop' | 'import';
+interface Step {
+  action: string;
+  detail: ReactNode;
+  url: string;
+  ready: string;
+  expected?: string;
+}
 
 /** Guided manual publishing only. In-product publishing is a post-hackathon
  * GitHub App / Vercel token feature handled server-side; no credentials pass through Museware. */
-export function PublishGuide() {
+export function PublishGuide({ format = 'single' }: { format?: ExportFormat }) {
   const [flow, setFlow] = useState<Flow>('pages');
-  const [open, setOpen] = useState<'github' | 'vercel' | null>(null);
+  const [step, setStep] = useState(0);
   const [copied, setCopied] = useState('');
   const toast = useUi((s) => s.toast);
   const choose = (next: Flow) => {
     setFlow(next);
-    setOpen(next === 'pages' ? 'github' : 'vercel');
+    setStep(0);
   };
   const copy = async (value: string) => {
     try {
@@ -23,25 +32,97 @@ export function PublishGuide() {
       toast('Clipboard is blocked in this browser.', 'warn');
     }
   };
-  const value = (label: string, text = label) => (
-    <span className="publish-copy">
-      <code>{label}</code>
-      <button
-        type="button"
-        className="icon-btn icon-btn-sm"
-        aria-label={`Copy ${label}`}
-        title={`Copy ${label}`}
-        onClick={() => void copy(text)}
-      >
-        <Copy size={12} />
-      </button>
-    </span>
-  );
+  const upload =
+    format === 'single'
+      ? 'Upload the downloaded index.html.'
+      : format === 'folder'
+        ? 'Extract the site folder zip, then upload its contents including index.html and assets if present.'
+        : 'Extract the React zip and upload its contents, including the hidden .github folder.';
+  const pages: Step[] = [
+    {
+      action: 'Create a repository',
+      detail: 'Name your repository and choose Create.',
+      url: 'https://github.com/new',
+      ready: 'You can see your new, empty repository.',
+    },
+    {
+      action: 'Upload your website',
+      detail: <>{upload} Choose “uploading an existing file”, then commit the files.</>,
+      url: 'https://github.com',
+      ready: 'Your files appear in the repository.',
+    },
+    {
+      action: 'Turn on GitHub Pages',
+      detail:
+        format === 'react'
+          ? 'Open your repository’s Settings → Pages and choose GitHub Actions as the Source. If the first workflow failed before Pages was enabled, rerun it.'
+          : 'Open your repository’s Settings → Pages. Choose Deploy from a branch, select main and / (root), then Save.',
+      url: 'https://github.com',
+      ready:
+        'Pages shows the site URL after the deployment finishes; it can take a few minutes.',
+      expected: 'https://username.github.io/repo-name/',
+    },
+  ];
+  const drop: Step[] = [
+    {
+      action: 'Open Vercel Drop',
+      detail: 'Sign in to keep the deployment; GitHub can be used to sign in.',
+      url: 'https://vercel.com/drop',
+      ready: 'You can see the page for dropping a file or folder.',
+    },
+    {
+      action: 'Add your export',
+      detail:
+        format === 'single'
+          ? 'Drop your downloaded index.html onto the page.'
+          : format === 'folder'
+            ? 'Extract the site folder zip first, then drop the extracted folder with index.html at its root.'
+            : 'Extract the React project zip first, then drop the extracted project folder. Vercel detects and builds Vite projects when signed in.',
+      url: 'https://vercel.com/drop',
+      ready: 'Your file or folder appears in Vercel.',
+    },
+    {
+      action: 'Deploy your site',
+      detail: 'Choose a team and project name if asked, then select Deploy.',
+      url: 'https://vercel.com/drop',
+      ready: 'Vercel shows a live link after the deployment completes.',
+      expected: 'https://project.vercel.app',
+    },
+  ];
+  const importing: Step[] = [
+    {
+      action: 'Create a GitHub repository',
+      detail: 'Name the repository and choose Create.',
+      url: 'https://github.com/new',
+      ready: 'Your empty repository is visible.',
+    },
+    {
+      action: 'Upload and commit your export',
+      detail: upload,
+      url: 'https://github.com',
+      ready: 'Your committed files appear in the repository.',
+    },
+    {
+      action: 'Import and deploy on Vercel',
+      detail:
+        format === 'react'
+          ? 'Import your repository and choose Deploy. Vercel detects Vite automatically. Future Git pushes automatically redeploy: change it in Museware, re-upload and commit to GitHub, and the site updates itself.'
+          : 'Import your repository and choose Deploy. Future Git pushes automatically redeploy: re-upload and commit your changes to GitHub to update the site.',
+      url: 'https://vercel.com/new',
+      ready: 'Vercel shows a live link after deployment.',
+      expected: 'https://project.vercel.app',
+    },
+  ];
+  const current = (flow === 'pages' ? pages : flow === 'drop' ? drop : importing)[step];
   return (
     <section className="insp-section" aria-label="Publish">
       <div className="insp-section-head">
         <span className="eyebrow">Publish</span>
       </div>
+      <p className="field-hint">
+        GitHub Pages and Vercel both host free — same result, different steps. The React zip
+        includes a .github workflow for GitHub only; Vercel never needs it.
+      </p>
       <p className="field-hint">
         Guided publishing — no credentials are entered into Museware.
       </p>
@@ -51,6 +132,7 @@ export function PublishGuide() {
           type="button"
           className="chip"
           aria-pressed={flow === 'pages'}
+          data-selected={flow === 'pages'}
           onClick={() => choose('pages')}
         >
           One file to share
@@ -59,6 +141,7 @@ export function PublishGuide() {
           type="button"
           className="chip"
           aria-pressed={flow === 'drop'}
+          data-selected={flow === 'drop'}
           onClick={() => choose('drop')}
         >
           Live in 10 seconds
@@ -67,140 +150,79 @@ export function PublishGuide() {
           type="button"
           className="chip"
           aria-pressed={flow === 'import'}
+          data-selected={flow === 'import'}
           onClick={() => choose('import')}
         >
           A project that updates on push
         </button>
       </div>
-      <div className="publish-grid">
-        <div className="publish-card">
-          <div className="publish-card-head">
-            <a href="https://github.com/new" target="_blank" rel="noopener noreferrer">
-              GitHub Pages
+      <div className="publish-step-card">
+        <div className="publish-step-header">
+          <strong>
+            {flow === 'pages'
+              ? 'GitHub Pages'
+              : flow === 'drop'
+                ? 'Vercel Drop'
+                : 'GitHub → Vercel'}
+          </strong>
+          <span className="field-hint">{step + 1} of 3</span>
+        </div>
+        <div className="publish-dots" role="img" aria-label={`Step ${step + 1} of 3`}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} data-active={i === step} />
+          ))}
+        </div>
+        <div className="publish-step-content" aria-live="polite">
+          <strong>{current.action}</strong>
+          <p>{current.detail}</p>
+          <span className="publish-copy">
+            <a href={current.url} target="_blank" rel="noopener noreferrer">
+              {current.url.replace('https://', '')}
             </a>
             <button
               type="button"
-              className="btn btn-sm btn-secondary"
-              aria-expanded={open === 'github'}
-              onClick={() => setOpen(open === 'github' ? null : 'github')}
+              className="icon-btn icon-btn-sm"
+              aria-label={`Copy ${current.url}`}
+              onClick={() => void copy(current.url)}
             >
-              Steps
+              <Copy size={12} />
             </button>
-          </div>
-          {open === 'github' && (
-            <div className="publish-details">
-              <h4 data-selected={flow === 'pages'}>Flow 1 — GitHub Pages</h4>
-              <ol>
-                <li>
-                  Open{' '}
-                  <a
-                    href="https://github.com/new"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    github.com/new
-                  </a>{' '}
-                  {value('github.com/new', 'https://github.com/new')}, name your repository
-                  (for example {value('repo-name')}) and choose Create.
-                </li>
-                <li>
-                  Choose “uploading an existing file”. Drag in {value('index.html')} or the
-                  extracted HTML folder contents, then commit the upload.
-                </li>
-                <li>
-                  Open Settings → Pages. Set Source to {value('Deploy from a branch')},
-                  select {value('main')} and {value('/ (root)')}, then Save. GitHub displays
-                  your URL when ready, typically {value('username.github.io/repo-name/')}{' '}
-                  (replace the placeholders).
-                </li>
-              </ol>
-              <p className="field-hint">
-                React zip: upload the extracted project, including its hidden{' '}
-                {value('.github')} folder, and set Settings → Pages → Source to{' '}
-                {value('GitHub Actions')}. The included workflow builds and publishes it.
-              </p>
-            </div>
+          </span>
+          <p className="field-hint">
+            You’ll know it worked when{' '}
+            {current.ready.charAt(0).toLowerCase() + current.ready.slice(1)}
+          </p>
+          {current.expected && (
+            <p className="field-hint">
+              Expected URL: <code>{current.expected}</code>{' '}
+              <button
+                type="button"
+                className="icon-btn icon-btn-sm"
+                aria-label={`Copy ${current.expected}`}
+                onClick={() => void copy(current.expected!)}
+              >
+                <Copy size={12} />
+              </button>{' '}
+              (replace the example names).
+            </p>
           )}
         </div>
-        <div className="publish-card">
-          <div className="publish-card-head">
-            <a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer">
-              Vercel
-            </a>
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              aria-expanded={open === 'vercel'}
-              onClick={() => setOpen(open === 'vercel' ? null : 'vercel')}
-            >
-              Steps
-            </button>
-          </div>
-          {open === 'vercel' && (
-            <div className="publish-details">
-              <h4 data-selected={flow === 'drop'}>Flow 2 — Vercel drag-and-drop</h4>
-              <ol>
-                <li>
-                  Open{' '}
-                  <a
-                    href="https://vercel.com/new"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    vercel.com/new
-                  </a>{' '}
-                  {value('vercel.com/new', 'https://vercel.com/new')} and sign in with
-                  GitHub. Alternatively use{' '}
-                  <a
-                    href="https://vercel.com/drop"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Vercel Drop
-                  </a>{' '}
-                  {value('vercel.com/drop', 'https://vercel.com/drop')}.
-                </li>
-                <li>
-                  Extract the HTML folder zip first. Drag the extracted folder, with{' '}
-                  {value('index.html')} at its root, onto the page.
-                </li>
-                <li>
-                  Choose Deploy. Vercel provides a live URL such as{' '}
-                  {value('project.vercel.app')}.
-                </li>
-              </ol>
-              <h4 data-selected={flow === 'import'}>
-                Flow 3 — GitHub repo → Vercel import
-              </h4>
-              <ol>
-                <li>
-                  Create a GitHub repository as in Flow 1, then upload and commit the
-                  extracted React zip contents.
-                </li>
-                <li>
-                  Open{' '}
-                  <a
-                    href="https://vercel.com/new"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    vercel.com/new
-                  </a>{' '}
-                  {value('vercel.com/new', 'https://vercel.com/new')} and import that
-                  repository. Vercel detects Vite automatically.
-                </li>
-                <li>
-                  Choose Deploy. Future Git pushes automatically redeploy: change it in
-                  Museware, re-upload and commit to GitHub, and the site updates itself.
-                </li>
-              </ol>
-            </div>
+        <div className="publish-step-actions">
+          {step > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => setStep((i) => i - 1)}>
+              Back
+            </Button>
+          )}
+          {step < 2 && (
+            <Button variant="primary" size="sm" onClick={() => setStep((i) => i + 1)}>
+              Next step →
+            </Button>
           )}
         </div>
+        <span className="field-hint" role="status">
+          {copied ? `Copied ${copied}` : ''}
+        </span>
       </div>
-      <span className="field-hint" role="status">
-        {copied ? `Copied ${copied}` : ''}
-      </span>
     </section>
   );
 }

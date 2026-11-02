@@ -13,8 +13,8 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
-describe('publishing guide', () => {
-  it('offers both hosts, selects each of the three flows and copies every shown field', async () => {
+describe('publishing stepper', () => {
+  it('shows one card at a time, goes forward and back, and resets when switching flows', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -22,35 +22,55 @@ describe('publishing guide', () => {
     });
     render(<PublishGuide />);
     const guide = screen.getByRole('region', { name: 'Publish' });
-    expect(
-      within(guide).getByRole('link', { name: 'GitHub Pages' }).getAttribute('href'),
-    ).toBe('https://github.com/new');
-    expect(within(guide).getByRole('link', { name: 'Vercel' }).getAttribute('href')).toBe(
-      'https://vercel.com/new',
-    );
-    expect(guide.querySelector('input')).toBeNull();
-    for (const [choice, heading] of [
-      ['One file to share', 'Flow 1 — GitHub Pages'],
-      ['Live in 10 seconds', 'Flow 2 — Vercel drag-and-drop'],
-      ['A project that updates on push', 'Flow 3 — GitHub repo → Vercel import'],
-    ]) {
+    expect(within(guide).getByText(/GitHub Pages and Vercel both host free/)).toBeTruthy();
+    const flows = [
+      [
+        'One file to share',
+        'Create a repository',
+        'Turn on GitHub Pages',
+        'https://username.github.io/repo-name/',
+      ],
+      [
+        'Live in 10 seconds',
+        'Open Vercel Drop',
+        'Deploy your site',
+        'https://project.vercel.app',
+      ],
+      [
+        'A project that updates on push',
+        'Create a GitHub repository',
+        'Import and deploy on Vercel',
+        'https://project.vercel.app',
+      ],
+    ];
+    for (const [choice, start, finish, expected] of flows) {
       fireEvent.click(within(guide).getByRole('button', { name: choice }));
       expect(
         within(guide).getByRole('button', { name: choice }).getAttribute('aria-pressed'),
       ).toBe('true');
-      expect(
-        within(guide).getByRole('heading', { name: heading }).getAttribute('data-selected'),
-      ).toBe('true');
-      for (const button of within(guide).getAllByRole('button', { name: /^Copy / })) {
-        const before = writeText.mock.calls.length;
-        fireEvent.click(button);
-        await waitFor(() => expect(writeText.mock.calls.length).toBe(before + 1));
-        expect(writeText.mock.calls.at(-1)?.[0]).toBeTruthy();
-      }
+      expect(within(guide).getByRole('img', { name: 'Step 1 of 3' })).toBeTruthy();
+      expect(within(guide).getByText(start)).toBeTruthy();
+      const copy = within(guide).getByRole('button', { name: /^Copy https:/ });
+      fireEvent.click(copy);
+      await waitFor(() => expect(writeText).toHaveBeenCalled());
+      fireEvent.click(within(guide).getByRole('button', { name: 'Next step →' }));
+      expect(within(guide).getByRole('img', { name: 'Step 2 of 3' })).toBeTruthy();
+      fireEvent.click(within(guide).getByRole('button', { name: 'Back' }));
+      expect(within(guide).getByText(start)).toBeTruthy();
+      fireEvent.click(within(guide).getByRole('button', { name: 'Next step →' }));
+      fireEvent.click(within(guide).getByRole('button', { name: 'Next step →' }));
+      expect(within(guide).getByRole('img', { name: 'Step 3 of 3' })).toBeTruthy();
+      expect(within(guide).getByText(finish)).toBeTruthy();
+      expect(within(guide).getByText(expected)).toBeTruthy();
+      expect(within(guide).queryByRole('button', { name: 'Next step →' })).toBeNull();
+      expect(guide.querySelectorAll('input, textarea')).toHaveLength(0);
     }
-    expect(
-      within(guide).getByText(/Future Git pushes automatically redeploy/),
-    ).toBeTruthy();
-    expect(guide.querySelectorAll('input, textarea')).toHaveLength(0);
+  });
+  it('explains GitHub Actions specifically for React projects', () => {
+    render(<PublishGuide format="react" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Next step →' }));
+    expect(screen.getByText(/hidden .github folder/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Next step →' }));
+    expect(screen.getByText(/choose GitHub Actions as the Source/)).toBeTruthy();
   });
 });

@@ -70,32 +70,43 @@ describe('single file export', () => {
     expect(d.querySelector<HTMLElement>('[data-screen="tea"]')!.hidden).toBe(true);
     document.body.innerHTML = '';
   });
-  it('counts assets and extracts big inline images for both folder and React exports', async () => {
+  it('extracts every embedded image, small and large, for both folder and React exports', async () => {
     const doc = teaDoc();
-    const large = `data:image/png;base64,${btoa('x'.repeat(103000))}`;
+    const small = `data:image/png;base64,${btoa('i'.repeat(3 * 1024))}`;
+    const large = `data:image/png;base64,${btoa('x'.repeat(2 * 1024 * 1024))}`;
     doc.screens[0].root.children.push(
+      node('small_image', 'image', { src: small }),
       node('big_image', 'image', { src: large }),
       node('remote_vid', 'video', { src: 'https://example.com/movie.mp4' }),
       node('empty_image', 'image'),
     );
     expect(assetCensus(doc)).toMatchObject({
-      inline: 1,
+      inline: 2,
       remote: 1,
       missing: 1,
       remoteVideo: true,
     });
     const folder = buildHtmlFolder(doc);
-    expect(folder['assets/1.png']).toBeInstanceOf(Uint8Array);
+    expect(folder['assets/1.png']).toHaveLength(3 * 1024);
+    expect(folder['assets/2.png']).toHaveLength(2 * 1024 * 1024);
     expect(folder['index.html']).toContain('./assets/1.png');
+    expect(folder['index.html']).toContain('./assets/2.png');
+    expect(folder['index.html']).not.toContain('data:image');
+    expect(buildSingleHtml(doc)).toContain(small);
+    expect(buildSingleHtml(doc)).toContain(large);
     expect(folder['index.html']).not.toContain(large);
     expect(String(folder['README.md'])).toContain('Settings → Pages');
     expect(String(folder['README.md'])).toContain('/ (root)');
     expect(String(folder['index.html'])).not.toMatch(/\b(?:src|href)=["']\/(?!\/)/i);
     const react = await buildExportFiles(doc);
-    expect(react['src/assets/1.png']).toBeInstanceOf(Uint8Array);
+    expect(react['src/assets/1.png']).toHaveLength(3 * 1024);
+    expect(react['src/assets/2.png']).toHaveLength(2 * 1024 * 1024);
     const source = String(react['src/screens/Tea.tsx']);
     expect(source).toContain("import img1 from '../assets/1.png'");
+    expect(source).toContain("import img2 from '../assets/2.png'");
     expect(source).toContain('src={img1}');
+    expect(source).toContain('src={img2}');
+    expect(source).not.toContain('data:image');
     expect(source).not.toContain(large);
     expect(String(react['vite.config.ts'])).toContain("base: './'");
     expect(String(react['index.html'])).toContain('src="./src/main.tsx"');

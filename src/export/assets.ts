@@ -6,10 +6,17 @@ export interface AssetCensus {
   remote: number;
   missing: number;
   remoteVideo: boolean;
+  embeddedBytes: number;
 }
 /** Count media slots, including empty image and video slots; never fetch remote assets. */
 export function assetCensus(doc: ProjectDoc): AssetCensus {
-  const out: AssetCensus = { inline: 0, remote: 0, missing: 0, remoteVideo: false };
+  const out: AssetCensus = {
+    inline: 0,
+    remote: 0,
+    missing: 0,
+    remoteVideo: false,
+    embeddedBytes: 0,
+  };
   for (const screen of doc.screens)
     walk(screen.root, (node) => {
       const p = node.props;
@@ -20,8 +27,15 @@ export function assetCensus(doc: ProjectDoc): AssetCensus {
         out.missing++;
       for (const key of keys) {
         const value = String(p[key]);
-        if (/^data:image\//i.test(value)) out.inline++;
-        else if (/^https:\/\//i.test(value)) {
+        if (/^data:image\//i.test(value)) {
+          const decoded = !(node.type === 'video' && key === 'src')
+            ? decodeData(value)
+            : null;
+          if (decoded) {
+            out.inline++;
+            out.embeddedBytes += decoded.bytes.length;
+          } else out.missing++;
+        } else if (/^https:\/\//i.test(value)) {
           out.remote++;
           if (node.type === 'video' && key === 'src') out.remoteVideo = true;
         } else out.missing++;
@@ -35,11 +49,8 @@ export interface ExtractedAssets {
   files: Record<string, Uint8Array>;
   mappings: Array<{ sentinel: string; path: string }>;
 }
-function decodeData(value: string): { bytes: Uint8Array; ext: string } | null {
-  const m =
-    /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml)(?:;charset=[^;,]+)?(;base64)?,(.*)$/is.exec(
-      value,
-    );
+export function decodeData(value: string): { bytes: Uint8Array; ext: string } | null {
+  const m = /^data:image\/([a-z0-9.+-]+)(?:;charset=[^;,]+)?(;base64)?,(.*)$/is.exec(value);
   if (!m) return null;
   try {
     const bytes = m[2]
@@ -47,13 +58,18 @@ function decodeData(value: string): { bytes: Uint8Array; ext: string } | null {
       : new TextEncoder().encode(decodeURIComponent(m[3]));
     return {
       bytes,
-      ext: m[1].toLowerCase().replace('jpeg', 'jpg').replace('svg+xml', 'svg'),
+      ext: m[1]
+        .toLowerCase()
+        .replace('jpeg', 'jpg')
+        .replace('svg+xml', 'svg')
+        .replace('vnd.microsoft.icon', 'ico')
+        .replace('x-icon', 'ico'),
     };
   } catch {
     return null;
   }
 }
-/** Only embedded images larger than 100 KiB become relative folder assets. */
+/** The folder is for people — every image is a visible, swappable file; no mixed base64 surprises. */
 export function extractAssets(input: ProjectDoc): ExtractedAssets {
   const doc = clone(input);
   const files: Record<string, Uint8Array> = {};
@@ -64,9 +80,12 @@ export function extractAssets(input: ProjectDoc): ExtractedAssets {
       for (const key of ['src', 'poster', 'image']) {
         if (node.type === 'video' && key === 'src') continue;
         const value = node.props[key];
-        if (typeof value !== 'string' || !value.startsWith('data:image/')) continue;
+        if (typeof value !== 'string' || !/^data:image\//i.test(value)) continue;
         const decoded = decodeData(value);
-        if (!decoded || decoded.bytes.length <= 100 * 1024) continue;
+        if (!decoded)
+          throw new Error(
+            'An embedded image is invalid. Replace it before exporting a folder or React project.',
+          );
         let entry = seen.get(value);
         if (!entry) {
           const num = mappings.length + 1;
