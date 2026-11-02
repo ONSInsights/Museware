@@ -16,8 +16,9 @@ describe('run frame scroll ownership', () => {
     expect(css).toMatch(
       /\.run-stage\[data-scroll='true'\] \.run-frame \.mw-app\s*\{[^}]*height:\s*auto/,
     );
-    expect(css).toMatch(
-      /\.run-stage\[data-scroll='true'\] \.run-frame \.mw-app > \[class\^='n-'\]\s*\{[^}]*overflow-y:\s*visible/,
+    // The generated web scroll model now owns this; no !important override.
+    expect(css).not.toMatch(
+      /\.run-stage\[data-scroll='true'\] \.run-frame \.mw-app > \[class\^='n-'\]/,
     );
     expect(css).toMatch(/\.run-stage\[data-scroll='false'\]\s*\{\s*overflow:\s*auto/);
     expect(css).toMatch(/\.run-frame\s*\{[^}]*container-type:\s*inline-size/);

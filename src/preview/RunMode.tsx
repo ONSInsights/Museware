@@ -258,7 +258,7 @@ export function RunMode() {
           <Bindings screen={screen} running />
         </details>
         <div className="run-stage" ref={stageRef} data-scroll={scrollable}>
-          <CanvasStyle doc={doc} />
+          <CanvasStyle doc={doc} scrollModel={scrollable ? 'web' : 'phone'} />
           {scrollable ? (
             <div className="run-device-viewport" style={{ width: device * scale }}>
               <div

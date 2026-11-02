@@ -88,7 +88,7 @@ export function buildSingleHtml(input: ProjectDoc): string {
     .join('\n');
   auditFlattenedDom(content);
   const css =
-    `${materializeCss(doc.tokens)}\n${generateFullCss(doc)}\nhtml,body{margin:0;min-height:100%;background:var(--openui-bg)}[hidden]{display:none!important}.mw-css-root{min-height:100vh}.mw-app{min-height:100vh;max-width:${doc.kind === 'web' ? '1280px' : '480px'};margin:auto}#site-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px;background:var(--openui-elevated);color:var(--openui-text-primary);z-index:100}`.replace(
+    `${materializeCss(doc.tokens)}\n${generateFullCss(doc, { scrollModel: 'web' })}\nhtml,body{margin:0;min-height:100%;background:var(--openui-bg)}[hidden]{display:none!important}.mw-css-root{min-height:100vh}.mw-app{min-height:100vh;max-width:${doc.kind === 'web' ? '1280px' : '480px'};margin:auto}#site-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px;background:var(--openui-elevated);color:var(--openui-text-primary);z-index:100}`.replace(
       /<\/style/gi,
       '<\\/style',
     );

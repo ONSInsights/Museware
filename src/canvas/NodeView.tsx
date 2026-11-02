@@ -10,14 +10,17 @@ export function CanvasStyle({
   doc,
   scope,
   editScope = false,
+  scrollModel,
 }: {
   doc: ProjectDoc;
   scope?: string;
   editScope?: boolean;
+  scrollModel?: 'phone' | 'web';
 }) {
   const css = useMemo(
-    () => `${materializeCss(doc.tokens, scope)}\n${generateFullCss(doc, { editScope })}`,
-    [doc, scope, editScope],
+    () =>
+      `${materializeCss(doc.tokens, scope)}\n${generateFullCss(doc, { editScope, scrollModel: scrollModel || (editScope ? 'web' : 'phone') })}`,
+    [doc, scope, editScope, scrollModel],
   );
   return <style data-museware-css>{css}</style>;
 }

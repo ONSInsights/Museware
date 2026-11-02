@@ -27,7 +27,10 @@ function toneVars(tone: string): { bg: string; fg: string } {
 }
 
 /** Structural + visual defaults per kind, then the node's own styles on top. */
-function baseDeclarations(node: ComponentNode): string[] {
+function baseDeclarations(
+  node: ComponentNode,
+  scrollModel: 'phone' | 'web' = 'phone',
+): string[] {
   const p = node.props as Record<string, unknown>;
   const d: string[] = ['box-sizing:border-box', 'min-width:0'];
   switch (node.type) {
@@ -45,11 +48,12 @@ function baseDeclarations(node: ComponentNode): string[] {
        * worked (widths chain off definite widths).
        *
        * Undefined counts as scrolling, which is the documented default, so a
-       * project saved before the toggle existed keeps the phone model. Scrolls
-       * off is the web-page model: the screen grows and the page scrolls
+       * project saved before the toggle existed keeps the phone model unless
+       * the caller chooses the web surface. Scrolls off or web surface uses
+       * the web-page model: the screen grows and the page scrolls
        * instead — and its children cannot height:match, by design.
        */
-      if (p.scroll !== false && p.scroll !== 'false') {
+      if (scrollModel === 'phone' && p.scroll !== false && p.scroll !== 'false') {
         d.push('height:100%', 'overflow-y:auto');
       } else {
         d.push('min-height:100%');
@@ -467,7 +471,7 @@ function responsiveBlocks(node: ComponentNode): string[] {
 /** One CSS bundle for canvas, Run mode AND export — the single source of truth. */
 export function generateCss(
   doc: ProjectDoc,
-  options: { editScope?: boolean } = {},
+  options: { editScope?: boolean; scrollModel?: 'phone' | 'web' } = {},
 ): string {
   const rules: string[] = [
     '.mw-css-root,.mw-app{container-type:inline-size;container-name:mw;font-family:var(--font-body);color:var(--openui-text-primary);background:var(--openui-bg);-webkit-font-smoothing:antialiased}',
@@ -517,7 +521,7 @@ export function generateCss(
         );
       const navbarVariant =
         node.type === 'navbar' ? String(node.props.variant || 'glass') : '';
-      const base = baseDeclarations(node).filter((decl) => {
+      const base = baseDeclarations(node, options.scrollModel).filter((decl) => {
         if (
           navbarVariant === 'minimal' &&
           /^(background|backdrop-filter|border-bottom):/.test(decl)
@@ -739,7 +743,7 @@ export const UTILITY_CSS = `@container mw (min-width:600px){.mw-app{--type-displ
 
 export function generateFullCss(
   doc: ProjectDoc,
-  options: { editScope?: boolean } = {},
+  options: { editScope?: boolean; scrollModel?: 'phone' | 'web' } = {},
 ): string {
   return `${generateCss(doc, options)}\n${UTILITY_CSS}`;
 }

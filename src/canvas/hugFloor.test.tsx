@@ -46,7 +46,7 @@ it('floors clipped nodes and marquee only in the editor, never dividers', () => 
   const base = generateFullCss(doc);
   expect(base).toBe(`${generateCss(doc)}\n${UTILITY_CSS}`);
   expect(generateFullCss(doc, { editScope: false })).toBe(base);
-  const edit = generateFullCss(doc, { editScope: true });
+  const edit = generateFullCss(doc, { editScope: true, scrollModel: 'web' });
   for (const id of ['marquee_test', 'clipped', 'clipped2'])
     expect(edit).toContain(`.frame-viewport .n-${id}{min-height:var(--mw-hug-min)}`);
   expect(edit).not.toContain(

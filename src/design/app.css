@@ -4895,11 +4895,6 @@ button.how-card .field-hint {
   height: auto;
   min-height: 100%;
 }
-.run-stage[data-scroll='true'] .run-frame .mw-app > [class^='n-'] {
-  height: auto !important;
-  min-height: 100%;
-  overflow-y: visible !important;
-}
 .run-locked-layout {
   flex: 1;
   min-height: 0;
