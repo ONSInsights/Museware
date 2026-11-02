@@ -3,12 +3,13 @@ import type { ProjectDoc } from '../types/tree';
 import { generateProjectFiles } from './reactCodegen';
 import { manifestFor, serviceWorkerTemplate } from './pwa';
 import { extractAssets } from './assets';
+import { fillPlaceholderArt } from './fillPlaceholderArt';
 import { buildHtmlFolder } from './singleFile';
 
 export async function buildExportFiles(
   doc: ProjectDoc,
 ): Promise<Record<string, string | Uint8Array>> {
-  const extracted = extractAssets(doc);
+  const extracted = extractAssets(fillPlaceholderArt(doc));
   const generated = generateProjectFiles(extracted.doc);
   for (const [path, source] of Object.entries(generated)) {
     if (!path.startsWith('src/screens/') || !path.endsWith('.tsx')) continue;

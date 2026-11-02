@@ -6,6 +6,7 @@ import { useUi } from '../../store/useUi';
 import { downloadZip, downloadTextFile, downloadHtmlFolder } from '../../export/zip';
 import { buildSingleHtml } from '../../export/singleFile';
 import { assetCensus } from '../../export/assets';
+import { fillPlaceholderArt } from '../../export/fillPlaceholderArt';
 import {
   downloadDisabled,
   downloadLabel,
@@ -73,6 +74,10 @@ function ExportModalForProject({
   const recommended = recommendedFormat(census);
   const [format, setFormat] = useState<ExportFormat | null>(
     () => loadExportFormat(projectId, epoch) || recommended,
+  );
+  const reportedCensus = useMemo(
+    () => (format === 'react' ? assetCensus(fillPlaceholderArt(doc)) : census),
+    [doc, format, census],
   );
   const blocked = Boolean(doc.builtWithContributor) && !import.meta.env.DEV;
   const selectFormat = (next: ExportFormat) => {
@@ -162,9 +167,11 @@ function ExportModalForProject({
           <span className="eyebrow">Choose a format</span>
         </div>
         <p className="field-hint">
-          {census.inline} images {format === 'single' ? 'embedded' : 'in assets/'} ·{' '}
-          {census.remote} need internet
-          {census.missing ? ` · ${census.missing} missing or placeholder` : ''}
+          {reportedCensus.inline} images {format === 'single' ? 'embedded' : 'in assets/'} ·{' '}
+          {reportedCensus.remote} need internet
+          {reportedCensus.missing
+            ? ` · ${reportedCensus.missing} missing or placeholder`
+            : ''}
         </p>
         <fieldset className="export-format-list">
           <legend className="sr-only">Export format</legend>
