@@ -183,6 +183,10 @@ export interface PickDirective {
   question: string;
   label: string;
   hexes: string[];
+  referenceHexes?: string[];
+  note?: string;
+  applied?: 'system' | 'accents' | 'none';
+  protectTokens?: boolean;
 }
 
 /**
@@ -203,15 +207,21 @@ let smallTalkTurn = false;
 /** The sentence that turns a tap into a decision the model cannot re-ask. */
 export function pickReceipt(pick: PickDirective): string {
   const colours = pick.hexes.length
-    ? ` Its palette is already on the token sheet — brand ${pick.hexes[0]}` +
-      `${pick.hexes[1] ? `, secondary ${pick.hexes[1]}` : ''} — applied by the app, so do not call ` +
-      'set_design_tokens for these colours again.'
+    ? ` The chosen brand ${pick.hexes[0]}${pick.hexes[1] ? ` and secondary ${pick.hexes[1]}` : ''} were applied. ` +
+      (pick.applied === 'accents'
+        ? 'Only brand and accent fields were updated; the existing surfaces and other settings were kept. Preserve the existing design system.'
+        : 'A starter colour system was applied; refine the overall art direction to suit the brief, preserving the chosen brand and explicit user preferences.')
     : '';
+  const cues = pick.referenceHexes?.length
+    ? ` Other displayed swatches: ${pick.referenceHexes.join(', ')}. They are visual cues with no assigned token roles; do not guess their roles.`
+    : '';
+  const note = pick.note ? ` The selected direction was described as: ${pick.note}.` : '';
   return (
     `PICK RECEIPT: the user just tapped "${pick.label}" on your card "${pick.question}". ` +
-    `That decision is final and is already recorded.${colours} ` +
+    `That decision is final and is already recorded.${colours}${cues}${note} ` +
     'Do NOT call ask_choice in this turn, do not offer more directions, and do not stop at an ' +
-    'acknowledgement. Your next move is propose_blueprint with the plan for their app — or, if a ' +
+    'acknowledgement. You may refine other design details to suit the brief when no user system is protected. ' +
+    'Then call propose_blueprint with the plan for their app — or, if a ' +
     'blueprint is already on screen, build the screens it asks for.'
   );
 }
@@ -450,7 +460,10 @@ function contextMessages(
   const sheet = buildTokenSheet(doc.tokens);
   const index = buildProjectIndex(doc, { selectionId: useUi.getState().selectedId });
   return [
-    { role: 'system', content: `${SYSTEM_PROMPT}\n\nPROJECT TOKENS (honor explicitly supplied designs; defaults are not mandatory):\n${sheet}` },
+    {
+      role: 'system',
+      content: `${SYSTEM_PROMPT}\n\nPROJECT TOKENS (honor explicitly supplied designs; defaults are not mandatory):\n${sheet}`,
+    },
     {
       role: 'system',
       content: `CANVAS INDEX:\n${index}\n\n${decisionLedger(doc)}\nPROJECT MEMORY (honor and cite relevant preferences):\n${(doc.designNotes || []).slice(-10).join('\n') || 'none'}${extraSystem.length ? `\n${extraSystem.join('\n')}` : ''}`,
@@ -894,6 +907,10 @@ async function runTool(
       return { text: buildProjectIndex(doc, { selectionId: useUi.getState().selectedId }) };
 
     case 'set_design_tokens': {
+      if (pickTurn?.protectTokens)
+        return {
+          text: 'E_THEME_PROTECTED: the existing design system was preserved. Do not change it without an explicit user request.',
+        };
       const a = args as { patch: Record<string, unknown>; title?: string };
       const patch: Record<string, unknown> = { ...a.patch };
       if (a.title) patch.title = a.title;

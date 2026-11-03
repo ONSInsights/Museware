@@ -5,7 +5,8 @@ import { useProject, createProject } from '../../store/useProject';
 import { useAgent } from '../../store/useAgent';
 import { useUi } from '../../store/useUi';
 import { runAgentTurn } from '../loop';
-import { answerBlueprint } from '../cards';
+import { answerBlueprint, answerChoice } from '../cards';
+import { DIRECTION_PALETTES } from '../../design/palettes';
 
 /**
  * The §8.8 trace, run against the local engine: one prompt → a blueprint card →
@@ -68,6 +69,23 @@ describe('the local engine end to end', () => {
       );
     expect(count(built.root)).toBeGreaterThan(12);
     expect(built.root.type).toBe('screen');
+  }, 30000);
+
+  it('applies a selected direction as a starter system before proposing the plan', async () => {
+    await runAgentTurn('design a warm little bakery page');
+    const choice = useProject
+      .getState()
+      .doc.rail.find((entry) => entry.card?.kind === 'choice');
+    expect(choice).toBeTruthy();
+    const before = structuredClone(useProject.getState().doc.tokens);
+    await answerChoice(choice!.id, 0);
+    const doc = useProject.getState().doc;
+    expect(doc.tokens.openuiTheme.brand_color).toBe(DIRECTION_PALETTES[0].hexes[0]);
+    expect(doc.tokens.openuiTheme.light_colors.openui_accent_subtle).not.toBe(
+      before.openuiTheme.light_colors.openui_accent_subtle,
+    );
+    expect(doc.blueprint?.text).toBeTruthy();
+    expect(doc.screens).toHaveLength(0);
   }, 30000);
 
   it('asks for a direction instead of inventing a palette when the brief is open', async () => {

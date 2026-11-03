@@ -1,3 +1,8 @@
+import {
+  brandContrastWarning,
+  brandDirectionOps,
+  canCreateBrandDirection,
+} from '../../design/brandDirection';
 import { nameProjectAfterBuild } from '../projectName';
 import {
   buildCardId,
@@ -744,17 +749,46 @@ export async function demoAnswerChoice(
   useAgent.getState().startTurn();
   try {
     if (data.purpose === 'direction') {
-      const brand = option.hexes?.[0];
+      const hexes = (option.hexes || [])
+        .filter((value) => /^#[0-9A-Fa-f]{6}$/.test(value))
+        .slice(0, 2);
+      const brand = hexes[0];
+      let applied = false;
       if (brand) {
-        setTokens({
-          brand_color: brand,
-          secondary_color: option.hexes?.[1] || brand,
-        });
-        system(`🎨 ${brand} — applied everywhere`);
+        const fresh = canCreateBrandDirection(useProject.getState().doc);
+        const result = applyOps(
+          fresh
+            ? brandDirectionOps(brand, hexes[1] || brand)
+            : [
+                {
+                  op: 'setTokens',
+                  patch: { brand_color: brand, secondary_color: hexes[1] || brand },
+                },
+              ],
+        );
+        if (result.errors.length) {
+          const current = useProject.getState().doc.rail.find((item) => item.id === cardId);
+          if (current?.card)
+            useProject
+              .getState()
+              .patchRail(cardId, { card: { ...current.card, state: 'pending' } });
+          return;
+        }
+        if (!result.errors.length) {
+          applied = true;
+          useProject.getState().snapshotProjectTheme();
+          system(
+            fresh
+              ? `🎨 ${brand} — starter colour system applied`
+              : `🎨 ${brand} — brand and accent fields updated; existing surfaces and other design settings kept`,
+          );
+          const warning = brandContrastWarning(useProject.getState().doc);
+          if (warning) system(warning);
+        }
       }
       await sleep(320, opts.stopSignal);
       await streamProse(
-        `${option.label} it is. ${brand ? 'The canvas repainted from the token sheet — buttons, links, chart fills.' : ''} Now the plan.`,
+        `${option.label} it is. ${applied ? 'Your choice is on the token sheet.' : ''} Now the plan.`,
         opts.stopSignal,
       );
       await proposeBlueprintFor(template, opts);

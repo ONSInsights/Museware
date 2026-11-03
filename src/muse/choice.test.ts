@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createProject, useProject } from '../store/useProject';
 import { useAgent, type ModelMatrix } from '../store/useAgent';
 import { useUi } from '../store/useUi';
-import { answerChoice } from './cards';
+import { answerChoice, applyColorCard } from './cards';
+import { createSavedProject, readSavedProject, deleteSavedProject } from '../persist/save';
 import { DIRECTION_PALETTES } from '../design/palettes';
 import { stripHexes } from './typedOptions';
 
@@ -107,7 +108,7 @@ function stubResponses(...responses: Response[]) {
 /** A pending look-choice card, exactly as `ask_choice` leaves one. */
 function addChoiceCard(
   question: string,
-  options: Array<{ label: string; hexes?: string[] }>,
+  options: Array<{ label: string; hexes?: string[]; note?: string }>,
 ) {
   useProject.getState().addRail({
     role: 'card',
@@ -166,6 +167,60 @@ describe('a tapped choice is a decision, not a new request', () => {
     expect(rail.some((r) => r.role === 'system' && r.text.includes(BRAND))).toBe(true);
   });
 
+  it('creates a coherent system from a fresh direction and can undo it', async () => {
+    stubResponses(sseText('Blueprint next.'));
+    const before = structuredClone(useProject.getState().doc.tokens);
+    const cardId = addChoiceCard('Which look?', [
+      { label: LOOK.label, hexes: [...LOOK.hexes] },
+    ]);
+    await answerChoice(cardId, 0);
+    const theme = useProject.getState().doc.tokens.openuiTheme;
+    expect(theme.light_colors.openui_accent).toBe(BRAND);
+    expect(theme.light_colors.openui_accent_subtle).not.toBe(
+      before.openuiTheme.light_colors.openui_accent_subtle,
+    );
+    expect(theme.dark_colors.openui_bg).not.toBe(before.openuiTheme.dark_colors.openui_bg);
+    expect(useProject.getState().undo()).toBe('undo');
+    expect(useProject.getState().doc.tokens).toEqual(before);
+  });
+
+  it('updates explicitly chosen accents while preserving other customized settings and blocking agent re-theme', async () => {
+    stubResponses(
+      sseTool('set_design_tokens', { patch: { brand_color: BRAND } }),
+      sseText('Blueprint next.'),
+    );
+    const doc = createProject('Custom');
+    doc.tokens.openuiTheme.light_colors.openui_bg = OTHER.hexes[2];
+    useProject.getState().replaceDoc(doc);
+    const before = structuredClone(doc.tokens);
+    const cardId = addChoiceCard('Which look?', [
+      { label: LOOK.label, hexes: [...LOOK.hexes] },
+    ]);
+    await answerChoice(cardId, 0);
+    const after = useProject.getState().doc.tokens;
+    expect(after.openuiTheme.brand_color).toBe(BRAND);
+    expect(after.openuiTheme.light_colors.openui_bg).toBe(
+      before.openuiTheme.light_colors.openui_bg,
+    );
+    expect(after.openuiTheme.dark_colors.openui_bg).toBe(
+      before.openuiTheme.dark_colors.openui_bg,
+    );
+    expect(after.openuiTheme.radii_dp).toEqual(before.openuiTheme.radii_dp);
+    expect(sent[1].messages.find((message) => message.role === 'tool')?.content).toContain(
+      'E_THEME_PROTECTED',
+    );
+    expect(
+      useProject
+        .getState()
+        .doc.rail.some((r) =>
+          r.text.includes('existing surfaces and other design settings kept'),
+        ),
+    ).toBe(true);
+    expect(sent[0].messages.map((m) => m.content).join(' ')).not.toContain(
+      'A starter colour system was applied',
+    );
+  });
+
   it('tells the model what was decided, so it cannot ask for it again', async () => {
     stubResponses(sseText('Blueprint next.'));
     const cardId = addChoiceCard('Which look?', [
@@ -212,6 +267,61 @@ describe('a tapped choice is a decision, not a new request', () => {
     const toolResult = sent[1].messages.find((m) => m.role === 'tool');
     expect(toolResult?.content).toContain('E_CHOICE_REPEAT');
     expect(toolResult?.content).toContain('propose_blueprint');
+  });
+
+  it('carries the extra swatches and note as cues without assigning their roles', async () => {
+    stubResponses(sseText('Blueprint next.'));
+    const cardId = addChoiceCard('Which look?', [
+      { label: LOOK.label, hexes: [...LOOK.hexes], note: 'quiet editorial' },
+    ]);
+    await answerChoice(cardId, 0);
+    const systemText = sent[0].messages
+      .filter((m) => m.role === 'system')
+      .map((m) => m.content)
+      .join(' ');
+    expect(systemText).toContain(LOOK.hexes[2]);
+    expect(systemText).toContain(LOOK.hexes[3]);
+    expect(systemText).toContain('quiet editorial');
+    expect(systemText).toContain('no assigned token roles');
+  });
+
+  it('saves and reloads a chosen system without changing it', async () => {
+    stubResponses(sseText('Blueprint next.'));
+    const cardId = addChoiceCard('Which look?', [
+      { label: LOOK.label, hexes: [BRAND, SECONDARY] },
+    ]);
+    await answerChoice(cardId, 0);
+    const doc = useProject.getState().doc;
+    const id = await createSavedProject(doc);
+    try {
+      const loaded = await readSavedProject(id);
+      expect(loaded?.tokens).toEqual(doc.tokens);
+    } finally {
+      await deleteSavedProject(id);
+    }
+  });
+
+  it('the global colour card creates a system on an untouched project', async () => {
+    const before = structuredClone(useProject.getState().doc.tokens);
+    await applyColorCard(BRAND, 'everywhere');
+    const theme = useProject.getState().doc.tokens.openuiTheme;
+    expect(theme.brand_color).toBe(BRAND);
+    expect(theme.light_colors.openui_accent_subtle).not.toBe(
+      before.openuiTheme.light_colors.openui_accent_subtle,
+    );
+    useProject.getState().undo();
+    expect(useProject.getState().doc.tokens).toEqual(before);
+  });
+
+  it('uses one swatch for an intentional monochrome direction', async () => {
+    stubResponses(sseText('Blueprint next.'));
+    const cardId = addChoiceCard('Which look?', [
+      { label: OTHER.label, hexes: [OTHER_HEX] },
+    ]);
+    await answerChoice(cardId, 0);
+    const theme = useProject.getState().doc.tokens.openuiTheme;
+    expect(theme.brand_color).toBe(OTHER_HEX);
+    expect(theme.secondary_color).toBe(OTHER_HEX);
   });
 
   it('does not turn typed directions after a tap into a second card either', async () => {

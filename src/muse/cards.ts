@@ -3,6 +3,11 @@
  * from the UI's point of view: tap → card leaves → one-line receipt → action.
  */
 import type { RailEntry } from '../types/tree';
+import {
+  brandContrastWarning,
+  brandDirectionOps,
+  canCreateBrandDirection,
+} from '../design/brandDirection';
 import { findNodeInDoc } from '../ops/treeUtils';
 import { useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
@@ -59,44 +64,50 @@ export async function answerChoice(cardId: string, index: number): Promise<void>
     await demoAnswerChoice(cardId, entry, option);
     return;
   }
-  markCard(cardId, 'answered', { picked: option.label });
-  system(`✓ Picked: ${option.label}`);
-  useProject.getState().addRail({ role: 'user', text: option.label });
-
-  /*
-   * A tap is a decision, so the app honours it here instead of hoping the model
-   * will: the swatches the user just looked at become the token sheet. That is
-   * the difference between "picked" and "repainted", and it is why the card no
-   * longer has to be answered twice to mean anything.
-   */
-  const hexes = (option.hexes ?? [])
+  const allHexes = (option.hexes ?? [])
     .filter((hex) => /^#[0-9A-Fa-f]{6}$/.test(hex))
-    .slice(0, 2);
+    .slice(0, 4);
+  const hexes = allHexes.slice(0, 2);
+  let applied: 'system' | 'accents' | 'none' = 'none';
   if (hexes.length) {
     const brand = hexes[0];
     const secondary = hexes[1] || brand;
-    const res = useProject
-      .getState()
-      .applyBatch(
-        [{ op: 'setTokens', patch: { brand_color: brand, secondary_color: secondary } }],
-        {
-          source: 'user',
-        },
-      );
-    if (res.errors.length) useUi.getState().toast(res.errors[0].message, 'danger');
-    else {
-      useProject.getState().snapshotProjectTheme();
-      system(
-        `🎨 ${brand}${secondary === brand ? '' : ` / ${secondary}`} — applied to the token sheet`,
-      );
+    const fresh = canCreateBrandDirection(useProject.getState().doc);
+    const ops = fresh
+      ? brandDirectionOps(brand, secondary)
+      : [{ op: 'setTokens', patch: { brand_color: brand, secondary_color: secondary } }];
+    const res = useProject.getState().applyBatch(ops, { source: 'user' });
+    if (res.errors.length) {
+      useUi.getState().toast(res.errors[0].message, 'danger');
+      return;
     }
+    applied = fresh ? 'system' : 'accents';
+    useProject.getState().snapshotProjectTheme();
+    system(
+      fresh
+        ? `🎨 ${brand}${secondary === brand ? '' : ` / ${secondary}`} — starter colour system applied`
+        : `🎨 ${brand}${secondary === brand ? '' : ` / ${secondary}`} — brand and accent fields updated; existing surfaces and other design settings kept`,
+    );
+    const warning = brandContrastWarning(useProject.getState().doc);
+    if (warning) system(warning);
   }
+  markCard(cardId, 'answered', { picked: option.label });
+  system(`✓ Picked: ${option.label}`);
+  useProject.getState().addRail({ role: 'user', text: option.label });
 
   const question = String(
     (entry.card.data as { question?: string }).question || 'a choice card',
   );
   await runAgentTurn(option.label, {
-    pick: { question, label: option.label, hexes },
+    pick: {
+      question,
+      label: option.label,
+      hexes,
+      referenceHexes: allHexes.slice(2),
+      note: option.note,
+      applied,
+      protectTokens: applied === 'accents',
+    },
   });
 }
 
@@ -212,18 +223,25 @@ export async function applyColorCard(
     return;
   }
   if (scope === 'everywhere') {
-    const res = useProject
-      .getState()
-      .applyBatch(
-        [{ op: 'setTokens', patch: { brand_color: hex, secondary_color: hex } }],
-        { source: 'user' },
-      );
+    const fresh = canCreateBrandDirection(useProject.getState().doc);
+    const ops = fresh
+      ? brandDirectionOps(hex, hex)
+      : [{ op: 'setTokens', patch: { brand_color: hex, secondary_color: hex } }];
+    const res = useProject.getState().applyBatch(ops, { source: 'user' });
     if (res.errors.length) {
       useUi.getState().toast(res.errors[0].message, 'danger');
       return;
     }
-    system(`🎨 ${hex} — applied everywhere`);
-    useUi.getState().toast('Every surface repainted from the token.', 'ok');
+    system(
+      fresh
+        ? `🎨 ${hex} — starter colour system applied`
+        : `🎨 ${hex} — brand and accent fields updated; existing surfaces and other design settings kept`,
+    );
+    const warning = brandContrastWarning(useProject.getState().doc);
+    if (warning) system(warning);
+    useUi
+      .getState()
+      .toast(fresh ? 'Starter colour system applied.' : 'Brand and accents updated.', 'ok');
   } else if (nodeId) {
     const hit = findNodeInDoc(useProject.getState().doc, nodeId);
     const res = useProject.getState().applyBatch(
