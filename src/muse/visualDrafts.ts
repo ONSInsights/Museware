@@ -222,10 +222,65 @@ export async function generateVisualDrafts(
   return drafts;
 }
 
+export interface VisualDraftSession {
+  epoch: number;
+  baseline: string;
+  drafts: VisualDraft[];
+  selected: number | null;
+  working: boolean;
+  message: string;
+  snapshot: { epoch: number; baseline: string } | null;
+  wish: string;
+}
+
 let activePreview: AbortController | null = null;
+let currentDraftSession: VisualDraftSession | null = null;
+const sessionListeners = new Set<() => void>();
+
 export function setVisualPreviewController(controller: AbortController | null): void {
   activePreview = controller;
 }
+
+export function getVisualPreviewController(): AbortController | null {
+  return activePreview;
+}
+
 export function stopVisualPreview(): void {
   activePreview?.abort();
+  activePreview = null;
+  if (currentDraftSession?.working) {
+    currentDraftSession = {
+      ...currentDraftSession,
+      working: false,
+      message: 'Preview generation stopped. Nothing was applied.',
+    };
+    sessionListeners.forEach((fn) => fn());
+  }
+}
+
+export function getVisualDraftSession(): VisualDraftSession | null {
+  return currentDraftSession;
+}
+
+export function setVisualDraftSession(session: VisualDraftSession | null): void {
+  currentDraftSession = session;
+  sessionListeners.forEach((fn) => fn());
+}
+
+export function patchVisualDraftSession(patch: Partial<VisualDraftSession>): void {
+  if (!currentDraftSession) return;
+  currentDraftSession = { ...currentDraftSession, ...patch };
+  sessionListeners.forEach((fn) => fn());
+}
+
+export function subscribeVisualDraftSession(fn: () => void): () => void {
+  sessionListeners.add(fn);
+  return () => {
+    sessionListeners.delete(fn);
+  };
+}
+
+export function clearVisualDraftSession(): void {
+  currentDraftSession = null;
+  sessionListeners.forEach((fn) => fn());
 }

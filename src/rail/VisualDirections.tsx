@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { buildSingleHtml } from '../export/singleFile';
 import { useResolvedCanvasTheme } from '../design/theme';
 import { canvasOutline } from '../muse/canvasOutline';
@@ -6,9 +6,16 @@ import { chatStream, estimateCents } from '../muse/client';
 import { TOOL_DEFS } from '../muse/loop';
 import { getReference, isReferenceBlueprint } from '../muse/referenceSession';
 import {
+  clearVisualDraftSession,
   generateVisualDrafts,
+  getVisualDraftSession,
+  patchVisualDraftSession,
+  setVisualDraftSession,
   setVisualPreviewController,
+  stopVisualPreview,
+  subscribeVisualDraftSession,
   type VisualDraft,
+  type VisualDraftSession,
   visualBaseline,
 } from '../muse/visualDrafts';
 import { useAgent } from '../store/useAgent';
@@ -26,49 +33,78 @@ export function VisualDirections({
   const theme = useResolvedCanvasTheme(themeMode);
   const busy = useAgent((state) => state.busy);
   const demo = useAgent((state) => state.demoMode);
-  const [drafts, setDrafts] = useState<VisualDraft[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [working, setWorking] = useState(false);
-  const [message, setMessage] = useState('');
-  const [wish, setWish] = useState('');
-  const [snapshot, setSnapshot] = useState<{ epoch: number; baseline: string } | null>(
-    null,
-  );
-  const active = useRef<AbortController | null>(null);
-  useEffect(() => () => active.current?.abort(), []);
+
+  const doc = useProject((state) => state.doc);
+  const epoch = useProject((state) => state.documentEpoch);
+  const baseline = visualBaseline(doc);
+
+  const [session, setSession] = useState<VisualDraftSession | null>(() => {
+    const s = getVisualDraftSession();
+    return s && s.epoch === epoch && s.baseline === baseline ? s : null;
+  });
+
+  useEffect(() => {
+    const sync = () => {
+      const s = getVisualDraftSession();
+      if (s && s.epoch === epoch && s.baseline === baseline) {
+        setSession({ ...s });
+      } else {
+        setSession(null);
+      }
+    };
+    sync();
+    return subscribeVisualDraftSession(sync);
+  }, [epoch, baseline]);
+
+  const drafts = session?.drafts || [];
+  const selected = session?.selected ?? null;
+  const working = session?.working || false;
+  const message = session?.message || '';
+  const snapshot = session?.snapshot || null;
+  const [wish, setWish] = useState(() => session?.wish || '');
 
   const generate = async () => {
     if (useAgent.getState().busy) return;
     const state = useProject.getState();
-    const doc = state.doc;
-    const plan = doc.blueprint?.text || '';
-    const epoch = state.documentEpoch;
-    const referencePlan = isReferenceBlueprint(doc, plan);
-    const reference = referencePlan ? getReference(epoch, plan) : null;
+    const currentDoc = state.doc;
+    const plan = currentDoc.blueprint?.text || '';
+    const currentEpoch = state.documentEpoch;
+    const referencePlan = isReferenceBlueprint(currentDoc, plan);
+    const reference = referencePlan ? getReference(currentEpoch, plan) : null;
     if (referencePlan && !reference) {
-      setMessage(
-        'The screenshot is no longer in this session. Send it again to make a new recreation plan.',
-      );
+      patchVisualDraftSession({
+        message:
+          'The screenshot is no longer in this session. Send it again to make a new recreation plan.',
+      });
       return;
     }
     if (!plan) {
-      setMessage('There is no blueprint to preview.');
+      patchVisualDraftSession({
+        message: 'There is no blueprint to preview.',
+      });
       return;
     }
     const controller = new AbortController();
-    active.current = controller;
     setVisualPreviewController(controller);
-    setWorking(true);
-    setMessage('');
-    setDrafts([]);
-    setSelected(null);
-    setSnapshot(null);
+    setVisualDraftSession({
+      epoch: currentEpoch,
+      baseline: visualBaseline(currentDoc),
+      drafts: [],
+      selected: null,
+      working: true,
+      message: 'Preparing visual directions in the background… They will appear right here in this card. You can minimize this chat while they prepare.',
+      snapshot: null,
+      wish,
+    });
     useAgent.getState().startTurn();
     const unsubscribe = useProject.subscribe((next) => {
-      if (next.documentEpoch !== epoch) controller.abort();
+      if (next.documentEpoch !== currentEpoch) {
+        controller.abort();
+        clearVisualDraftSession();
+      }
     });
     try {
-      const previewProject = structuredClone(doc);
+      const previewProject = structuredClone(currentDoc);
       if (wish.trim())
         previewProject.rail.push({
           id: 'preview_wish',
@@ -86,61 +122,76 @@ export function VisualDirections({
         ),
         model: useAgent.getState().models?.builder.id || 'muse-spark-1.3',
         request: async (options) => {
-          const result = await chatStream(options);
+          const res = await chatStream(options);
           const source = useAgent.getState().keySource;
           useAgent.getState().addReceipt({
             role: 'builder',
-            model: result.model,
-            latencyMs: result.latencyMs,
+            model: res.model,
+            latencyMs: res.latencyMs,
             promptChars: options.messages.reduce(
-              (total, message) =>
-                total + (typeof message.content === 'string' ? message.content.length : 0),
+              (total, m) =>
+                total + (typeof m.content === 'string' ? m.content.length : 0),
               0,
             ),
-            toolNames: result.toolCalls.map((call) => call.name),
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            cachedTokens: result.usage.cachedTokens,
-            cents: estimateCents(result.model, result.usage),
+            toolNames: res.toolCalls.map((call) => call.name),
+            inputTokens: res.usage.inputTokens,
+            outputTokens: res.usage.outputTokens,
+            cachedTokens: res.usage.cachedTokens,
+            cents: estimateCents(res.model, res.usage),
             ...(source === 'none'
               ? {}
               : { key: source === 'session' ? ('user' as const) : ('house' as const) }),
           });
-          return result;
+          return res;
         },
-        onProgress: (direction) =>
-          useAgent.getState().setLive(`Preparing visual direction ${direction} of 3…`),
+        onProgress: (direction) => {
+          useAgent.getState().setLive(`Preparing visual direction ${direction} of 3…`);
+          patchVisualDraftSession({
+            message: `Preparing visual direction ${direction} of 3… Previews will appear right here in this card.`,
+          });
+        },
       });
-      if (controller.signal.aborted || useProject.getState().documentEpoch !== epoch) {
-        if (useProject.getState().documentEpoch === epoch)
-          setMessage('Preview generation stopped. Nothing was applied.');
+      if (controller.signal.aborted || useProject.getState().documentEpoch !== currentEpoch) {
+        if (useProject.getState().documentEpoch === currentEpoch)
+          patchVisualDraftSession({
+            working: false,
+            message: 'Preview generation stopped. Nothing was applied.',
+          });
         return;
       }
-      if (visualBaseline(useProject.getState().doc) !== visualBaseline(doc)) {
-        setMessage(
-          'Your design changed while previews were being prepared. Generate them again.',
-        );
+      if (visualBaseline(useProject.getState().doc) !== visualBaseline(currentDoc)) {
+        patchVisualDraftSession({
+          working: false,
+          message:
+            'Your design changed while previews were being prepared. Generate them again.',
+        });
         return;
       }
-      setDrafts(result);
-      setSnapshot({ epoch, baseline: visualBaseline(doc) });
-      setMessage(
-        'Choose one direction, then select Build it. The chosen draft becomes editable. Museware will finish it while protecting the chosen layout; check the result for anything that still needs work.',
-      );
+      setVisualDraftSession({
+        epoch: currentEpoch,
+        baseline: visualBaseline(currentDoc),
+        drafts: result,
+        selected: null,
+        working: false,
+        snapshot: { epoch: currentEpoch, baseline: visualBaseline(currentDoc) },
+        message:
+          'Choose one direction, then select Build it. The chosen draft becomes editable. Museware will finish it while protecting the chosen layout; check the result for anything that still needs work.',
+        wish,
+      });
     } catch (error) {
-      if (useProject.getState().documentEpoch === epoch) {
-        setMessage(
-          controller.signal.aborted
+      if (useProject.getState().documentEpoch === currentEpoch) {
+        patchVisualDraftSession({
+          working: false,
+          message: controller.signal.aborted
             ? 'Preview generation stopped. Nothing was applied.'
             : `Could not prepare all three previews. Nothing was applied. ${error instanceof Error ? error.message : String(error)}`,
-        );
+        });
       }
     } finally {
       unsubscribe();
-      if (active.current === controller) active.current = null;
       setVisualPreviewController(null);
       useAgent.getState().endTurn();
-      setWorking(false);
+      patchVisualDraftSession({ working: false });
     }
   };
   return (
@@ -165,7 +216,10 @@ export function VisualDirections({
         className="textarea"
         rows={2}
         value={wish}
-        onChange={(event) => setWish(event.target.value)}
+        onChange={(event) => {
+          setWish(event.target.value);
+          patchVisualDraftSession({ wish: event.target.value });
+        }}
         placeholder="What should the directions explore?"
         disabled={busy}
       />
@@ -181,7 +235,7 @@ export function VisualDirections({
         <button
           type="button"
           className="btn btn-sm btn-ghost"
-          onClick={() => active.current?.abort()}
+          onClick={() => stopVisualPreview()}
         >
           Stop previews
         </button>
@@ -208,7 +262,7 @@ export function VisualDirections({
               type="radio"
               name={`${groupId}-direction`}
               checked={selected === index}
-              onChange={() => setSelected(index)}
+              onChange={() => patchVisualDraftSession({ selected: index })}
             />{' '}
             <strong>{draft.label}</strong>
           </label>

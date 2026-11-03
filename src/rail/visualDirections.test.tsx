@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createProject, useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
 import {
+  clearVisualDraftSession,
   generateVisualDrafts,
   visualBaseline,
   type VisualDraft,
@@ -43,6 +44,7 @@ const drafts = (): VisualDraft[] =>
     return { label: `Direction ${i}`, screen, document: doc };
   });
 beforeEach(() => {
+  clearVisualDraftSession();
   useProject.getState().replaceDoc(createProject('Real'));
   useProject.getState().setBlueprint('SCREEN: Home\n- title (heading) Hello', false);
   useAgent.setState({ busy: false, demoMode: false, models: null });
@@ -125,4 +127,30 @@ it('allows building directly without visual previews when onSkip is provided', (
   expect((skipBtn as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(skipBtn);
   expect(skip).toHaveBeenCalledTimes(1);
+});
+it('keeps preview generation running and preserves drafts when chat minimizes (unmounts)', async () => {
+  let resolve!: (value: VisualDraft[]) => void;
+  let receivedSignal!: AbortSignal;
+  vi.mocked(generateVisualDrafts).mockImplementation(async ({ signal }) => {
+    receivedSignal = signal;
+    return new Promise((done) => {
+      resolve = done;
+    });
+  });
+  const { unmount } = render(<VisualDirections onBuild={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Preview three directions' }));
+  expect(receivedSignal).toBeDefined();
+  expect(receivedSignal.aborted).toBe(false);
+
+  // Simulate minimizing chat (unmounting VisualDirections)
+  unmount();
+  expect(receivedSignal.aborted).toBe(false);
+
+  // Preview completes while chat is minimized
+  resolve(drafts());
+  await waitFor(() => expect(useAgent.getState().busy).toBe(false));
+
+  // Re-open chat (re-render VisualDirections)
+  render(<VisualDirections onBuild={vi.fn()} />);
+  expect(screen.getAllByRole('radio')).toHaveLength(3);
 });
