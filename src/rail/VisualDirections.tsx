@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { Play } from 'lucide-react';
 import { buildSingleHtml } from '../export/singleFile';
 import { useResolvedCanvasTheme } from '../design/theme';
 import { canvasOutline } from '../muse/canvasOutline';
@@ -175,16 +176,26 @@ export function VisualDirections({
         working: false,
         snapshot: { epoch: currentEpoch, baseline: visualBaseline(currentDoc) },
         message:
-          'Choose one direction, then select Build it. The chosen draft becomes editable. Museware will finish it while protecting the chosen layout; check the result for anything that still needs work.',
+          'Choose one direction, then select Build selected direction. The chosen draft becomes editable.',
         wish,
       });
+      useProject.getState().addRail({
+        role: 'system',
+        text: 'Visual directions ready. Choose one in the blueprint card above to build.',
+      });
     } catch (error) {
+      const errText = controller.signal.aborted
+        ? 'Preview generation stopped. Nothing was applied.'
+        : `Could not prepare all three previews. Nothing was applied. ${error instanceof Error ? error.message : String(error)}`;
+      useAgent.getState().setError(errText);
       if (useProject.getState().documentEpoch === currentEpoch) {
         patchVisualDraftSession({
           working: false,
-          message: controller.signal.aborted
-            ? 'Preview generation stopped. Nothing was applied.'
-            : `Could not prepare all three previews. Nothing was applied. ${error instanceof Error ? error.message : String(error)}`,
+          message: errText,
+        });
+        useProject.getState().addRail({
+          role: 'system',
+          text: errText,
         });
       }
     } finally {
@@ -241,68 +252,89 @@ export function VisualDirections({
         </button>
       )}
       {message && (
-        <p className="choice-note" role="status">
+        <p
+          className="choice-note"
+          role="status"
+          style={
+            /could not|stopped|failed|rejected|error|rate limited/i.test(message)
+              ? { color: 'var(--mw-danger)' }
+              : undefined
+          }
+        >
           {message}
         </p>
       )}
-      {onSkip && (
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost"
-          disabled={busy}
-          onClick={onSkip}
-        >
-          Build without visual previews
-        </button>
+      {drafts.length > 0 && (
+        <>
+          {drafts.map((draft, index) => (
+            <div className="visual-direction" key={draft.label}>
+              <label className="visual-direction-label">
+                <input
+                  type="radio"
+                  name={`${groupId}-direction`}
+                  checked={selected === index}
+                  onChange={() => patchVisualDraftSession({ selected: index })}
+                />{' '}
+                <strong>{draft.label}</strong>
+              </label>
+              <iframe
+                className="visual-direction-frame"
+                title={`${draft.label} visual preview`}
+                sandbox=""
+                srcDoc={buildSingleHtml(draft.document)
+                  .replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`)
+                  .replace(
+                    '<head>',
+                    `<head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>body *{pointer-events:none!important}</style>`,
+                  )}
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+              <details>
+                <summary>Screen contents for {draft.label}</summary>
+                <pre className="visual-direction-outline">
+                  {canvasOutline(draft.document, [draft.screen.id])}
+                </pre>
+              </details>
+            </div>
+          ))}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 'var(--mw-space-2)',
+              marginTop: 'var(--mw-space-2)',
+            }}
+          >
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={busy || selected === null || !snapshot}
+              title={
+                selected === null
+                  ? 'Select one direction above, or select Build without visual previews'
+                  : undefined
+              }
+              onClick={() => {
+                if (selected !== null && snapshot)
+                  onBuild(drafts[selected], snapshot.epoch, snapshot.baseline);
+              }}
+            >
+              <Play size={12} /> Build selected direction
+            </button>
+            {onSkip && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                disabled={busy}
+                onClick={onSkip}
+              >
+                Build without visual previews
+              </button>
+            )}
+          </div>
+        </>
       )}
-      {drafts.map((draft, index) => (
-        <div className="visual-direction" key={draft.label}>
-          <label className="visual-direction-label">
-            <input
-              type="radio"
-              name={`${groupId}-direction`}
-              checked={selected === index}
-              onChange={() => patchVisualDraftSession({ selected: index })}
-            />{' '}
-            <strong>{draft.label}</strong>
-          </label>
-          <iframe
-            className="visual-direction-frame"
-            title={`${draft.label} visual preview`}
-            sandbox=""
-            srcDoc={buildSingleHtml(draft.document)
-              .replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`)
-              .replace(
-                '<head>',
-                `<head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>body *{pointer-events:none!important}</style>`,
-              )}
-            tabIndex={-1}
-            aria-hidden="true"
-          />
-          <details>
-            <summary>Screen contents for {draft.label}</summary>
-            <pre className="visual-direction-outline">
-              {canvasOutline(draft.document, [draft.screen.id])}
-            </pre>
-          </details>
-        </div>
-      ))}
-      <button
-        type="button"
-        className="btn btn-sm btn-primary"
-        disabled={busy || selected === null || !snapshot}
-        title={
-          selected === null
-            ? 'Choose one direction above, or select Build without visual previews'
-            : undefined
-        }
-        onClick={() => {
-          if (selected !== null && snapshot)
-            onBuild(drafts[selected], snapshot.epoch, snapshot.baseline);
-        }}
-      >
-        Build it
-      </button>
     </section>
   );
 }

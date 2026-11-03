@@ -56,15 +56,16 @@ it('renders three isolated previews and requires a selection before building', a
   const build = vi.fn();
   const before = structuredClone(useProject.getState().doc);
   render(<VisualDirections onBuild={build} />);
-  expect(
-    (screen.getByRole('button', { name: 'Build it' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
+  expect(screen.queryByRole('button', { name: /build selected direction/i })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Preview three directions' }));
   await waitFor(() => expect(screen.getAllByRole('radio')).toHaveLength(3));
   expect(document.querySelectorAll('iframe')).toHaveLength(3);
   expect(visualBaseline(useProject.getState().doc)).toEqual(visualBaseline(before));
+  const buildBtn = screen.getByRole('button', { name: /build selected direction/i });
+  expect((buildBtn as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole('radio', { name: 'Direction 2' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Build it' }));
+  expect((buildBtn as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(buildBtn);
   expect(build).toHaveBeenCalledWith(
     expect.objectContaining({ label: 'Direction 2' }),
     expect.any(Number),
@@ -120,9 +121,12 @@ it('stopping a late preview leaves the design unchanged', async () => {
   expect(screen.queryAllByRole('radio')).toHaveLength(0);
   expect(visualBaseline(useProject.getState().doc)).toEqual(visualBaseline(before));
 });
-it('allows building directly without visual previews when onSkip is provided', () => {
+it('allows building directly without visual previews when drafts exist and onSkip is provided', async () => {
+  vi.mocked(generateVisualDrafts).mockResolvedValue(drafts());
   const skip = vi.fn();
   render(<VisualDirections onBuild={vi.fn()} onSkip={skip} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Preview three directions' }));
+  await waitFor(() => expect(screen.getAllByRole('radio')).toHaveLength(3));
   const skipBtn = screen.getByRole('button', { name: 'Build without visual previews' });
   expect((skipBtn as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(skipBtn);

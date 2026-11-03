@@ -616,6 +616,11 @@ useAgent.subscribe((state, previous) => {
     ).length;
     if (generated) parts.push(`generated ${generated} image${generated === 1 ? '' : 's'}`);
     const lines = Array.isArray(current.card.data.lines) ? current.card.data.lines : [];
+    const hasError = lines.some(
+      (line) =>
+        typeof line === 'string' &&
+        /\b(failed|failure|rejected|could not prepare|error)\b/i.test(line),
+    );
     project.patchRail(current.id, {
       card: {
         ...current.card,
@@ -624,7 +629,13 @@ useAgent.subscribe((state, previous) => {
           ...current.card.data,
           active: false,
           expanded: false,
-          summary: parts.join(', ') || (state.interrupted ? 'Stopped' : 'Finished'),
+          summary:
+            parts.join(', ') ||
+            (state.interrupted
+              ? 'Stopped'
+              : state.lastError || hasError
+                ? 'Failed'
+                : 'Finished'),
           lines: state.liveText ? [...lines, state.liveText] : lines,
         },
       },
