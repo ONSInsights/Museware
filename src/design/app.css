@@ -6497,6 +6497,12 @@ button.how-card .field-hint {
   .chat-focus .composer > .chat-composer-status {
     max-width: var(--mw-shell-geometry-720);
   }
+  .chat-focus .rail-body > * {
+    margin-inline: 0 auto;
+  }
+  .chat-focus .rail-body > .rail-msg.user {
+    margin-inline: auto 0;
+  }
   .chat-focus .rail-body > .sys-pill {
     width: fit-content;
     max-width: min(92%, var(--mw-shell-geometry-720));
