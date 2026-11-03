@@ -379,3 +379,11 @@ describe('variant defaults yield to explicit node styles', () => {
     );
   });
 });
+
+describe('marquee readability', () => {
+  it('clips the moving track without fading its text or label', () => {
+    expect(UTILITY_CSS).toContain(':where(.mw-marquee){overflow:hidden}');
+    expect(UTILITY_CSS).not.toContain('mask-image:linear-gradient(to right,transparent');
+    expect(UTILITY_CSS).toContain('@media (prefers-reduced-motion:reduce)');
+  });
+});

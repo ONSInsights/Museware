@@ -6428,7 +6428,9 @@ button.how-card .field-hint {
 }
 
 /* The save receipt is always visible; a failure cannot disappear behind the phone toolbar. */
-.topbar { position: relative; }
+.topbar {
+  position: relative;
+}
 .save-status {
   flex: 0 0 auto;
   font-size: var(--mw-fs-11);
@@ -6450,5 +6452,22 @@ button.how-card .field-hint {
     z-index: var(--mw-z-sticky);
     background: var(--mw-surface);
     padding: var(--mw-space-1) var(--mw-space-2);
+  }
+}
+
+/* A readable composer grows with the draft; the outer ring remains the focus cue. */
+.composer-box textarea {
+  min-width: 0;
+  height: auto;
+  max-height: calc(6em + var(--mw-space-1) + var(--mw-space-1));
+  overflow-y: auto;
+}
+:is(.inspector, .rail, .panel-body) .composer-box textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+@media (min-width: 600px) {
+  .composer-box textarea {
+    max-height: calc(12em + var(--mw-space-1) + var(--mw-space-1));
   }
 }

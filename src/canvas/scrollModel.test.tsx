@@ -30,7 +30,13 @@ function rule(css: string, id: string) {
 }
 it('keeps the phone generator byte-identical to the published baseline', () => {
   const doc = fixture();
-  const baseline = readFileSync('src/canvas/fixtures/scroll-phone-baseline.css', 'utf8');
+  const baseline = readFileSync(
+    'src/canvas/fixtures/scroll-phone-baseline.css',
+    'utf8',
+  ).replace(
+    ':where(.mw-marquee){overflow:hidden;mask-image:linear-gradient(to right,transparent,black 8%,black 92%,transparent);-webkit-mask-image:linear-gradient(to right,transparent,black 8%,black 92%,transparent)}',
+    ':where(.mw-marquee){overflow:hidden}',
+  );
   const stripInertMotionDictionary = (css: string) =>
     css
       .replace(

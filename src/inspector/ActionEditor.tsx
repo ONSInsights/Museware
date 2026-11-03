@@ -89,9 +89,7 @@ export function ActionEditor({
           </button>
         ))}
       </div>
-      {actions.length === 0 && (
-        <p className="field-hint">No actions yet. This event does nothing when tapped.</p>
-      )}
+      {actions.length === 0 && <p className="field-hint">No additional actions set.</p>}
     </div>
   );
 }

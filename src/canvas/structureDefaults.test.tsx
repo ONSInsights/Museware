@@ -50,7 +50,7 @@ describe('composition defaults', () => {
       '@container mw (min-width:1024px){:where(.mw-section .n-list_a){max-width:min(100%, 720px);margin-inline:auto}}',
     );
   });
-  it('shows one faded copy at rest and preserves two in motion', () => {
+  it('shows one readable copy at rest and preserves two in motion', () => {
     const { doc, page } = fixture();
     const view = render(<NodeView doc={doc} screen={page} mode="edit" />);
     expect(view.container.querySelector('.mw-marquee')?.getAttribute('data-static')).toBe(
@@ -65,7 +65,7 @@ describe('composition defaults', () => {
     expect(css).toContain(
       ':where(.mw-marquee[data-static="true"] .mw-marquee-group[aria-hidden="true"]){display:none}',
     );
-    expect(css).toContain('mask-image:linear-gradient');
+    expect(css).not.toContain('mask-image:linear-gradient(to right,transparent');
     expect(buildSingleHtml(doc)).toContain('data-static="true"');
     cleanup();
   });

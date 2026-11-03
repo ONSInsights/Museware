@@ -278,6 +278,48 @@ describe('the events tab tells the truth', () => {
     expect(screen.getByText(/This block has no events/)).toBeTruthy();
   });
 
+  it('reports built-in navbar navigation separately from custom actions', () => {
+    const doc = docWith();
+    doc.screens[0].root.children.push(
+      node('nav_a', 'navbar', [], {
+        items: ['Screen 1', 'Missing'],
+        cta: 'Visit',
+        ctaTo: 'screen_1',
+      }),
+    );
+    useProject.getState().replaceDoc(doc);
+    useUi.setState({
+      activeScreenId: 'screen_1',
+      selectedId: 'nav_a',
+      route: 'editor',
+      propertiesOpen: true,
+      inspectorCollapsed: false,
+    });
+    render(<Inspector />);
+    openTab('Events');
+    expect(screen.getByText('Screen 1 → Screen 1')).toBeTruthy();
+    expect(screen.getByText('Missing → No matching screen')).toBeTruthy();
+    expect(screen.getByText('Visit → Screen 1')).toBeTruthy();
+    expect(screen.getByText('No additional actions set.')).toBeTruthy();
+  });
+  it('shows a link destination without inventing an explicit event', () => {
+    const doc = docWith();
+    doc.screens[0].root.children.push(
+      node('link_a', 'link', [], { text: 'Back', to: 'screen_1' }),
+    );
+    useProject.getState().replaceDoc(doc);
+    useUi.setState({
+      activeScreenId: 'screen_1',
+      selectedId: 'link_a',
+      route: 'editor',
+      propertiesOpen: true,
+      inspectorCollapsed: false,
+    });
+    render(<Inspector />);
+    openTab('Events');
+    expect(screen.getByText('Back → Screen 1')).toBeTruthy();
+  });
+
   it('a Card is tappable: it is a surface you can put a whole action on', () => {
     seed('card_a');
     render(<Inspector />);

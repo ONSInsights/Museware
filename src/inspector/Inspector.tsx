@@ -24,6 +24,7 @@ import { parseStateValue } from './stateValue';
 import { duplicateNodeBatch } from '../ops/screenOps';
 import { ThemePicker } from '../design/ThemePicker';
 import { Icon } from '../canvas/Icon';
+import { screenSlugForLabel } from '../preview/runtime';
 import { Segmented } from '../components/ui';
 import { InspSection } from '../components/InspSection';
 import { ActionEditor } from './ActionEditor';
@@ -232,6 +233,33 @@ export function Inspector() {
 
   const writeEvents = (name: 'tap' | 'change' | 'submit', actions: Action[]) =>
     run([{ op: 'setProps', id: node.id, props: { events: { [name]: actions } } }]);
+
+  // These navigation behaviors live in widget properties, not node.events.
+  // Resolve them exactly as Run does instead of claiming they are custom actions.
+  const builtInNavigation: Array<{ label: string; target: string }> = [];
+  if (node.type === 'navbar' || node.type === 'bottomnav') {
+    const items = Array.isArray(node.props.items)
+      ? node.props.items.map(String)
+      : typeof node.props.items === 'string'
+        ? node.props.items
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : [];
+    items.forEach((label) => builtInNavigation.push({ label, target: label }));
+    if (node.type === 'navbar' && node.props.cta) {
+      builtInNavigation.push({
+        label: String(node.props.cta),
+        target: String(node.props.ctaTo || ''),
+      });
+    }
+  }
+  if (node.type === 'link' && node.props.to) {
+    builtInNavigation.push({
+      label: String(node.props.text || 'Link'),
+      target: String(node.props.to),
+    });
+  }
 
   const dispatchScope = (stylesOnly: boolean) => {
     const submitted = scopeInstruction;
@@ -694,6 +722,25 @@ export function Inspector() {
 
         {tab === 'events' && (
           <>
+            {builtInNavigation.length > 0 && (
+              <InspSection label="Built-in navigation" defaultOpen>
+                <p className="field-hint">
+                  These destinations come from this block’s properties, not additional
+                  actions.
+                </p>
+                {builtInNavigation.map(({ label, target }, index) => {
+                  const id =
+                    doc.screens.find((screen) => screen.id === target)?.id ||
+                    (target ? screenSlugForLabel(doc.screens, target) : null);
+                  const destination = doc.screens.find((screen) => screen.id === id);
+                  return (
+                    <p className="field-hint" key={`${label}-${index}`}>
+                      {label} → {destination ? destination.name : 'No matching screen'}
+                    </p>
+                  );
+                })}
+              </InspSection>
+            )}
             {eventsFor(node.type).length === 0 && (
               <div className="insp-section">
                 <p className="field-hint">

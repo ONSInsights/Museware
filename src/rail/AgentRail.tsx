@@ -168,6 +168,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const [showAll, setShowAll] = useState(false);
   const [recording, setRecording] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -187,6 +188,35 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
       !(entry.role !== 'user' && isKeepalive(entry.text)),
   );
   const visible = showAll ? visibleRail : visibleRail.slice(-VISIBLE);
+
+  // Measure wrapped lines as well as explicit newlines. CSS supplies the
+  // responsive height cap; the browser scrolls inside once it is reached.
+  useLayoutEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const resize = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    let lastWidth = el.getBoundingClientRect().width;
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(() => {
+            const width = el.getBoundingClientRect().width;
+            if (width !== lastWidth) {
+              lastWidth = width;
+              resize();
+            }
+          });
+    observer?.observe(el);
+    return () => {
+      window.removeEventListener('resize', resize);
+      observer?.disconnect();
+    };
+  }, [draft, railCollapsed, focused]);
 
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -542,6 +572,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         )}
         <div className="composer-box">
           <textarea
+            ref={composerRef}
             value={draft}
             rows={1}
             maxLength={8000}
@@ -563,11 +594,17 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
                 : 'Describe the app you want. Blueprint first, always.'
             }
             aria-label="Message muse"
+            aria-describedby={draft.length >= 7000 ? 'composer-limit' : undefined}
             onChange={(e) => {
               setDraft(e.target.value);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                !coarsePointer &&
+                !e.nativeEvent.isComposing
+              ) {
                 e.preventDefault();
                 void send();
               }
@@ -626,6 +663,13 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         </div>
         {draft.length > 4000 && (
           <div className="field-hint">long message — consider splitting it</div>
+        )}
+        {draft.length >= 7000 && (
+          <div className="field-hint" id="composer-limit">
+            {draft.length >= 8000
+              ? '8,000-character limit reached'
+              : `${(8000 - draft.length).toLocaleString()} characters remaining`}
+          </div>
         )}
         {draftTrimmed && (
           <div className="field-hint" role="status">

@@ -43,6 +43,9 @@ it('the old CSS is byte-identical except the inert dictionary and token line', (
   const old = readFileSync(
     new URL('./fixtures/motion-baseline.css', import.meta.url),
     'utf8',
+  ).replace(
+    ':where(.mw-marquee){overflow:hidden;mask-image:linear-gradient(to right,transparent,black 8%,black 92%,transparent);-webkit-mask-image:linear-gradient(to right,transparent,black 8%,black 92%,transparent)}',
+    ':where(.mw-marquee){overflow:hidden}',
   );
   const css = generateFullCss(fixture());
   expect(
