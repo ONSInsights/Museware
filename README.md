@@ -32,7 +32,7 @@ Add a key in Settings (or `.env`) and the pinned muse models take over.
 3. **Batched and all-or-nothing.** `edit_canvas` takes up to 40 ops; if one
    fails validation, none of them land.
 4. **Blueprint before pixels.** The architect plans screens, ids, LOOK numbers
-   and wiring; the approval card renders real thumbnails of the plan.
+   and wiring; the approval card presents the plan for review.
 5. **Verify before show.** A reviewer pass checks compact _and_ expanded
    outlines. If it finds problems, the turn says so — it is allowed to fail.
 6. **A constrained vocabulary.** 30 components, 51 icon names, 12 colour keys.

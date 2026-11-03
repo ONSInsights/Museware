@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -22,9 +22,6 @@ import {
   retryTurn,
   type ChoiceOption,
 } from '../muse/cards';
-import { parseBlueprint } from '../muse/blueprintParse';
-import { CanvasStyle } from '../canvas/NodeView';
-import { NodeBody } from '../canvas/NodeBody';
 import { runAgentTurn, stopAgent } from '../muse/loop';
 import { QUICK_SWATCHES } from '../design/palettes';
 import { KeyCard } from './KeyCard';
@@ -42,50 +39,6 @@ export function assetSummary(assets: Array<{ state: string; reason?: string }>):
     (job) => job.state === 'skipped' && /automated image call cap/i.test(job.reason || ''),
   );
   return `Assets: ${parts.join(', ')}${budgetSpent ? ' (image budget spent)' : ''}`;
-}
-
-function ScreenThumbs({ blueprint }: { blueprint: string }) {
-  const doc = useProject((s) => s.doc);
-  const parsed = useMemo(
-    () => parseBlueprint(blueprint, doc.tokens),
-    [blueprint, doc.tokens],
-  );
-  const kind = useProject((s) => s.doc.kind);
-  const previewDoc = useMemo(
-    () => ({ ...doc, screens: parsed.screens }),
-    [doc, parsed.screens],
-  );
-  if (!parsed.screens.length) return null;
-  const frameWidth = kind === 'web' ? 1280 : 390;
-  const frameHeight = kind === 'web' ? 800 : 844;
-  return (
-    <div className="thumb-strip">
-      <CanvasStyle doc={previewDoc} />
-      {parsed.screens.slice(0, 4).map((screen) => (
-        <div className="thumb-card" key={screen.id}>
-          <div
-            className="thumb-scale"
-            style={{
-              width: frameWidth,
-              height: frameHeight,
-              transform: 'scale(0.115)',
-              transformOrigin: 'top left',
-              pointerEvents: 'none',
-            }}
-            aria-hidden="true"
-          >
-            <NodeBody
-              node={screen.root}
-              doc={previewDoc}
-              mode="edit"
-              screenId={screen.id}
-            />
-          </div>
-          <span className="thumb-label">{screen.name}</span>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function BlueprintCard({ entry }: { entry: RailEntry }) {
@@ -115,8 +68,7 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
         </span>
         <span className="railcard-sub">{text.split(/\s+/).length} words</span>
       </div>
-      <ScreenThumbs blueprint={text} />
-      <div className="blueprint-text">{text}</div>
+      <div className="blueprint-text" role="region" aria-label="Blueprint details" tabIndex={0}>{text}</div>
       {(data.stateKeys?.length || data.wiring?.length) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--mw-space-1)' }}>
           {(data.stateKeys || []).slice(0, 6).map((key) => (

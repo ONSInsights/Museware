@@ -1623,41 +1623,6 @@ a {
   border: 1px solid var(--mw-border);
 }
 
-.thumb-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--mw-space-2);
-}
-
-.thumb-card {
-  border-radius: 10px;
-  border: 1px solid var(--mw-border);
-  overflow: hidden;
-  background: var(--openui-bg);
-  height: var(--mw-shell-geometry-132);
-  position: relative;
-}
-
-.thumb-card .thumb-label {
-  position: absolute;
-  left: 6px;
-  bottom: 5px;
-  padding: 2px var(--mw-space-1-5);
-  border-radius: 999px;
-  background: var(--mw-surface);
-  border: 1px solid var(--mw-border);
-  font-size: 9px;
-  color: var(--mw-ink-2);
-  z-index: 2;
-}
-
-.thumb-scale {
-  width: var(--mw-shell-geometry-390);
-  transform-origin: top left;
-  pointer-events: none;
-  container-type: inline-size;
-}
-
 .blueprint-text {
   font: 400 var(--mw-fs-12) / 1.5 var(--mw-font-mono);
   font-size: 11px;
@@ -3376,9 +3341,6 @@ button.how-card .field-hint {
     grid-template-columns: 1fr;
   }
 
-  .thumb-strip {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ---------- additions: shell affordances ---------- */
@@ -6516,4 +6478,40 @@ button.how-card .field-hint {
 .chat-composer-status {
   background: transparent;
   border: 0;
+}
+
+/* Give desktop chat more room without changing the phone layout. */
+@media (min-width: 900px) {
+  .chat-focus .rail-body > *,
+  .chat-focus .composer > .composer-suggestions,
+  .chat-focus .composer > .composer-box,
+  .chat-focus .composer > .chat-composer-status {
+    max-width: var(--mw-shell-geometry-1100);
+  }
+  .chat-focus .composer {
+    padding-block: var(--mw-space-2);
+    gap: var(--mw-space-1);
+  }
+  .chat-focus .composer-box {
+    flex-wrap: nowrap;
+    align-items: flex-end;
+  }
+  .chat-focus .composer-box textarea {
+    flex: 1 1 auto;
+    max-height: var(--mw-shell-geometry-160);
+  }
+  .chat-focus .composer-box .chat-composer-actions {
+    width: auto;
+    flex: 0 0 auto;
+  }
+  .chat-focus .composer-box .composer-attachment {
+    width: auto;
+    max-width: var(--mw-shell-geometry-180);
+    flex: 0 1 auto;
+  }
+  .chat-focus .blueprint-text {
+    max-height: var(--mw-shell-geometry-260);
+    overflow-y: auto;
+    mask-image: none;
+  }
 }
