@@ -178,7 +178,9 @@ describe('scoped edits that listen', () => {
     expect(sent[0].content).toContain('WIDGET PROPS from the library:');
     expect(sent[0].content).toContain('text{');
     expect(sent[0].content).not.toContain('chart{');
-    expect(sent[0].content).toContain('fontWeight stays on the 500/600/700 scale');
+    expect(sent[0].content).toContain(
+      'fontWeight supports 300, 400, 500, 600, 700 and 800',
+    );
     expect(sent[0].content).toContain('setStyles MERGES');
     expect(sent[1].content).toContain('CURRENT LOOK:');
     expect(sent[1].content).toContain('text_aaa');
@@ -188,6 +190,26 @@ describe('scoped edits that listen', () => {
     expect(
       useProject.getState().doc.rail.some((r) => r.text.includes('content + style edit')),
     ).toBe(true);
+  });
+  it('allows explicitly requested lighter typography without touching another section', async () => {
+    const other = structuredClone(useProject.getState().doc.screens[0].root.children[1]);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            { op: 'setStyles', id: 'text_aaa', styles: { fontWeight: 300 } },
+            { op: 'setStyles', id: 'text_bbb', styles: { fontWeight: 300 } },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(finish());
+    await runScopedAction('text_aaa', 'Make the type light, weight 300', true);
+    const children = useProject.getState().doc.screens[0].root.children;
+    expect(children[0].children[0].styles.fontWeight).toBe(300);
+    expect(children[1]).toEqual(other);
+    expect(vi.mocked(chatStream).mock.calls[0][0].messages[0].content).toContain(
+      '300, 400, 500, 600, 700 and 800',
+    );
   });
   it('names content operations that a styles-only run drops', async () => {
     vi.mocked(chatStream)

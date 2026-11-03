@@ -14,8 +14,7 @@ describe('composition guidance', () => {
     for (const word of [
       'DOMINANT',
       'MOMENT',
-      'RHYTHM',
-      'MEASURE',
+      'rhythm',
       'immersive',
       'split',
       'centered',
@@ -73,8 +72,8 @@ describe('composition guidance', () => {
       node('s3', 'section'),
     ];
     const findings = lintComposition(page);
-    expect(findings).toHaveLength(4);
-    expect(findings.map((f) => f.nodeId)).toEqual(['s3', 'c3', 'h', 'i']);
+    expect(findings).toHaveLength(2);
+    expect(findings.map((f) => f.nodeId)).toEqual(['c3', 'h']);
     for (const finding of findings) expect(finding.message).toMatch(/setStyles|setProps/);
     const immersive = node('immersive', 'hero', {
       layout: 'immersive',
@@ -82,7 +81,7 @@ describe('composition guidance', () => {
     });
     immersive.styles.filter = 'none';
     page.root.children = [marquee, immersive];
-    expect(lintComposition(page).map((f) => f.nodeId)).toEqual(['m']);
+    expect(lintComposition(page)).toEqual([]);
     immersive.children = [node('photo', 'image', { src: 'https://example.com/image.jpg' })];
     expect(lintComposition(page)[0]).toMatchObject({ nodeId: 'photo', severity: 'block' });
     immersive.children[0].styles.filter = 'brightness(0.55)';
@@ -92,7 +91,7 @@ describe('composition guidance', () => {
       node('s2', 'section'),
       node('s3', 'section'),
     ];
-    expect(lintComposition(page)[0].message).toContain('same surface');
+    expect(lintComposition(page)).toEqual([]);
     page.root.children = [node('clean', 'section', { surface: 'sunk' })];
     expect(lintComposition(page)).toEqual([]);
   });
@@ -134,11 +133,16 @@ describe('motion guidance', () => {
     const hero = node('h', 'hero', { layout: 'immersive' });
     hero.children = [node('photo', 'image', { src: 'https://example.com/i.jpg' })];
     page.root.children = [
-      node('a', 'section'),
-      node('b', 'section'),
-      node('c', 'section'),
-      node('d', 'section'),
-      node('e', 'section'),
+      ...['a', 'b', 'c', 'd'].map((id) => {
+        const grid = node(`grid_${id}`, 'grid', { columns: 2 });
+        grid.children = [
+          node(`${id}_1`, 'text'),
+          node(`${id}_2`, 'text'),
+          node(`${id}_3`, 'text'),
+        ];
+        grid.children[2].styles.colSpan = 1;
+        return grid;
+      }),
       hero,
     ];
     const findings = lintComposition(page);

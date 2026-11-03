@@ -79,33 +79,20 @@ describe('quality lint and gate', () => {
       false,
     );
   });
-  it('warns for tool branding and missing web heroes', () => {
+  it('warns for tool branding without requiring hero or navbar on an entry screen', () => {
     const s = useProject.getState().doc.screens[0];
-    s.root.children = [
-      node('nav', 'navbar', { brand: ' MuSeWaRe ', text: 'Tea' }),
-      node('picture', 'image', {}),
-    ];
+    s.root.children = [node('nav', 'navbar', { brand: ' MuSeWaRe ', text: 'Tea' })];
     expect(lintScreen(s, undefined, new Set(), 'web')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: 'brand', severity: 'warn' }),
-        expect.objectContaining({ code: 'hero', severity: 'warn' }),
       ]),
     );
-    s.root.children[0].props = { brand: 'Tea', text: 'museware' };
-    expect(lintScreen(s, undefined, new Set(), 'web').some((f) => f.code === 'brand')).toBe(
-      true,
-    );
-    s.root.children[0].props.text = 'Tea';
-    expect(lintScreen(s, undefined, new Set(), 'web').some((f) => f.code === 'brand')).toBe(
-      false,
-    );
-    expect(lintScreen(s, undefined, new Set(), 'app').some((f) => f.code === 'hero')).toBe(
-      false,
-    );
-    s.root.children.push(node('hero', 'hero', {}));
-    expect(lintScreen(s, undefined, new Set(), 'web').some((f) => f.code === 'hero')).toBe(
-      false,
-    );
+    s.root.children = [node('copy', 'text', { text: 'A quiet workspace.' })];
+    expect(
+      lintScreen(s, undefined, new Set(), 'web').some((f) =>
+        ['hero', 'navbar'].includes(f.code),
+      ),
+    ).toBe(false);
   });
   it('warns on Wave 3 composition and raw sizes without confusing tokens with pixels', () => {
     const s = useProject.getState().doc.screens[0];
@@ -121,8 +108,6 @@ describe('quality lint and gate', () => {
     ];
     s.root.children.push(h1, second, grid);
     const messages = lintScreen(s, undefined, new Set(), 'web').map((f) => f.message);
-    expect(messages.some((m) => m.includes('below 24px'))).toBe(true);
-    expect(messages.some((m) => m.includes('raw pixel font'))).toBe(true);
     expect(messages.some((m) => m.includes('More than one hero'))).toBe(true);
     expect(messages.some((m) => m.includes('on-accent text'))).toBe(true);
     expect(messages.some((m) => m.includes('more than one spotlight'))).toBe(true);
@@ -132,19 +117,13 @@ describe('quality lint and gate', () => {
       ),
     ).toBe(false);
   });
-  it('warns a web build when responsive overrides or navbar are absent', () => {
+  it('does not treat absent overrides or navbar as automatic defects', () => {
     const s = useProject.getState().doc.screens[0];
-    const warnings = lintScreen(s, undefined, new Set(), 'web');
-    expect(warnings).toContainEqual(
-      expect.objectContaining({ code: 'responsive', severity: 'warn' }),
-    );
-    expect(warnings).toContainEqual(
-      expect.objectContaining({ code: 'navbar', severity: 'warn' }),
-    );
-    s.root.children.push(node('nav_tea', 'navbar', { brand: 'Tea' }));
-    s.root.styles.responsive = { medium: { gap: '16px' } };
-    const updated = lintScreen(s, undefined, new Set(), 'web');
-    expect(updated.some((f) => f.code === 'responsive' || f.code === 'navbar')).toBe(false);
+    expect(
+      lintScreen(s, undefined, new Set(), 'web').some(
+        (f) => f.code === 'navbar' || f.message.includes('no responsive overrides'),
+      ),
+    ).toBe(false);
   });
   it('retries one empty stop reviewer response before passing', async () => {
     const s = useProject.getState().doc.screens[0];
@@ -157,19 +136,16 @@ describe('quality lint and gate', () => {
     expect(chatStream).toHaveBeenCalledTimes(2);
     expect(useAgent.getState().verification).toBe('pass');
   });
-  it('warns about desktop-first base grid columns only on web and without grid overrides', () => {
+  it('does not mislabel declared expanded grid columns as desktop-first phone CSS', () => {
     const s = useProject.getState().doc.screens[0];
     const grid = node('hero_grid', 'grid', { columns: 2 });
     grid.styles = { columns: 2 };
     s.root.children.push(grid);
-    const find = (kind: 'web' | 'app') =>
-      lintScreen(s, undefined, new Set(), kind).filter(
-        (f) => f.nodeId === 'hero_grid' && f.message.includes('Desktop-first'),
-      );
-    expect(find('web')).toHaveLength(1);
-    expect(find('app')).toHaveLength(0);
-    grid.styles.responsive = { expanded: { columns: 2 } };
-    expect(find('web')).toHaveLength(0);
+    expect(
+      lintScreen(s, undefined, new Set(), 'web').some((f) =>
+        f.message.includes('Desktop-first'),
+      ),
+    ).toBe(false);
   });
   it('blocks placeholder copy but only warns about an empty hero, and accepts clean content', () => {
     const screen = useProject.getState().doc.screens[0];
@@ -257,16 +233,10 @@ describe('quality lint and gate', () => {
     expect(useAgent.getState().verification).toBe('pass');
     expect(useAgent.getState().reviewNotes).toContain('empty_image');
   });
-  it('warns when a named landing has no imagery at all', () => {
+  it('does not infer an imagery requirement from a landing name', () => {
     const screen = emptyScreen('Tea Landing', { id: 'tea', entry: true });
     screen.root.children = [node('tea_text', 'text', { text: 'Whole leaf tea' })];
-    expect(lintScreen(screen)).toEqual([
-      expect.objectContaining({
-        severity: 'warn',
-        code: 'imagery',
-        nodeId: screen.root.id,
-      }),
-    ]);
+    expect(lintScreen(screen)).toEqual([]);
   });
   it('runs a targeted repair then reports reviewer failure honestly', async () => {
     vi.mocked(chatStream)

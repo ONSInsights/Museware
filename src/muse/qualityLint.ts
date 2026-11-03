@@ -32,7 +32,7 @@ export function lintComposition(screen: ScreenDoc): LintFinding[] {
   const add = (node: ComponentNode, message: string) => {
     hints.push({ severity: 'warn', code: 'composition', nodeId: node.id, message });
   };
-  const visit = (node: ComponentNode, parent?: ComponentNode) => {
+  const visit = (node: ComponentNode) => {
     if (node.type === 'grid') {
       const cols = Math.max(
         1,
@@ -78,36 +78,7 @@ export function lintComposition(screen: ScreenDoc): LintFinding[] {
           'Split hero may have a dead void: setStyles minHeight to hug so the media and copy balance.',
         );
     }
-    if (
-      node.type === 'image' &&
-      Boolean(node.props.src || node.props.image) &&
-      parent &&
-      !['hero', 'card', 'grid', 'section'].includes(parent.type) &&
-      !node.styles.aspectRatio &&
-      !node.styles.borderRadius
-    )
-      add(
-        node,
-        'Image may float in padding: setStyles aspectRatio to 16/9 to give it an intentional frame.',
-      );
-    if (node.type === 'marquee' && String(node.styles.animation || '').trim() === 'none')
-      add(
-        node,
-        'Marquee stopped without the static presentation: setStyles animation to an empty value so the safe loop can run.',
-      );
-    const sections = node.children.filter((child) => child.type === 'section');
-    for (let i = 2; i < sections.length; i++) {
-      const surface = (n: ComponentNode) => String(n.props.surface || 'plain');
-      if (
-        surface(sections[i]) === surface(sections[i - 1]) &&
-        surface(sections[i]) === surface(sections[i - 2])
-      )
-        add(
-          sections[i],
-          'Three sections use the same surface: setProps surface to sunk for a restrained rhythm.',
-        );
-    }
-    node.children.forEach((child) => visit(child, node));
+    node.children.forEach(visit);
   };
   visit(screen.root);
   const motion = lintMotion(screen);
@@ -230,7 +201,7 @@ export function lintScreen(
   screen: ScreenDoc,
   tokens?: DesignTokens,
   queuedIds: ReadonlySet<string> = new Set(),
-  kind: 'app' | 'web' = 'app',
+  _kind: 'app' | 'web' = 'app',
 ): LintFinding[] {
   const findings: LintFinding[] = [];
   const colors = new Map<string, string>();
@@ -246,37 +217,11 @@ export function lintScreen(
     code: LintFinding['code'],
     message: string,
   ) => findings.push({ nodeId: node.id, severity, code, message });
-  let hasImagery = false;
-  let hasResponsive = false;
-  let hasNavbar = false;
   let heroCount = 0;
   let sceneCount = 0;
   let marqueeCount = 0;
   let accentSections = 0;
   let glowSections = 0;
-  const rawPixels = (value: unknown): number[] => {
-    if (typeof value === 'number') return [value];
-    if (typeof value !== 'string' || /var\(|calc\(/i.test(value)) return [];
-    return value
-      .trim()
-      .split(/\s+/)
-      .filter((part) => /^-?\d+(?:\.\d+)?(?:px)?$/i.test(part))
-      .map(Number.parseFloat);
-  };
-  if (kind === 'web') {
-    for (const [key, value] of Object.entries(screen.root.styles)) {
-      if (
-        /^(padding|gap|rowGap|columnGap)/i.test(key) &&
-        rawPixels(value).some((n) => n < 24)
-      )
-        add(
-          screen.root,
-          'warn',
-          'spacing',
-          `Web screen root ${key} uses raw spacing below 24px.`,
-        );
-    }
-  }
   const visit = (node: ComponentNode) => {
     // Report missing behavior as advisory only. A repair must never invent an
     // intended destination or make a real-world booking/order promise.
@@ -299,7 +244,6 @@ export function lintScreen(
       });
     }
     if (node.type === 'navbar') {
-      hasNavbar = true;
       if (
         ['brand', 'text'].some(
           (key) =>
@@ -406,17 +350,6 @@ export function lintScreen(
         );
     }
     if (
-      node.type === 'heading' &&
-      Number(node.props.level || 2) === 1 &&
-      rawPixels(node.styles.fontSize).length
-    )
-      add(
-        node,
-        'warn',
-        'responsive',
-        'H1 uses a raw pixel font size instead of a fluid type token.',
-      );
-    if (
       node.type === 'grid' &&
       node.children.filter(
         (child) =>
@@ -425,29 +358,6 @@ export function lintScreen(
       ).length > 1
     )
       add(node, 'warn', 'responsive', 'Grid has more than one spotlight or accent card.');
-    if (
-      kind === 'web' &&
-      node.type === 'grid' &&
-      Number(node.styles.columns) >= 2 &&
-      !Object.values(node.styles.responsive || {}).some(
-        (override) => override && Object.keys(override).length > 0,
-      )
-    ) {
-      add(
-        node,
-        'warn',
-        'responsive',
-        'Desktop-first: this grid phones in two columns. Base stacks; density belongs to medium/expanded.',
-      );
-    }
-    if (
-      Object.values(node.styles.responsive || {}).some(
-        (override) => override && Object.keys(override).length > 0,
-      )
-    )
-      hasResponsive = true;
-    if (node.type === 'hero' || node.type === 'image' || Boolean(node.props.image))
-      hasImagery = true;
     for (const key of ['text', 'title', 'subtitle', 'label', 'placeholder']) {
       const value = node.props[key];
       if (typeof value !== 'string' || !value.trim()) continue;
@@ -556,28 +466,5 @@ export function lintScreen(
     node.children.forEach(visit);
   };
   visit(screen.root);
-  if (/\blanding\b/i.test(screen.name) && !hasImagery)
-    add(
-      screen.root,
-      'warn',
-      'imagery',
-      'Landing has no image or hero node; check whether this visual design needs imagery.',
-    );
-  if (kind === 'web' && screen.entry && heroCount === 0)
-    add(
-      screen.root,
-      'warn',
-      'hero',
-      'Web screen has no hero node; lead landing pages with a complete hero.',
-    );
-  if (kind === 'web' && !hasResponsive)
-    add(
-      screen.root,
-      'warn',
-      'responsive',
-      'Build adapts at md/lg or it is a stretched poster: no responsive overrides found.',
-    );
-  if (kind === 'web' && !hasNavbar)
-    add(screen.root, 'warn', 'navbar', 'A website has navigation: no navbar node found.');
   return [...findings, ...lintComposition(screen)];
 }

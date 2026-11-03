@@ -656,7 +656,6 @@ interface ToolLoopOptions {
   scope?: ScopedDraft;
   repairIds?: string[];
   protectedMotionIds?: string[];
-  repairStyleOnly?: boolean;
   allowReplaceImages?: boolean;
   imageBudget?: ImageBudget;
   protectDesignTokens?: boolean;
@@ -731,10 +730,7 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
             }))
           : opts.repairIds
             ? TOOL_DEFS.filter((t) =>
-                (opts.repairStyleOnly
-                  ? ['edit_canvas', 'finish']
-                  : ['edit_canvas', 'illustrate_images', 'finish']
-                ).includes(t.function.name),
+                ['edit_canvas', 'illustrate_images', 'finish'].includes(t.function.name),
               )
             : TOOL_DEFS,
         signal: controller?.signal,
@@ -946,8 +942,6 @@ async function runTool(
   }
   if (opts.scope && !['read_canvas', 'edit_canvas', 'finish'].includes(name))
     return { text: 'E_SCOPE: this tool is not allowed for scoped work.' };
-  if (opts.repairStyleOnly && !['edit_canvas', 'finish'].includes(name))
-    return { text: 'E_SCOPE: responsive repair may only edit styles.' };
   if (opts.repairIds && !['edit_canvas', 'illustrate_images', 'finish'].includes(name))
     return { text: 'E_SCOPE: quality repair may only edit affected nodes.' };
   const doc = opts.scope?.doc || useProject.getState().doc;
@@ -1113,36 +1107,6 @@ async function runTool(
             touchesAnimationStyles(op.styles)
           )
             return false;
-          if (opts.repairStyleOnly) {
-            if (
-              op.op !== 'setStyles' ||
-              !op.styles ||
-              Object.keys(op.styles).some((key) => key !== 'responsive')
-            )
-              return false;
-            const node = findNodeInDoc(doc, op.id)?.node;
-            const responsive = op.styles.responsive;
-            if (!responsive || typeof responsive !== 'object' || Array.isArray(responsive))
-              return false;
-            return Object.entries(responsive).every(([breakpoint, value]) => {
-              if (
-                !['medium', 'expanded'].includes(breakpoint) ||
-                !value ||
-                typeof value !== 'object' ||
-                Array.isArray(value)
-              )
-                return false;
-              const keys = Object.keys(value);
-              return (
-                keys.length > 0 &&
-                keys.every(
-                  (key) =>
-                    (node?.type === 'grid' && key === 'columns') ||
-                    (node?.type === 'row' && key === 'wrap'),
-                )
-              );
-            });
-          }
           if (!['setProps', 'setStyles', 'setText'].includes(op.op || '')) return false;
           // Images are set only by the image tool, never by untrusted repair prose or guessed URLs.
           if (
@@ -1413,86 +1377,6 @@ function publishImageWarnings(doc: ProjectDoc, findings: LintFinding[]) {
     );
 }
 
-async function repairResponsive(
-  doc: ProjectDoc,
-  screenIds: string[],
-  budget: ImageBudget,
-): Promise<void> {
-  if (doc.kind !== 'web') return;
-  let hasOverrides = false;
-  const candidates: Array<{ id: string; type: string; columns?: number }> = [];
-  for (const screen of doc.screens.filter((screen) => screenIds.includes(screen.id)))
-    walk(screen.root, (node) => {
-      if (
-        Object.values(node.styles.responsive || {}).some(
-          (value) => value && Object.keys(value).length,
-        )
-      )
-        hasOverrides = true;
-      if (node.type === 'grid')
-        candidates.push({
-          id: node.id,
-          type: 'grid',
-          columns: Math.max(
-            2,
-            Math.min(6, Number(node.styles.columns ?? node.props.columns) || 2),
-          ),
-        });
-      else if (node.type === 'row' && /foot/i.test(`${node.id} ${node.name || ''}`))
-        candidates.push({ id: node.id, type: 'row' });
-    });
-  if (hasOverrides || !candidates.length || controller?.signal.aborted) return;
-  const checklist = candidates
-    .map((item) =>
-      item.type === 'grid'
-        ? `${item.id}: responsive.medium.columns=2; responsive.expanded.columns=${/best/i.test(item.id) ? 3 : item.columns}`
-        : `${item.id}: responsive.medium.wrap=true`,
-    )
-    .join('\n');
-  addSystem(
-    'Web build has no responsive overrides; attempting one styles-only responsive repair.',
-  );
-  try {
-    await executeToolLoop({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Responsive repair only. Use edit_canvas setStyles on the listed existing IDs, with styles containing only responsive medium/expanded overrides. Do not add, remove, move, edit content, generate images, or claim work not performed. Finish when done.',
-        },
-        {
-          role: 'user',
-          content: `Write these exact overrides, using real setStyles calls:\n${checklist}`,
-        },
-      ],
-      maxCalls: 8,
-      role: 'builder',
-      effort: 'high',
-      repairIds: candidates.map((c) => c.id),
-      repairStyleOnly: true,
-      imageBudget: budget,
-    });
-  } catch (err) {
-    addSystem(
-      `Responsive repair failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-  const after = useProject.getState().doc;
-  const changed = candidates.filter((c) => {
-    const styles = findNodeInDoc(after, c.id)?.node.styles.responsive;
-    if (c.type === 'grid')
-      return (
-        Number(styles?.medium?.columns) === 2 &&
-        Number(styles?.expanded?.columns) === (/best/i.test(c.id) ? 3 : c.columns)
-      );
-    return styles?.medium?.wrap === true;
-  });
-  const missing = candidates.filter((c) => !changed.includes(c));
-  addSystem(
-    `Responsive repair wrote overrides on ${changed.length} of ${candidates.length} targeted nodes${changed.length ? `: ${changed.map((c) => c.id).join(', ')}` : '; none were applied'}${missing.length ? `; checklist incomplete: ${missing.map((c) => c.id).join(', ')}` : ''}.`,
-  );
-}
-
 export async function verifyGate(
   task: string,
   doc: ProjectDoc,
@@ -1554,9 +1438,6 @@ export async function verifyGate(
     doc = useProject.getState().doc;
     findings = findingsFor(doc, screenIds, before);
   }
-  await repairResponsive(doc, screenIds, imageBudget);
-  doc = useProject.getState().doc;
-  findings = findingsFor(doc, screenIds, before);
   if (controller?.signal.aborted) {
     publishImageWarnings(doc, findings);
     useAgent
@@ -2140,7 +2021,7 @@ export async function runScopedAction(
     const scopedMessages = (): Array<{ role: 'system' | 'user'; content: string }> => [
       {
         role: 'system',
-        content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? ' and setProps for library select, toggle, icon or tone props' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles and setProps only for library select, toggle, icon or tone props on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${targets.map(scopedPrimer).join('\n')}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight stays on the 500/600/700 scale. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Honor and cite relevant project memory in your response. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
+        content: `You are editing ONLY ${batch ? `the listed widget IDs: ${targets.map((n) => n.id).join(', ')}. Only setStyles${stylesOnly ? ' and setProps for library select, toggle, icon or tone props' : ', setText, setProps or rename'} on those IDs; no structural changes.` : `subtree ${nodeId}. ${stylesOnly ? 'Use setStyles and setProps only for library select, toggle, icon or tone props on this selected widget; preserve structure, content, events and everything else.' : 'Change only nodes inside this subtree; never move or delete the selected root. New nodes MUST have explicit unique ids, including nested children.'}`} WIDGET PROPS from the library:\n${targets.map(scopedPrimer).join('\n')}\nDesign law: colors ONLY as token names or var(--openui-*) — never raw hex, rgb or rgba. fontWeight supports 300, 400, 500, 600, 700 and 800; follow the user’s requested weight and the available font. Spacing and radii from the token sheet. setStyles MERGES — change only the keys the instruction needs; preserve the rest. Match the widget's existing style vocabulary. Honor and cite relevant project memory in your response. Use edit_canvas in small batches then finish. No other screens, tokens, or nodes may be touched.\nTOKENS:\n${buildTokenSheet(before.tokens)}`,
       },
       {
         role: 'user',

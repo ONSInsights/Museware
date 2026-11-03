@@ -222,33 +222,18 @@ describe('repair mends, never redesigns', () => {
     ).toBe('brightness(0.55)');
     expect(useAgent.getState().verification).toBe('pass');
   });
-  it('applies only responsive styles to existing requested nodes during targeted responsive repair', async () => {
+  it('does not force inferred responsive overrides onto an intentional grid', async () => {
     const d = structuredClone(useProject.getState().doc);
     const root = d.screens[0].root;
     root.styles.responsive = undefined;
     root.children = [n('best_grid', 'grid', { columns: 2 })];
     root.children[0].styles.columns = 2;
     useProject.getState().replaceDoc(d);
-    vi.mocked(chatStream)
-      .mockResolvedValueOnce(
-        reply('edit_canvas', {
-          ops: [
-            { op: 'add', parentId: root.id, node: { id: 'rogue_grid', type: 'grid' } },
-            {
-              op: 'setStyles',
-              id: 'best_grid',
-              styles: { responsive: { medium: { columns: 2 }, expanded: { columns: 3 } } },
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(reply('finish', { summary: 'done' }))
-      .mockResolvedValueOnce(reply(undefined, undefined, 'PASS'));
-    await verifyGate('Tea', d, ['tea'], { remaining: 0 });
-    const children = useProject.getState().doc.screens[0].root.children;
-    expect(children).toHaveLength(1);
-    expect(children[0].styles.responsive?.expanded?.columns).toBe(3);
-    expect(lines()).toContain('Responsive repair wrote overrides on 1 of 1');
+    vi.mocked(chatStream).mockResolvedValueOnce(reply(undefined, undefined, 'PASS'));
+    await verifyGate('Keep this quiet single-column design', d, ['tea'], { remaining: 0 });
+    expect(useProject.getState().doc.screens[0].root.children).toEqual(root.children);
+    expect(chatStream).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(chatStream).mock.calls[0][0].tools).toBeUndefined();
   });
   it('makes the third reviewer attempt on low effort and fails closed if still empty', async () => {
     vi.mocked(chatStream)
