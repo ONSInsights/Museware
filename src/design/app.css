@@ -6489,13 +6489,21 @@ button.how-card .field-hint {
   border: 0;
 }
 
-/* Give desktop chat more room without changing the phone layout. */
+/* Keep desktop conversation and composer at a comfortable reading width. */
 @media (min-width: 900px) {
   .chat-focus .rail-body > *,
   .chat-focus .composer > .composer-suggestions,
   .chat-focus .composer > .composer-box,
   .chat-focus .composer > .chat-composer-status {
-    max-width: var(--mw-shell-geometry-1100);
+    max-width: var(--mw-shell-geometry-720);
+  }
+  .chat-focus .rail-body > .sys-pill {
+    width: fit-content;
+    max-width: min(92%, var(--mw-shell-geometry-720));
+  }
+  .chat-focus .bubble-user {
+    max-width: 80%;
+    overflow-wrap: anywhere;
   }
   .chat-focus .composer {
     padding-block: var(--mw-space-2);

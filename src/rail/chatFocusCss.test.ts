@@ -35,6 +35,10 @@ describe('fullscreen chat CSS', () => {
       /\.chat-focus \.composer > \.composer-box[\s\S]*?max-width:\s*var\(--mw-chat-content-width\)[\s\S]*?margin-inline:\s*auto/,
     );
   });
+  it('caps desktop conversation and composer width and keeps user bubbles narrower', () => {
+    expect(css).toMatch(/@media \(min-width: 900px\)\s*\{\s*\.chat-focus \.rail-body > \*,[\s\S]*?max-width:\s*var\(--mw-shell-geometry-720\)/);
+    expect(css).toMatch(/\.chat-focus \.bubble-user\s*\{\s*max-width:\s*80%/);
+  });
   it('animates minimization toward the launcher and respects reduced motion', () => {
     const closing = rule(".chat-focus[data-minimizing='true']");
     expect(closing).toContain('transform-origin:');
