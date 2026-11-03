@@ -118,3 +118,11 @@ it('stopping a late preview leaves the design unchanged', async () => {
   expect(screen.queryAllByRole('radio')).toHaveLength(0);
   expect(visualBaseline(useProject.getState().doc)).toEqual(visualBaseline(before));
 });
+it('allows building directly without visual previews when onSkip is provided', () => {
+  const skip = vi.fn();
+  render(<VisualDirections onBuild={vi.fn()} onSkip={skip} />);
+  const skipBtn = screen.getByRole('button', { name: 'Build without visual previews' });
+  expect((skipBtn as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(skipBtn);
+  expect(skip).toHaveBeenCalledTimes(1);
+});

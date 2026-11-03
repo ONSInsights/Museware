@@ -30,7 +30,6 @@ export function VisualDirections({
   const [selected, setSelected] = useState<number | null>(null);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState('');
-  const [failed, setFailed] = useState(false);
   const [wish, setWish] = useState('');
   const [snapshot, setSnapshot] = useState<{ epoch: number; baseline: string } | null>(
     null,
@@ -61,7 +60,6 @@ export function VisualDirections({
     setVisualPreviewController(controller);
     setWorking(true);
     setMessage('');
-    setFailed(false);
     setDrafts([]);
     setSelected(null);
     setSnapshot(null);
@@ -131,7 +129,6 @@ export function VisualDirections({
       );
     } catch (error) {
       if (useProject.getState().documentEpoch === epoch) {
-        if (!controller.signal.aborted) setFailed(true);
         setMessage(
           controller.signal.aborted
             ? 'Preview generation stopped. Nothing was applied.'
@@ -194,7 +191,7 @@ export function VisualDirections({
           {message}
         </p>
       )}
-      {failed && onSkip && (
+      {onSkip && (
         <button
           type="button"
           className="btn btn-sm btn-ghost"
@@ -240,6 +237,11 @@ export function VisualDirections({
         type="button"
         className="btn btn-sm btn-primary"
         disabled={busy || selected === null || !snapshot}
+        title={
+          selected === null
+            ? 'Choose one direction above, or select Build without visual previews'
+            : undefined
+        }
         onClick={() => {
           if (selected !== null && snapshot)
             onBuild(drafts[selected], snapshot.epoch, snapshot.baseline);
