@@ -156,7 +156,8 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const preview = useAgent((s) => s.screenshotPreview);
   const [filter, setFilter] = useState<string | null>(() => {
     try {
-      return localStorage.getItem('museware/receiptFilter');
+      const saved = localStorage.getItem('museware/receiptFilter');
+      return ['Wonder', 'Spark', 'Image', 'Voice'].includes(saved || '') ? saved : null;
     } catch {
       return null;
     }
@@ -471,7 +472,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         >
           Wonder {wonder ? '· 4x cost' : '· off'}
         </button>
-        {['Wonder', 'Spark', 'Image', 'SAM', 'Voice'].map((model) => (
+        {['Wonder', 'Spark', 'Image', 'Voice'].map((model) => (
           <button
             key={model}
             type="button"

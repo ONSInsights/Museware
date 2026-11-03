@@ -38,7 +38,7 @@ Add a key in Settings (or `.env`) and the pinned muse models take over.
 6. **A constrained vocabulary.** 30 components, 51 icon names, 12 colour keys.
    The agent cannot invent a widget, a token, or an icon.
 7. **One pinned model per role.** Builder, architect, chat, contributor, image,
-   SAM, voice. No routing, no silent fallbacks.
+   voice. No routing, no silent fallbacks.
 8. **Stop is always visible.** Topbar pill, rail header, progress card, status
    bar — while the agent works, there is always a way out.
 9. **Persist on create.** IndexedDB after every op; export/import as JSON.

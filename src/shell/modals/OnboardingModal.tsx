@@ -23,7 +23,6 @@ const ROLE_LABEL: Record<string, string> = {
   architect: 'Architect',
   chat: 'Chat',
   image: 'Image',
-  sam: 'SAM',
   voice: 'Voice',
 };
 
@@ -257,8 +256,8 @@ export function OnboardingModal({ onClose }: { onClose: () => void }) {
             <div>
               <strong>Recreate a screenshot</strong>
               <p className="field-hint">
-                SAM finds the boxes, one batched pass writes the nodes, you fix anything by
-                hand.
+                Add a screenshot and instructions, then review the proposed blueprint before
+                building editable nodes.
               </p>
             </div>
           </button>

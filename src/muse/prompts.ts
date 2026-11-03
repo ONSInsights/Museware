@@ -92,7 +92,6 @@ export const JSON_CORRECTION = `Your reply contained JSON or code in chat text. 
 
 export const VISION_PROMPT = `Describe this UI mockup for a builder: structure top→bottom, every component with its type, every colour as hex, all text verbatim, spacing impressions in dp. ≤ 250 words.`;
 
-export const SAM_PROMPT = `button, input field, label, icon, image, card, navigation bar, list row, tab, toggle, checkbox, text`;
 
 export function imageBrief(
   subject: string,

@@ -5,6 +5,7 @@ import { AgentRail } from './AgentRail';
 import { useAgent } from '../store/useAgent';
 import { createProject, useProject } from '../store/useProject';
 import { useUi } from '../store/useUi';
+import { ReceiptsModal } from '../shell/modals/ReceiptsModal';
 beforeEach(() => {
   useProject.getState().replaceDoc(createProject());
   useUi.setState({ railCollapsed: false, mobileRailOpen: false });
@@ -27,16 +28,25 @@ describe('judge rail', () => {
       .getState()
       .addRail({ role: 'agent', text: 'A response', reasoningReplayed: true });
     useAgent.getState().addReceipt({
-      model: 'muse-sam-3',
-      role: 'sam',
+      model: 'muse-image-1.0',
+      role: 'image',
       promptChars: 0,
       toolNames: [],
       latencyMs: 13,
     });
     render(<AgentRail />);
     expect(screen.getByLabelText('Reasoning replayed')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /^SAM/ }));
-    expect(screen.getByLabelText('SAM calls').textContent).toContain('muse-sam-3');
+    fireEvent.click(screen.getByRole('button', { name: /^Image/ }));
+    expect(screen.getByLabelText('Image calls').textContent).toContain('muse-image-1.0');
     expect(screen.queryByText('A response')).toBeNull();
   });
+  it('keeps historical receipts readable without advertising a retired model', () => {
+    localStorage.setItem('museware/receiptFilter', 'SAM');
+    useAgent.getState().addReceipt({ model: 'sam-3.1', role: 'sam', promptChars: 0, toolNames: [], latencyMs: 13 });
+    render(<><AgentRail /><ReceiptsModal onClose={() => {}} /></>);
+    expect(screen.queryByRole('button', { name: /^SAM/ })).toBeNull();
+    expect(screen.getByText('sam-3.1')).toBeTruthy();
+    expect(screen.queryByLabelText('SAM calls')).toBeNull();
+  });
+
 });

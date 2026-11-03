@@ -101,7 +101,6 @@ var DEFAULTS = {
   architect: "muse-wonder-1.0",
   contributor: "muse-spark-1.3-contributor",
   image: "muse-image-1.0",
-  sam: "sam-3.1",
   voice: "muse-voice-transcribe-1.0"
 };
 function envOf(env) {
@@ -112,7 +111,6 @@ function envOf(env) {
     architect: env.MUSE_ARCHITECT_MODEL || DEFAULTS.architect,
     contributor: env.MUSE_CONTRIBUTOR_MODEL || DEFAULTS.contributor,
     image: env.MUSE_IMAGE_MODEL || DEFAULTS.image,
-    sam: env.MUSE_SAM_MODEL || DEFAULTS.sam,
     voice: env.MUSE_VOICE_MODEL || DEFAULTS.voice,
     reasoning: env.MUSE_REASONING === "1",
     live: env.MUSE_LIVE === "1"
@@ -374,7 +372,6 @@ async function pipeThrough(res, r, charge) {
 function budgetState() {
   return budget().state;
 }
-var cleanBase = (v) => typeof v === "string" && /^(data:image\/(png|jpe?g|webp);base64,|https:\/\/)/.test(v) ? v : "";
 async function handleMuse(req, res, env) {
   const cfg = envOf(env);
   const [rawPath, rawQuery = ""] = (req.url || "/").split("?");
@@ -436,7 +433,6 @@ async function handleMuse(req, res, env) {
           chat: { id: cfg.chat, role: "Chat", effort: "low" },
           contributor: { id: cfg.contributor, role: "Dev budget", effort: "xhigh" },
           image: { id: cfg.image, role: "Image", effort: null },
-          sam: { id: cfg.sam, role: "Screenshot\u2192Canvas", effort: null },
           voice: { id: cfg.voice, role: "Voice", effort: null }
         }
       });
@@ -592,37 +588,6 @@ async function handleMuse(req, res, env) {
           size: body.size || "1024x1024",
           n: 1,
           response_format: "b64_json"
-        },
-        { signal: abort.signal }
-      );
-      if (!r.ok) return await upstreamError(res, r, source);
-      return await pipeThrough(res, r, chargeHouse);
-    }
-    if (route === "/segment" && req.method === "POST") {
-      const body = await readJson(
-        req,
-        12 * 1024 * 1024
-      );
-      const image = cleanBase(body.image);
-      if (!image) return sendJson(res, 400, { error: "bad_image" });
-      const prompt = String(
-        body.prompt || "button, input field, label, icon, image, card, navigation bar, list row, tab, toggle, checkbox, text"
-      );
-      const r = await forward(
-        `${apiRoot(cfg.baseUrl)}/responses`,
-        key,
-        {
-          model: cfg.sam,
-          input: [
-            {
-              role: "user",
-              content: [
-                { type: "input_text", text: prompt },
-                { type: "input_image", image_url: image }
-              ]
-            }
-          ],
-          max_output_tokens: 4096
         },
         { signal: abort.signal }
       );

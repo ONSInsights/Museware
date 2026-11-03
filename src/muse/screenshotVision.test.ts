@@ -22,7 +22,7 @@ function stubResponse(text: string, finish = 'stop') {
   return fetcher;
 }
 describe('direct screenshot vision', () => {
-  it('sends the image to vision without SAM and presents the text blueprint for approval', async () => {
+  it('sends the image to vision and presents the text blueprint for approval', async () => {
     const fetcher = stubResponse('RULES: Recreate\nSCREEN: Home\n- title (heading) Welcome\nLOOK: pad 16\nSTATE: none\nWIRING: none');
     await recreateFromScreenshot(shot(), 'Use the reference and keep its dark colours.');
     expect(fetcher).toHaveBeenCalledTimes(1);

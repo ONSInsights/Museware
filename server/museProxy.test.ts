@@ -119,6 +119,21 @@ async function chat(headers: Record<string, string> = {}) {
   return { status: res.status, text, headers: res.headers };
 }
 
+describe('retired segmentation endpoint', () => {
+  it('does not advertise the old model or forward retired requests upstream', async () => {
+    const result = await status();
+    expect(result.json.models).not.toHaveProperty('sam');
+    upstream.calls = [];
+    const response = await fetch(`${baseUrl}/api/muse/segment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-muse-key': 'session-key' },
+      body: JSON.stringify({ image: 'data:image/png;base64,AAA' }),
+    });
+    expect(response.status).toBe(404);
+    expect(upstream.calls).toHaveLength(0);
+  });
+});
+
 describe('key resolution', () => {
   it('reports absent when the server has no house key', async () => {
     const { status: code, json } = await status();

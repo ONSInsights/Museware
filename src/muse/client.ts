@@ -80,7 +80,6 @@ export interface ServerStatus {
     chat: ModelRole;
     contributor: ModelRole;
     image: ModelRole;
-    sam: ModelRole;
     voice: ModelRole;
   };
 }
@@ -482,7 +481,7 @@ function handleChunk(
 
 /**
  * Turn any non-OK response into the SAME typed error the chat path produces.
- * Before this, only chat understood the server's typed errors; /segment and
+ * Before this, only chat understood the server's typed errors; media calls
  * friends threw a generic 'upstream', so the UI had to guess the cause from
  * the status code — which is how a missing key got reported as a crash.
  */
@@ -728,7 +727,7 @@ export async function chatOnce(opts: Omit<ChatOptions, 'onText'>): Promise<strin
 }
 
 async function mediaCall<T>(
-  role: 'image' | 'sam' | 'voice',
+  role: 'image' | 'voice',
   promptChars: number,
   call: () => Promise<T>,
 ): Promise<T> {
@@ -736,7 +735,6 @@ async function mediaCall<T>(
   const agent = useAgent.getState();
   const defaults = {
     image: 'muse-image-1.0',
-    sam: 'sam-3.1',
     voice: 'muse-voice-transcribe-1.0',
   };
   const model = agent.models?.[role].id || defaults[role];
@@ -779,18 +777,6 @@ export async function generateImage(prompt: string, size = '1024x1024'): Promise
     if (first?.b64_json) return `data:image/png;base64,${first.b64_json}`;
     if (first?.url) return first.url;
     throw new MuseError('upstream', 'image response had no image');
-  });
-}
-
-export async function segmentImage(image: string): Promise<unknown> {
-  return mediaCall('sam', 0, async () => {
-    const res = await fetch('/api/muse/segment', {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ image }),
-    });
-    if (!res.ok) throw await errorFromResponse(res);
-    return res.json();
   });
 }
 

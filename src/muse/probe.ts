@@ -3,14 +3,14 @@
  * the point is an HONEST chip: green only when the model really answered, red
  * with the upstream's own words when it did not.
  *
- * Image, SAM and voice are billed per call, so they are never pinged behind the
+ * Image and voice are billed per call, so they are never pinged behind the
  * visitor's back; the UI says so instead of faking a green.
  */
 import { probeModel } from './client';
 import { useAgent, type ModelMatrix } from '../store/useAgent';
 
 export const TEXT_ROLES = ['builder', 'architect', 'chat'] as const;
-export const MEDIA_ROLES = ['image', 'sam', 'voice'] as const;
+export const MEDIA_ROLES = ['image', 'voice'] as const;
 
 export type ProbeRole = (typeof TEXT_ROLES)[number] | (typeof MEDIA_ROLES)[number];
 

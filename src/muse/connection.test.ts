@@ -101,7 +101,7 @@ describe('diagnose tells the three stories apart', () => {
   });
 
   it('a 404 from the API is never blamed on the visitor', () => {
-    const diag = diagnose(new MuseError('upstream', 'GET /api/muse/segment 404', 404));
+    const diag = diagnose(new MuseError('upstream', 'GET /api/muse/chat 404', 404));
     expect(diag.kind).toBe('unreachable');
     expect(diag.offerKey).toBe(false);
     expect(diag.text).toMatch(/deployment problem, not a key problem/i);
