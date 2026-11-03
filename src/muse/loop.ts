@@ -12,7 +12,11 @@ import { buildScopeContext, scopedPrimer } from './scopeContext';
 import { preferenceNote } from './designMemory';
 import { nameProjectAfterBuild } from './projectName';
 import { canvasOutline, subtreeOutline } from './canvasOutline';
-import { parseBlueprint, blueprintScreenSections } from './blueprintParse';
+import {
+  parseBlueprint,
+  blueprintScreenSections,
+  blueprintGlobalContext,
+} from './blueprintParse';
 import { parseTypedOptions } from './typedOptions';
 import {
   MuseError,
@@ -440,16 +444,70 @@ export function repairJson(raw: string): string | null {
 const TOOL_SPLIT_NUDGE =
   'Your previous tool call did not arrive complete and was dropped, not applied. Re-send the same work as SEVERAL edit_canvas calls of at most 12 ops each; run finish() only after every op has been applied.';
 
-function history(): ChatMessage[] {
-  const rail = useProject.getState().doc.rail;
-  const recent = rail
-    .filter((r) => (r.role === 'user' || r.role === 'agent') && r.text.trim())
-    .slice(-8);
-  return recent.map((r) => {
-    const content =
-      r.text.length > 700 ? `${r.text.slice(0, 420)}\n…\n${r.text.slice(-240)}` : r.text;
-    return { role: r.role === 'user' ? 'user' : 'assistant', content };
-  });
+/** Use existing saved prose only. Preserve the first few user messages as
+ * historical context even after the recent window moves on; newest instructions
+ * still win. Bound older messages and label any truncation rather than inventing
+ * a structured brief or changing the saved document. */
+function history(doc: ProjectDoc): ChatMessage[] {
+  const conversation = doc.rail.filter(
+    (r) => (r.role === 'user' || r.role === 'agent') && r.text.trim(),
+  );
+  const recent = conversation.slice(-8);
+  const recentIds = new Set(recent.map((entry) => entry.id));
+  let remaining = 12000;
+  const earliest = conversation.filter((entry) => entry.role === 'user').slice(0, 4);
+  const older = earliest
+    .filter((entry) => !recentIds.has(entry.id))
+    .flatMap((entry) => {
+      if (remaining <= 0) return [];
+      const limit = Math.min(8000, remaining);
+      const content =
+        entry.text.length > limit
+          ? `${entry.text.slice(0, limit)}\n[Earlier message truncated for context.]`
+          : entry.text;
+      remaining -= Math.min(entry.text.length, limit);
+      return [{ role: 'user' as const, content }];
+    });
+  const firstUserId = earliest[0]?.id;
+  return [
+    ...older,
+    ...recent.map((entry) => {
+      const limit = entry.role === 'user' && entry.id === firstUserId ? 8000 : 700;
+      const content =
+        entry.text.length > limit
+          ? `${entry.text.slice(0, limit - 240)}\n[Message truncated for context.]\n${entry.text.slice(-240)}`
+          : entry.text;
+      return {
+        role: entry.role === 'user' ? ('user' as const) : ('assistant' as const),
+        content,
+      };
+    }),
+  ];
+}
+
+/** A current complete theme chosen through ThemePicker/import is evidenced by
+ * its user replacement op. No invented provenance, migration or persistent lock. */
+function canonicalTheme(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalTheme).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, v]) => `${JSON.stringify(key)}:${canonicalTheme(v)}`)
+      .join(',')}}`;
+  return JSON.stringify(value) ?? 'null';
+}
+function hasExplicitCurrentTheme(doc: ProjectDoc): boolean {
+  for (const entry of [...doc.opLog].reverse()) {
+    for (const op of [...entry.batch].reverse()) {
+      if (op.op !== 'setTokens') continue;
+      if (entry.source !== 'user' || !op.replace) return false;
+      return (
+        canonicalTheme(op.patch.openuiTheme) === canonicalTheme(doc.tokens.openuiTheme)
+      );
+    }
+  }
+  return false;
 }
 
 function contextMessages(
@@ -466,9 +524,9 @@ function contextMessages(
     },
     {
       role: 'system',
-      content: `CANVAS INDEX:\n${index}\n\n${decisionLedger(doc)}\nPROJECT MEMORY (honor and cite relevant preferences):\n${(doc.designNotes || []).slice(-10).join('\n') || 'none'}${extraSystem.length ? `\n${extraSystem.join('\n')}` : ''}`,
+      content: `CANVAS INDEX:\n${index}\n\n${decisionLedger(doc)}\nEARLIER USER MESSAGES below are historical context. Honor the approved plan, but later explicit user corrections take precedence over earlier context or plan details. PROJECT MEMORY (honor and cite relevant preferences):\n${(doc.designNotes || []).slice(-10).join('\n') || 'none'}${extraSystem.length ? `\n${extraSystem.join('\n')}` : ''}`,
     },
-    ...history(),
+    ...history(doc),
     { role: 'user', content: userText },
   ];
 }
@@ -601,6 +659,7 @@ interface ToolLoopOptions {
   repairStyleOnly?: boolean;
   allowReplaceImages?: boolean;
   imageBudget?: ImageBudget;
+  protectDesignTokens?: boolean;
 }
 
 interface ToolLoopResult {
@@ -907,7 +966,7 @@ async function runTool(
       return { text: buildProjectIndex(doc, { selectionId: useUi.getState().selectedId }) };
 
     case 'set_design_tokens': {
-      if (pickTurn?.protectTokens)
+      if (pickTurn?.protectTokens || opts.protectDesignTokens)
         return {
           text: 'E_THEME_PROTECTED: the existing design system was preserved. Do not change it without an explicit user request.',
         };
@@ -971,6 +1030,14 @@ async function runTool(
 
     case 'edit_canvas': {
       const a = args as { screen_id?: string; ops: unknown[] };
+      if (
+        (opts.protectDesignTokens || pickTurn?.protectTokens) &&
+        Array.isArray(a.ops) &&
+        a.ops.some((op) => (op as { op?: string } | null)?.op === 'setTokens')
+      )
+        return {
+          text: 'E_THEME_PROTECTED: the user-selected design system is preserved; no operations in this batch were applied.',
+        };
       const userPrompt =
         [...useProject.getState().doc.rail].reverse().find((entry) => entry.role === 'user')
           ?.text || '';
@@ -1506,7 +1573,7 @@ export async function verifyGate(
     addSystem(`Not verified — quality lint still found blocking issues:\n${notes}`);
     return;
   }
-  const outline = canvasOutline(doc, screenIds);
+  const outline = `${canvasOutline(doc, screenIds)}\nCURRENT TOKEN SHEET (text only):\n${buildTokenSheet(doc.tokens)}`;
   const first = await reviewer(
     task,
     outline,
@@ -1598,7 +1665,7 @@ export async function verifyGate(
   }
   const second = await reviewer(
     task,
-    canvasOutline(after, screenIds),
+    `${canvasOutline(after, screenIds)}\nCURRENT TOKEN SHEET (text only):\n${buildTokenSheet(after.tokens)}`,
     formatFindings(findings.filter((f) => !f.advisory)),
   );
   const state =
@@ -2278,6 +2345,8 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
   const parsed = parseBlueprint(blueprint, doc.tokens);
   const targets: ScreenDoc[] = parsed.screens.length ? parsed.screens : [...doc.screens];
   const sections = blueprintScreenSections(blueprint);
+  const globalContext = blueprintGlobalContext(blueprint);
+  const protectDesignTokens = hasExplicitCurrentTheme(doc);
   if (!targets.length) {
     const name = doc.name.trim().slice(0, 40) || 'Landing';
     targets.push({
@@ -2403,6 +2472,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       const fillText = fillPrompt({
         screenName: target.name,
         section,
+        globalContext,
         lookLine: `pad ${parsed.look.pad}, gap ${parsed.look.gap}, card radius ${parsed.look.cardRadius}, title ${parsed.look.title}px, body ${parsed.look.body}px`,
         tokenSheet: buildTokenSheet(useProject.getState().doc.tokens),
         indexRules:
@@ -2411,9 +2481,18 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       });
       try {
         const buildResult = await executeToolLoop({
-          messages: contextMessages(useProject.getState().doc, fillText),
+          messages: contextMessages(
+            useProject.getState().doc,
+            fillText,
+            protectDesignTokens
+              ? [
+                  'The user explicitly selected this complete design system. Preserve its tokens; do not call set_design_tokens or setTokens while filling.',
+                ]
+              : [],
+          ),
           maxCalls: 14,
           role: 'builder',
+          protectDesignTokens,
           effort: options.mode === 'fast' ? 'low' : 'medium',
           imageBudget,
         });
@@ -2538,7 +2617,9 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         );
       } else if (completed.size) {
         await verifyGate(
-          blueprint.slice(0, 240),
+          blueprint.length > 14000
+            ? `${blueprint.slice(0, 14000)}\n[Plan truncated for review.]`
+            : blueprint,
           useProject.getState().doc,
           [...completed],
           imageBudget,

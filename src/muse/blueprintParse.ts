@@ -173,6 +173,13 @@ export function blueprintScreenSections(text: string): string[] {
   );
 }
 
+/** Shared plan text before the first screen belongs to every screen builder. */
+export function blueprintGlobalContext(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const first = lines.findIndex((line) => SCREEN_HEAD.test(line));
+  return first < 0 ? '' : lines.slice(0, first).join('\n').trim();
+}
+
 interface Frame {
   indent: number;
   node: ComponentNode;

@@ -421,6 +421,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
         <ThemePicker />
+        <p className="field-hint">
+          Import applies the file’s theme settings and title. Separate component-token
+          definitions and other top-level sections are not applied by this import.
+        </p>
         <input
           ref={themeFile}
           type="file"

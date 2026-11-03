@@ -47,12 +47,14 @@ export const BLUEPRINT_PROMPT = `${WEB_ARCHETYPE}\nYou are the lead architect. O
 export function fillPrompt(args: {
   screenName: string;
   section: string;
+  globalContext?: string;
   lookLine: string;
   tokenSheet: string;
   indexRules: string;
   existingIndex: string;
 }): string {
-  return `Fill screen ${args.screenName} from its blueprint section. SECTION: ${args.section}
+  return `Fill screen ${args.screenName} from its blueprint section.
+${args.globalContext ? `SHARED APPROVED PLAN CONTEXT (applies across screens):\n${args.globalContext}\n` : ''}SECTION: ${args.section}
 ${WEB_ARCHETYPE}
 ${COMPOSITION_PRIMER}
 ${MOTION_PRIMER}
@@ -75,7 +77,7 @@ It produced:
 ${outline}
 DETERMINISTIC LINT FINDINGS:
 ${findings}
-Answer exactly PASS, or PROBLEMS: a numbered list. Visual quality counts: cramped/default-padded layouts, ignored LOOK numbers, off-palette colours are PROBLEMS, not PASS. Gradient heroes are valid, and empty image nodes show palette placeholders; do not reject a good layout solely because image generation was unavailable or capped.`;
+This is a text outline, not a rendered image; do not claim to have seen pixels, exact appearance or image contents. Only report issues supported by the supplied text. Answer exactly PASS, or PROBLEMS: a numbered list. Visual quality counts: cramped/default-padded layouts, ignored LOOK numbers, off-palette colours are PROBLEMS, not PASS. Gradient heroes are valid, and empty image nodes show palette placeholders; do not reject a good layout solely because image generation was unavailable or capped.`;
 }
 
 export function adjustBlueprintPrompt(wish: string): string {
@@ -91,7 +93,6 @@ export const TYPED_OPTIONS_CORRECTION = `You offered choices as chat text. Call 
 export const JSON_CORRECTION = `Your reply contained JSON or code in chat text. That is banned: data goes in tool arguments only. Retry with tool calls and prose.`;
 
 export const VISION_PROMPT = `Describe this UI mockup for a builder: structure top→bottom, every component with its type, every colour as hex, all text verbatim, spacing impressions in dp. ≤ 250 words.`;
-
 
 export function imageBrief(
   subject: string,
