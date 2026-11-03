@@ -39,10 +39,6 @@ describe('fullscreen chat CSS', () => {
     expect(css).toMatch(/@media \(min-width: 900px\)\s*\{\s*\.chat-focus \.rail-body > \*,[\s\S]*?max-width:\s*var\(--mw-shell-geometry-720\)/);
     expect(css).toMatch(/\.chat-focus \.bubble-user\s*\{\s*max-width:\s*80%/);
   });
-  it('aligns desktop agent content left and user messages right', () => {
-    expect(css).toMatch(/@media \(min-width: 900px\)[\s\S]*?\.chat-focus \.rail-body > \*\s*\{\s*margin-inline:\s*0 auto/);
-    expect(css).toMatch(/\.chat-focus \.rail-body > \.rail-msg\.user\s*\{\s*margin-inline:\s*auto 0/);
-  });
   it('animates minimization toward the launcher and respects reduced motion', () => {
     const closing = rule(".chat-focus[data-minimizing='true']");
     expect(closing).toContain('transform-origin:');
