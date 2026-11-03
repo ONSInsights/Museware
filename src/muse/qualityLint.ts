@@ -278,6 +278,26 @@ export function lintScreen(
     }
   }
   const visit = (node: ComponentNode) => {
+    // Report missing behavior as advisory only. A repair must never invent an
+    // intended destination or make a real-world booking/order promise.
+    if (node.type === 'button' && !node.props.disabled && !node.events?.tap?.length) {
+      findings.push({
+        nodeId: node.id,
+        severity: 'warn',
+        code: 'button',
+        advisory: true,
+        message: 'This button has no tap action; check its intended behavior.',
+      });
+    }
+    if (node.type === 'form' && !node.events?.submit?.length) {
+      findings.push({
+        nodeId: node.id,
+        severity: 'warn',
+        code: 'button',
+        advisory: true,
+        message: 'This form has no submit action; it does not send a booking or message.',
+      });
+    }
     if (node.type === 'navbar') {
       hasNavbar = true;
       if (
@@ -543,7 +563,7 @@ export function lintScreen(
       'imagery',
       'Landing has no image or hero node; check whether this visual design needs imagery.',
     );
-  if (kind === 'web' && heroCount === 0)
+  if (kind === 'web' && screen.entry && heroCount === 0)
     add(
       screen.root,
       'warn',

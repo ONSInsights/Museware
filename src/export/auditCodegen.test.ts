@@ -12,6 +12,24 @@ const node = (
 ): ComponentNode => ({ id, type, props, styles: {}, children });
 
 describe('exported interactive components', () => {
+  it('exports a form submit control and a truthful fallback', async () => {
+    const screen = emptyScreen('Home', { id: 'home', entry: true });
+    screen.root.children = [node('form_a', 'form', { submitLabel: 'Reserve' })];
+    const source = generateProjectFiles({ ...createProject(), screens: [screen] })[
+      'src/screens/Home.tsx'
+    ];
+    expect(source).toContain('<button type="submit"');
+    expect(source).toContain('Reserve</button>');
+    expect(source).toContain('This form has no submit action yet.');
+    await expect(transform(source, { loader: 'tsx' })).resolves.toBeTruthy();
+    screen.root.children[0].events = { submit: [{ type: 'toast', text: 'Ready' }] };
+    const wired = generateProjectFiles({ ...createProject(), screens: [screen] })[
+      'src/screens/Home.tsx'
+    ];
+    expect(wired).toContain('Ready');
+    expect(wired).not.toContain('This form has no submit action yet.');
+  });
+
   it('exports generated images for hero, image, and card nodes', async () => {
     const screen = emptyScreen('Home', { id: 'home', entry: true });
     screen.root.children = [

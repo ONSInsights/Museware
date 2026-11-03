@@ -312,9 +312,9 @@ function renderNode(
       return wrap(
         `<${node.type === 'form' ? 'form' : 'section'} className={${str(cls)}}${node.type === 'col' && (p.role === 'footer' || p.role === 'nav') ? ` role=${str(p.role === 'footer' ? 'contentinfo' : 'navigation')}` : ''}${
           node.type === 'form'
-            ? ` onSubmit={(e) => { e.preventDefault(); ${attrEvents(node, 'submit') || ''} }}`
+            ? ` onSubmit={(e) => { e.preventDefault(); ${attrEvents(node, 'submit') || `run([{ type: 'toast', text: 'This form has no submit action yet.' }])`} }}`
             : ''
-        }>\n${children}\n${pad}</${node.type === 'form' ? 'form' : 'section'}>`,
+        }>\n${children}${node.type === 'form' ? `\n${pad}  <button type="submit" className="mw-tab" style={{ minHeight: 44, background: 'var(--openui-accent)', color: 'var(--openui-text-on-accent)', fontSize: 15, borderRadius: 'var(--radius-button)' }}>${jsxText(p.submitLabel || 'Submit')}</button>` : ''}\n${pad}</${node.type === 'form' ? 'form' : 'section'}>`,
       );
     case 'section': {
       const head =

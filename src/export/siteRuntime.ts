@@ -226,7 +226,8 @@ export function startSite(
     const found = hit(event.target);
     if (found) {
       event.preventDefault();
-      run(found.node.events?.submit);
+      if (found.node.events?.submit?.length) run(found.node.events.submit);
+      else run([{ type: 'toast', text: 'This form has no submit action yet.' }]);
     }
   });
   for (const node of data.nodes) {

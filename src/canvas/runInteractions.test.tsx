@@ -30,6 +30,20 @@ function setup(child: ComponentNode) {
   return runtime;
 }
 describe('run interactions', () => {
+  it('never claims an unwired form was submitted', () => {
+    const runtime = setup(n('form_a', 'form', { submitLabel: 'Reserve' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Reserve' }).closest('form')!);
+    expect(runtime.toast).toHaveBeenCalledWith('This form has no submit action yet.');
+    expect(runtime.toast).not.toHaveBeenCalledWith('Submitted');
+  });
+  it('runs configured form actions without adding a misleading success', () => {
+    const form = n('form_a', 'form', { submitLabel: 'Send' });
+    form.events = { submit: [{ type: 'toast', text: 'Your draft is ready' }] };
+    const runtime = setup(form);
+    fireEvent.submit(screen.getByRole('button', { name: 'Send' }).closest('form')!);
+    expect(runtime.toast).toHaveBeenCalledWith('Your draft is ready');
+    expect(runtime.toast).not.toHaveBeenCalledWith('Submitted');
+  });
   it('opens the compact navbar menu and navigates from a menu link', () => {
     const runtime = setup(n('nav_a', 'navbar', { brand: 'Tea', items: ['Home'] }));
     const summary = screen.getByLabelText('Toggle navigation menu');

@@ -47,6 +47,38 @@ beforeEach(() => {
   });
 });
 describe('quality lint and gate', () => {
+  it('reports unwired buttons and forms without authorizing automatic repair', () => {
+    const s = useProject.getState().doc.screens[0];
+    const button = node('order', 'button', { text: 'Order' });
+    const form = node('reserve', 'form', { submitLabel: 'Reserve' });
+    const wired = node('menu', 'button', { text: 'Menu' });
+    wired.events = { tap: [{ type: 'navigate', to: 'tea' }] };
+    s.root.children = [button, form, wired];
+    const findings = lintScreen(s);
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          nodeId: 'order',
+          advisory: true,
+          message: expect.stringContaining('no tap action'),
+        }),
+        expect.objectContaining({
+          nodeId: 'reserve',
+          advisory: true,
+          message: expect.stringContaining('no submit action'),
+        }),
+      ]),
+    );
+    expect(findings.some((f) => f.nodeId === 'menu' && f.advisory)).toBe(false);
+  });
+  it('does not insist on a hero for a non-entry web screen', () => {
+    const s = useProject.getState().doc.screens[0];
+    s.entry = false;
+    s.root.children = [];
+    expect(lintScreen(s, undefined, new Set(), 'web').some((f) => f.code === 'hero')).toBe(
+      false,
+    );
+  });
   it('warns for tool branding and missing web heroes', () => {
     const s = useProject.getState().doc.screens[0];
     s.root.children = [

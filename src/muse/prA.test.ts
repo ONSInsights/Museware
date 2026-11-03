@@ -173,8 +173,10 @@ describe('PR-A components and responsive laws', () => {
     expect(css).toContain('.mw-sec-title');
     expect(css).toContain('border-radius:999px');
   });
-  it('flips both prompts to the actual vocabulary and the span example', () => {
-    expect(BLUEPRINT_PROMPT).toContain('Use marquee, accordion, and bento spans');
+  it('offers supported composition tools without imposing a universal template', () => {
+    expect(BLUEPRINT_PROMPT).toContain('not a checklist');
+    expect(BLUEPRINT_PROMPT).toContain('image budget is a ceiling, not a quota');
+    expect(BLUEPRINT_PROMPT).toContain('do not repeat a fixed template across screens');
     const fill = fillPrompt({
       screenName: 'Tea',
       section: 'Tea',
@@ -183,7 +185,9 @@ describe('PR-A components and responsive laws', () => {
       indexRules: '',
       existingIndex: '',
     });
-    expect(fill).toContain('In a 3-column grid, the lead card spans 2');
-    expect(fill).toContain('never invent unsupported types');
+    expect(fill).toContain('When a 3-column grid benefits from an asymmetric lead card');
+    expect(fill).toContain('Wire intended navigation');
+    expect(fill).toContain('only when useful to the brief');
+    expect(fill).toContain('Do not invent unsupported types');
   });
 });

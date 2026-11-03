@@ -1055,8 +1055,8 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
           onSubmit={(e) => {
             e.preventDefault();
             if (mode !== 'run' || !runtime) return;
-            runActions(node.events?.submit, runtime);
-            runtime.toast('Submitted');
+            if (node.events?.submit?.length) runActions(node.events.submit, runtime);
+            else runtime.toast('This form has no submit action yet.');
           }}
         >
           {renderChildren()}
