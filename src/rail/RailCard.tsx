@@ -155,15 +155,14 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
         </>
       ) : (
         <div className="card-actions">
-          {!data.visualDirections && (
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={() => void answerBlueprint(entry.id, 'build')}
-            >
-              <Play size={12} /> Build it
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={busy}
+            onClick={() => void answerBlueprint(entry.id, 'build')}
+          >
+            <Play size={12} /> Build it
+          </button>
           <button
             type="button"
             className="btn btn-sm btn-secondary"

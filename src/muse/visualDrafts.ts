@@ -146,8 +146,21 @@ export async function generateVisualDrafts(
       if (input.signal.aborted) throw new Error('Preview generation stopped.');
       if (result.finishReason === 'length')
         throw new Error(`Direction ${direction} was cut off before completion.`);
-      if (!result.toolCalls.length)
+      if (!result.toolCalls.length) {
+        if (call < 8) {
+          messages.push({
+            role: 'assistant',
+            content: result.text || '',
+          });
+          messages.push({
+            role: 'user',
+            content:
+              'Please call edit_canvas to add the components for this screen, then call finish.',
+          });
+          continue;
+        }
         throw new Error(`Direction ${direction} did not return an editable draft.`);
+      }
       messages.push({
         role: 'assistant',
         content: result.text || '',
