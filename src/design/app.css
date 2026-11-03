@@ -6427,32 +6427,29 @@ button.how-card .field-hint {
   }
 }
 
-/* The save receipt is always visible; a failure cannot disappear behind the phone toolbar. */
-.topbar {
-  position: relative;
+/* Save activity sits beside the project name, never over canvas controls. */
+.topbar .project-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
 }
 .save-status {
-  flex: 0 0 auto;
-  font-size: var(--mw-fs-11);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--mw-fs-10);
   color: var(--mw-ink-2);
   white-space: nowrap;
 }
-.save-status[data-failed='true'] {
-  color: var(--mw-danger);
+.save-failure-banner {
+  flex: 0 0 auto;
+  padding: var(--mw-space-1) var(--mw-space-3);
   background: var(--mw-surface);
-  border: 1px solid currentColor;
-  border-radius: var(--mw-radius-sm);
-  padding: var(--mw-space-1) var(--mw-space-2);
-}
-@media (max-width: 700px) {
-  .topbar .save-status {
-    position: absolute;
-    top: 100%;
-    right: var(--mw-space-2);
-    z-index: var(--mw-z-sticky);
-    background: var(--mw-surface);
-    padding: var(--mw-space-1) var(--mw-space-2);
-  }
+  color: var(--mw-danger);
+  border-bottom: 1px solid currentColor;
+  font-size: var(--mw-fs-12);
 }
 
 /* A readable composer grows with the draft; the outer ring remains the focus cue. */

@@ -11,6 +11,9 @@ export const SAVE_LOG_KEY = 'museware/save-results';
 type SaveState = {
   byProject: Record<string, WriteResult>;
   lastSuccess: Record<string, number>;
+  inFlight: Record<string, number>;
+  begin: (projectId: string) => void;
+  end: (projectId: string) => void;
   record: (result: WriteResult) => void;
 };
 
@@ -36,6 +39,9 @@ export function readWriteResults(): WriteResult[] {
 export const useSaveStatus = create<SaveState>((set) => ({
   byProject: {},
   lastSuccess: {},
+  inFlight: {},
+  begin: (projectId) => set((s) => ({ inFlight: { ...s.inFlight, [projectId]: (s.inFlight[projectId] || 0) + 1 } })),
+  end: (projectId) => set((s) => ({ inFlight: { ...s.inFlight, [projectId]: Math.max(0, (s.inFlight[projectId] || 0) - 1) } })),
   record: (result) => {
     try {
       localStorage.setItem(

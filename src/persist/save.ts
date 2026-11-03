@@ -109,6 +109,7 @@ async function writeProject(id: string, doc: ProjectDoc, creating = false): Prom
   await tx.done;
 }
 function enqueue(id: string, doc: ProjectDoc, creating = false): Promise<void> {
+  useSaveStatus.getState().begin(id);
   const task = writes.catch(() => {}).then(() => writeProject(id, doc, creating));
   writes = task;
   let bytes = 0;
@@ -118,9 +119,11 @@ function enqueue(id: string, doc: ProjectDoc, creating = false): Promise<void> {
     /* writeProject will report serialization failures */
   }
   void task.then(
-    () =>
-      useSaveStatus.getState().record({ projectId: id, at: Date.now(), ok: true, bytes }),
-    (error: unknown) =>
+    () => {
+      useSaveStatus.getState().record({ projectId: id, at: Date.now(), ok: true, bytes });
+      useSaveStatus.getState().end(id);
+    },
+    (error: unknown) => {
       useSaveStatus.getState().record({
         projectId: id,
         at: Date.now(),
@@ -133,7 +136,9 @@ function enqueue(id: string, doc: ProjectDoc, creating = false): Promise<void> {
           typeof error.name === 'string'
             ? error.name
             : 'Error',
-      }),
+      });
+      useSaveStatus.getState().end(id);
+    },
   );
   return task;
 }

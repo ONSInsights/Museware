@@ -125,3 +125,44 @@ it('empty recovered records do not get a misleading recovery note', async () => 
   );
   db.close();
 });
+
+it('shows saving beside the project name, briefly confirms a completed save, and hides it', () => {
+  vi.useFakeTimers();
+  const id = 'p_indicator_test';
+  const doc = createProject('My project');
+  useProject.getState().hydrate(doc, id);
+  render(<Topbar />);
+  expect(screen.queryByText('Saving…')).toBeNull();
+  act(() => useSaveStatus.getState().begin(id));
+  const indicator = screen.getByText('Saving…');
+  expect(indicator.closest('.project-name')).toBeTruthy();
+  act(() => useSaveStatus.getState().begin(id));
+  act(() => useSaveStatus.getState().end(id));
+  expect(screen.getByText('Saving…')).toBeTruthy();
+  act(() => {
+    useSaveStatus.getState().record({ projectId: id, at: Date.now(), ok: true, bytes: 10 });
+    useSaveStatus.getState().end(id);
+  });
+  expect(screen.getByText(/Saved /).closest('.project-name')).toBeTruthy();
+  act(() => vi.advanceTimersByTime(3001));
+  expect(screen.queryByText(/Saved /)).toBeNull();
+});
+
+it('keeps save failure in normal layout until a successful write, even during a retry', () => {
+  vi.useFakeTimers();
+  const id = 'p_indicator_failure';
+  useProject.getState().hydrate(createProject('Failed'), id);
+  render(<Topbar />);
+  act(() => useSaveStatus.getState().record({ projectId: id, at: Date.now(), ok: false, errorName: 'QuotaExceededError', bytes: 10 }));
+  const banner = screen.getByRole('alert');
+  expect(banner.textContent).toContain('device storage is full');
+  expect(banner.className).toBe('save-failure-banner');
+  expect(banner.closest('header')).toBeNull();
+  act(() => { vi.advanceTimersByTime(10000); useSaveStatus.getState().begin(id); });
+  expect(screen.getByRole('alert').textContent).toContain('device storage is full');
+  act(() => {
+    useSaveStatus.getState().record({ projectId: id, at: Date.now(), ok: true, bytes: 10 });
+    useSaveStatus.getState().end(id);
+  });
+  expect(screen.queryByRole('alert')).toBeNull();
+});

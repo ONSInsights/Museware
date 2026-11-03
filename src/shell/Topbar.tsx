@@ -40,6 +40,7 @@ export function Topbar() {
   const doc = useProject((s) => s.doc);
   const projectId = useProject((s) => s.projectId);
   const latest = useSaveStatus((s) => (projectId ? s.byProject[projectId] : undefined));
+  const saving = useSaveStatus((s) => (projectId ? (s.inFlight[projectId] || 0) > 0 : false));
   const lastSuccess = useSaveStatus((s) =>
     projectId ? s.lastSuccess[projectId] : undefined,
   );
@@ -69,6 +70,15 @@ export function Topbar() {
   const theme = useUi((s) => s.theme);
   const setTheme = useUi((s) => s.setTheme);
   const toast = useUi((s) => s.toast);
+  const [showSaved, setShowSaved] = useState(false);
+  useEffect(() => {
+    if (!status?.ok || saving) { setShowSaved(false); return; }
+    const remaining = Math.max(0, 3000 - (Date.now() - status.at));
+    setShowSaved(remaining > 0);
+    if (!remaining) return;
+    const timer = window.setTimeout(() => setShowSaved(false), remaining);
+    return () => window.clearTimeout(timer);
+  }, [projectId, status?.at, status?.ok, saving]);
   const [menu, setMenu] = useState<'screen' | 'file' | 'muse' | 'more' | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -215,6 +225,7 @@ export function Topbar() {
     </>
   );
   return (
+    <>
     <header className="topbar">
       <button
         type="button"
@@ -255,21 +266,10 @@ export function Topbar() {
           onChange={(e) => setName(e.target.value)}
           className="project-name-input"
         />
+        {projectId && !(status && !status.ok) && (saving || (showSaved && savedTime)) && (
+          <span className="save-status" role="status">{saving ? 'Saving…' : `Saved ${savedTime}`}</span>
+        )}
       </div>
-      {projectId && (
-        <span
-          className="save-status"
-          data-failed={status && !status.ok ? 'true' : undefined}
-          role={status && !status.ok ? 'alert' : 'status'}
-        >
-          {status && !status.ok
-            ? `Not saving — ${writeFailureLabel(status.errorName)}`
-            : savedTime
-              ? `Saved ${savedTime}`
-              : 'Saving…'}
-          {status && !status.ok && savedTime && <small>{` · Saved ${savedTime}`}</small>}
-        </span>
-      )}
       <div className="screen-switcher">
         <div className="screen-tabs-clip" data-overflow={tabsOverflow}>
           <div className="screen-tabs" ref={tabsRef}>
@@ -680,5 +680,12 @@ export function Topbar() {
         </Modal>
       )}
     </header>
+    {projectId && status && !status.ok && (
+      <div className="save-failure-banner" role="alert">
+        {`Not saving — ${writeFailureLabel(status.errorName)}`}
+        {savedTime && <small>{` · Saved ${savedTime}`}</small>}
+      </div>
+    )}
+    </>
   );
 }
