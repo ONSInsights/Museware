@@ -8,6 +8,11 @@ import { buildProjectIndex } from './projectIndex';
 import { offerKey, presentBlueprint } from './loop';
 import { diagnose } from './connection';
 import { SCREEN_HEAD } from './blueprintParse';
+import {
+  rememberReference,
+  screenshotReferenceNotice,
+  setScreenshotAbort,
+} from './referenceSession';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -22,6 +27,7 @@ async function describeBlueprint(
   doc: ProjectDoc,
   imageUrl: string,
   instruction: string,
+  signal: AbortSignal,
 ): Promise<{ text: string; finishReason: string }> {
   const sheet = buildTokenSheet(doc.tokens);
   const index = buildProjectIndex(doc).slice(0, 1400);
@@ -49,6 +55,7 @@ async function describeBlueprint(
         },
       ],
       maxTokens: 4096,
+      signal,
     });
   } catch (error) {
     const source = useAgent.getState().keySource;
@@ -68,7 +75,9 @@ async function describeBlueprint(
   useAgent.getState().addReceipt({
     role: 'vision',
     model: result.model,
-    ...(!result.text.trim() || result.finishReason === 'length' ? { status: 'failed' as const } : {}),
+    ...(!result.text.trim() || result.finishReason === 'length'
+      ? { status: 'failed' as const }
+      : {}),
     latencyMs: result.latencyMs,
     promptChars: sheet.length + index.length,
     toolNames: [],
@@ -91,11 +100,21 @@ async function describeBlueprint(
 /** Screenshot → vision → text blueprint approval. */
 export async function recreateFromScreenshot(file: File, instruction = ''): Promise<void> {
   const agent = useAgent.getState();
+  const epoch = useProject.getState().documentEpoch;
+  const controller = new AbortController();
+  setScreenshotAbort(controller);
+  let started = false;
+  const unsubscribe = useProject.subscribe((state) => {
+    if (state.documentEpoch !== epoch) controller.abort();
+  });
+  const current = () =>
+    !controller.signal.aborted && useProject.getState().documentEpoch === epoch;
   const addSystem = (text: string) =>
     useProject.getState().addRail({ role: 'system', text });
   const addAgent = (text: string) => useProject.getState().addRail({ role: 'agent', text });
   try {
     const dataUrl = await readAsDataUrl(file);
+    if (!current()) return;
     useAgent.getState().setScreenshotPreview({ image: dataUrl, boxes: [] });
     // Only an explicitly chosen local engine pre-empts the pipeline. A stale or
     // failed boot status must NOT: if a key exists, dropping a screenshot should
@@ -117,9 +136,16 @@ export async function recreateFromScreenshot(file: File, instruction = ''): Prom
       return;
     }
     useAgent.getState().startTurn();
+    started = true;
     useAgent.getState().setLive('Reading the screenshot with the vision model…');
     addSystem('Screenshot received — asking the vision model for a blueprint…');
-    const result = await describeBlueprint(useProject.getState().doc, dataUrl, instruction);
+    const result = await describeBlueprint(
+      useProject.getState().doc,
+      dataUrl,
+      instruction,
+      controller.signal,
+    );
+    if (!current()) return;
     if (!result.text.trim() || result.finishReason === 'length') {
       addAgent(
         result.finishReason === 'length'
@@ -130,12 +156,17 @@ export async function recreateFromScreenshot(file: File, instruction = ''): Prom
     }
     const blueprint = result.text;
     if (!blueprint.split('\n').some((line) => SCREEN_HEAD.test(line))) {
-      addAgent('The vision model did not return a usable screen blueprint. Please retry or describe the screen in words.');
+      addAgent(
+        'The vision model did not return a usable screen blueprint. Please retry or describe the screen in words.',
+      );
       return;
     }
+    rememberReference(epoch, blueprint, dataUrl);
+    addSystem(screenshotReferenceNotice);
     presentBlueprint(blueprint);
     addSystem('Recreation drafted — approve it to fill the screen, or adjust.');
   } catch (err) {
+    if (!current()) return;
     if (err instanceof MuseError && err.code === 'aborted') return;
     const why = diagnose(err);
     addSystem(
@@ -145,7 +176,11 @@ export async function recreateFromScreenshot(file: File, instruction = ''): Prom
     );
     if (why.offerKey) offerKey(why.text, '');
   } finally {
-    useAgent.getState().endTurn();
-    useAgent.getState().setLive(null);
+    unsubscribe();
+    setScreenshotAbort(null);
+    if (started) {
+      useAgent.getState().endTurn();
+      useAgent.getState().setLive(null);
+    }
   }
 }

@@ -1,4 +1,11 @@
 import { videoSourceViolation } from './videoGuard';
+import {
+  getReference,
+  isReferenceBlueprint,
+  screenshotReferenceNotice,
+  stopScreenshot,
+  updateReference,
+} from './referenceSession';
 import { z } from 'zod';
 import { editCanvasWire, readCanvasWire, illustrateImagesWire } from '../types/wire';
 import { TOOL_NAMES, toolSchemas, type ToolName } from '../types/tools';
@@ -278,6 +285,7 @@ export function isAgentRunning(): boolean {
 
 export function stopAgent(): void {
   controller?.abort();
+  stopScreenshot();
   useAgent.getState().requestStop();
   useUi.getState().toast('Stopping after the current step…', 'warn');
 }
@@ -660,6 +668,8 @@ interface ToolLoopOptions {
   imageBudget?: ImageBudget;
   protectDesignTokens?: boolean;
   imageContext?: string;
+  suppressAutoImages?: boolean;
+  documentEpoch?: number;
 }
 
 interface ToolLoopResult {
@@ -701,13 +711,27 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
   const changedBefore = useProject.getState().doc.opLog.length;
 
   while (calls < opts.maxCalls) {
-    if (controller?.signal.aborted) {
+    if (
+      controller?.signal.aborted ||
+      (opts.documentEpoch !== undefined &&
+        useProject.getState().documentEpoch !== opts.documentEpoch)
+    ) {
       stopped = true;
       break;
     }
     let result: ChatResult;
     try {
-      const promptChars = messages.reduce((n, m) => n + m.content.length, 0);
+      const promptChars = messages.reduce(
+        (n, m) =>
+          n +
+          (typeof m.content === 'string'
+            ? m.content.length
+            : (m.content as Array<{ text?: string }>).reduce(
+                (sum, part) => sum + (part.text?.length || 0),
+                0,
+              )),
+        0,
+      );
       result = await chatStream({
         model,
         effort,
@@ -768,6 +792,14 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
       throw err;
     }
 
+    if (
+      controller?.signal.aborted ||
+      (opts.documentEpoch !== undefined &&
+        useProject.getState().documentEpoch !== opts.documentEpoch)
+    ) {
+      stopped = true;
+      break;
+    }
     if (result.text) useAgent.getState().resetText();
 
     if (result.finishReason === 'length') {
@@ -1164,6 +1196,10 @@ async function runTool(
     }
 
     case 'illustrate_images': {
+      if (opts.suppressAutoImages)
+        return {
+          text: 'Reference recreation uses placeholders for unavailable source assets; automatic image generation is disabled.',
+        };
       const requested = (args as { targets: ImageTarget[] }).targets;
       const ids = opts.repairIds ? new Set(opts.repairIds) : null;
       const eligible = requested.filter((target) => {
@@ -1385,7 +1421,9 @@ export async function verifyGate(
   screenIds: string[],
   imageBudget: ImageBudget = projectImageBudget(),
   before?: ProjectDoc,
+  suppressAutoImages = false,
 ): Promise<void> {
+  const reviewEpoch = useProject.getState().documentEpoch;
   useAgent.getState().setVerification('running');
   let findings = findingsFor(doc, screenIds, before);
   const motionAdvisories = () =>
@@ -1431,12 +1469,16 @@ export async function verifyGate(
           .map((f) => f.nodeId),
         imageBudget,
         imageContext: task,
+        suppressAutoImages,
+        documentEpoch: reviewEpoch,
       });
     } catch (err) {
+      if (useProject.getState().documentEpoch !== reviewEpoch) return;
       addSystem(
         `Quality repair failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    if (useProject.getState().documentEpoch !== reviewEpoch) return;
     repairSummary(flaggedImages);
     doc = useProject.getState().doc;
     findings = findingsFor(doc, screenIds, before);
@@ -1463,6 +1505,8 @@ export async function verifyGate(
     outline,
     formatFindings(findings.filter((f) => !f.advisory)),
   );
+  if (useProject.getState().documentEpoch !== reviewEpoch || controller?.signal.aborted)
+    return;
   if (first.verdict === 'pass') {
     publishImageWarnings(doc, findings);
     useAgent
@@ -1533,10 +1577,14 @@ export async function verifyGate(
         .map((f) => f.nodeId),
       imageBudget,
       imageContext: task,
+      suppressAutoImages,
+      documentEpoch: reviewEpoch,
     });
   } catch (err) {
+    if (useProject.getState().documentEpoch !== reviewEpoch) return;
     addSystem(`Repair call failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  if (useProject.getState().documentEpoch !== reviewEpoch) return;
   repairSummary(flaggedImages);
   const after = useProject.getState().doc;
   findings = findingsFor(after, screenIds, before);
@@ -1553,6 +1601,8 @@ export async function verifyGate(
     `${canvasOutline(after, screenIds)}\nCURRENT TOKEN SHEET (text only):\n${buildTokenSheet(after.tokens)}`,
     formatFindings(findings.filter((f) => !f.advisory)),
   );
+  if (useProject.getState().documentEpoch !== reviewEpoch || controller?.signal.aborted)
+    return;
   const state =
     second.verdict === 'pass'
       ? 'pass'
@@ -2216,6 +2266,18 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
   if (running) return;
   const doc = useProject.getState().doc;
   const blueprint = doc.blueprint?.text || '';
+  const documentEpoch = useProject.getState().documentEpoch;
+  const referenceBuild = isReferenceBlueprint(doc, blueprint);
+  const reference = referenceBuild ? getReference(documentEpoch, blueprint) : null;
+  if (referenceBuild && !reference) {
+    useUi
+      .getState()
+      .toast(
+        'The screenshot is no longer in this session. Attach and send it again to make a new recreation plan.',
+        'warn',
+      );
+    return;
+  }
   if (!blueprint) {
     await runAgentTurn('Build the screens for this project.');
     return;
@@ -2257,6 +2319,13 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     .find((entry) => entry.card?.kind === 'thinking' && entry.card.state === 'pending');
   const card = pending ?? addCard('progress', {}, 'Building screens');
   const queueJournal = beginTurnJournal(blueprint);
+  const unsubscribeProject = useProject.subscribe((state) => {
+    if (state.documentEpoch !== documentEpoch) controller?.abort();
+  });
+  if (referenceBuild)
+    addSystem(
+      'The builder will receive the screenshot again for each build request; this can increase usage. Missing source images remain placeholders, not original assets. Run and downloads show abstract placeholder artwork.',
+    );
   startBuildPresenter(queueJournal);
   useProject.getState().patchRail(card.id, {
     text: 'Building screens',
@@ -2366,20 +2435,35 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         existingIndex: buildProjectIndex(useProject.getState().doc).slice(0, 1400),
       });
       try {
+        const buildMessages = contextMessages(
+          useProject.getState().doc,
+          fillText,
+          protectDesignTokens
+            ? [
+                'The user explicitly selected this complete design system. Preserve its tokens; do not call set_design_tokens or setTokens while filling.',
+              ]
+            : [],
+        );
+        if (reference) {
+          buildMessages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'This is the approved screenshot reference. Match its visible layout, colour, hierarchy, typography and spacing as closely as supported. Do not use the screenshot itself as an asset. Leave unavailable image assets as empty image placeholders, do not generate replacements, and do not invent working interactions. Explain uncertain or unsupported details.',
+              },
+              { type: 'image_url', image_url: { url: reference } },
+            ] as unknown as string,
+          });
+        }
         const buildResult = await executeToolLoop({
-          messages: contextMessages(
-            useProject.getState().doc,
-            fillText,
-            protectDesignTokens
-              ? [
-                  'The user explicitly selected this complete design system. Preserve its tokens; do not call set_design_tokens or setTokens while filling.',
-                ]
-              : [],
-          ),
+          messages: buildMessages,
           maxCalls: 14,
           role: 'builder',
           protectDesignTokens,
           imageContext: `${globalContext}\n${section}`,
+          suppressAutoImages: referenceBuild,
+          documentEpoch,
           effort: options.mode === 'fast' ? 'low' : 'medium',
           imageBudget,
         });
@@ -2424,13 +2508,19 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         finishedScreens.add(target.id);
         useAgent.getState().patchPart(target.id, { state: 'done' });
       } catch (err) {
+        if (useProject.getState().documentEpoch !== documentEpoch) break;
         const message = err instanceof Error ? err.message : String(err);
+        if (referenceBuild)
+          addSystem(
+            `Screenshot build failed; the reference could not be used for this screen. ${message.slice(0, 250)}`,
+          );
         useAgent
           .getState()
           .patchPart(target.id, { state: 'failed', note: message.slice(0, 300) });
       }
     }
 
+    if (useProject.getState().documentEpoch !== documentEpoch) return;
     // The model may have removed a screen after its fill round. Never review or
     // report a non-existent screen as completed.
     const builtIds = new Set(useProject.getState().doc.screens.map((screen) => screen.id));
@@ -2488,15 +2578,16 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     });
 
     if (!stopped) {
-      await autoIllustrate(
-        [...completed],
-        blueprint,
-        imageBudget.remaining,
-        controller.signal,
-        undefined,
-        card.id,
-        () => reserveImageAttempt(imageBudget),
-      );
+      if (!referenceBuild)
+        await autoIllustrate(
+          [...completed],
+          blueprint,
+          imageBudget.remaining,
+          controller.signal,
+          undefined,
+          card.id,
+          () => reserveImageAttempt(imageBudget),
+        );
       publishImageBudget(imageBudget);
       if (controller.signal.aborted) {
         addSystem(
@@ -2510,11 +2601,14 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           useProject.getState().doc,
           [...completed],
           imageBudget,
+          undefined,
+          referenceBuild,
         );
       } else {
         useAgent.getState().setVerification('problems', 'No screens completed the build.');
         addSystem('Not verified — no screens completed the build.');
       }
+      if (useProject.getState().documentEpoch !== documentEpoch) return;
       for (const id of completed)
         useProject
           .getState()
@@ -2529,6 +2623,10 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         !beforeScreens.get(entry.id)?.root.children.length
       )
         nameProjectAfterBuild();
+      if (referenceBuild && !controller.signal.aborted)
+        addSystem(
+          'The reviewer checks a text outline, not the rendered result against the screenshot. Visual fidelity has not been verified; empty image slots are placeholders.',
+        );
       if (count && !controller.signal.aborted) useProject.getState().snapshotProjectTheme();
       if (!controller.signal.aborted)
         addAgent(
@@ -2547,25 +2645,30 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     queueFailure = err instanceof Error ? err.message : String(err);
     useAgent.getState().setError(queueFailure);
   } finally {
+    unsubscribeProject();
     const stopped = controller?.signal.aborted;
-    if (stopped) {
-      endTurnJournal(queueJournal);
-      useAgent.getState().setInterruptionCard({
-        kind: 'interrupted',
-        journal: queueJournal,
-        reason: 'stopped',
-        cardId: card.id,
-      });
+    const switched = useProject.getState().documentEpoch !== documentEpoch;
+    if (!switched) {
+      if (stopped) {
+        endTurnJournal(queueJournal);
+        useAgent.getState().setInterruptionCard({
+          kind: 'interrupted',
+          journal: queueJournal,
+          reason: 'stopped',
+          cardId: card.id,
+        });
+      }
+      finishBuildPresenter(
+        stopped ? 'interrupted' : queueFailure || !completed.size ? 'failed' : 'receipt',
+        {
+          screens: completed.size,
+          total: targets.length,
+          message:
+            queueFailure || (!completed.size ? 'No screens completed the build.' : ''),
+          retryText: 'Continue the build.',
+        },
+      );
     }
-    finishBuildPresenter(
-      stopped ? 'interrupted' : queueFailure || !completed.size ? 'failed' : 'receipt',
-      {
-        screens: completed.size,
-        total: targets.length,
-        message: queueFailure || (!completed.size ? 'No screens completed the build.' : ''),
-        retryText: 'Continue the build.',
-      },
-    );
     stopBuildPresenter();
     queueJournal.unsubscribe?.();
     stopHeartbeat();
@@ -2594,9 +2697,14 @@ export async function adjustBlueprint(wish: string, adjustCount = 1): Promise<bo
   if (running) return false;
   const doc = useProject.getState().doc;
   const base = doc.blueprint?.text || '';
+  const epoch = useProject.getState().documentEpoch;
+  const referencePlan = isReferenceBlueprint(doc, base);
   useProject.getState().addRail({ role: 'user', text: wish });
   running = true;
   controller = new AbortController();
+  const unsubscribeProject = useProject.subscribe((state) => {
+    if (state.documentEpoch !== epoch) controller?.abort();
+  });
   useAgent.getState().startTurn();
   startHeartbeat(Date.now());
   try {
@@ -2615,9 +2723,13 @@ export async function adjustBlueprint(wish: string, adjustCount = 1): Promise<bo
       maxTokens: 1800,
       onText: (t) => useAgent.getState().appendText(t),
     });
+    if (useProject.getState().documentEpoch !== epoch || controller.signal.aborted)
+      return false;
     recordReceipt(result, wonder ? 'architect' : 'builder', base.length, []);
     const text = result.text || base;
+    updateReference(epoch, base, text);
     useProject.getState().setBlueprint(text, false);
+    if (referencePlan) addSystem(screenshotReferenceNotice);
     const parsed = parseBlueprint(text, doc.tokens);
     addCard(
       'blueprint',
@@ -2634,9 +2746,10 @@ export async function adjustBlueprint(wish: string, adjustCount = 1): Promise<bo
     addAgent('Revised. Approve it, or adjust again.');
     return true;
   } catch (err) {
-    wrapError(err, wish);
+    if (useProject.getState().documentEpoch === epoch) wrapError(err, wish);
     return false;
   } finally {
+    unsubscribeProject();
     stopHeartbeat();
     useAgent.getState().endTurn();
     running = false;

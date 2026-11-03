@@ -13,6 +13,7 @@ import { useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
 import { useUi } from '../store/useUi';
 import { illustrateTarget } from './imagery';
+import { clearReference, getReference, isReferenceBlueprint } from './referenceSession';
 import {
   adjustBlueprint,
   approveBlueprint,
@@ -120,6 +121,8 @@ export async function answerBlueprint(
   if (!entry?.card) return;
   if (useAgent.getState().busy) stopAgent();
   if (action === 'cancel') {
+    const state = useProject.getState();
+    clearReference(state.documentEpoch, state.doc.blueprint?.text || '');
     markCard(cardId, 'cancelled');
     system('Blueprint cancelled — it stays in the log if you want it back.');
     return;
@@ -160,6 +163,20 @@ export async function answerBlueprint(
     return;
   }
 
+  const currentProject = useProject.getState();
+  const plan = currentProject.doc.blueprint?.text || '';
+  if (
+    isReferenceBlueprint(currentProject.doc, plan) &&
+    !getReference(currentProject.documentEpoch, plan)
+  ) {
+    useUi
+      .getState()
+      .toast(
+        'The screenshot is no longer in this session. Attach and send it again to make a new recreation plan.',
+        'warn',
+      );
+    return;
+  }
   markCard(cardId, 'answered');
   const doc = useProject.getState().doc;
   if (!doc.blueprint) return;
