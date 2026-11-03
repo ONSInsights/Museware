@@ -22,7 +22,8 @@ export function VisualDirections({
   onSkip?: () => void;
 }) {
   const groupId = useId();
-  const theme = useResolvedCanvasTheme();
+  const themeMode = useProject((state) => state.doc.tokens.openuiTheme.theme_mode);
+  const theme = useResolvedCanvasTheme(themeMode);
   const busy = useAgent((state) => state.busy);
   const demo = useAgent((state) => state.demoMode);
   const [drafts, setDrafts] = useState<VisualDraft[]>([]);

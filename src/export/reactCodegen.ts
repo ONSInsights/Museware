@@ -4,6 +4,7 @@ import revealSource from '../canvas/reveal.js?raw';
 import { auditCodegen } from './auditCodegen';
 import type { ComponentNode, ProjectDoc, ScreenDoc, Action } from '../types/tree';
 import { materializeCss, screenLookVariables } from '../design/materialize';
+import { projectAppearance } from '../design/projectAppearance';
 import { generateFullCss, nodeClass } from '../canvas/cssGen';
 import { ICON_NAMES } from '../types/library';
 import { accordionItems, marqueeItems } from '../types/editorial';
@@ -528,7 +529,7 @@ export function TabsBlock({ items, children, onChange }: { items: string[]; chil
 `;
 
   files['src/App.tsx'] =
-    `import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+    `import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { enterPanel } from './reveal';
 import { AppContext, SCREENS, slug, matchesValue } from './runtime';
 import type { Action } from './types';
@@ -587,8 +588,18 @@ export default function App() {
     return api;
   }, [screen, state]);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = 'light';
+  useLayoutEffect(() => {
+    const appearance = ${str(projectAppearance(doc.tokens.openuiTheme.theme_mode))};
+    const systemLight = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: light)') : null;
+    const syncTheme = () => { document.documentElement.dataset.theme = appearance === 'auto' ? (systemLight?.matches ? 'light' : 'dark') : appearance; };
+    syncTheme();
+    if (appearance !== 'auto' || !systemLight) return;
+    if (systemLight.addEventListener) {
+      systemLight.addEventListener('change', syncTheme);
+      return () => systemLight.removeEventListener('change', syncTheme);
+    }
+    systemLight.addListener(syncTheme);
+    return () => systemLight.removeListener(syncTheme);
   }, []);
 
   const Screen = SCREEN_COMPONENTS[screen as keyof typeof SCREEN_COMPONENTS] || SCREEN_COMPONENTS[START as keyof typeof SCREEN_COMPONENTS];

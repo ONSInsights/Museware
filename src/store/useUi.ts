@@ -60,6 +60,8 @@ interface UiStore {
   blueprintOpen: boolean;
   colorCard: ColorCardRequest | null;
   theme: 'dark' | 'light' | 'auto';
+  projectPreview: { epoch: number; mode: 'project' | 'light' | 'dark' };
+  setProjectPreview: (mode: 'project' | 'light' | 'dark') => void;
   toasts: Toast[];
   paletteFilter: string;
   draft: string;
@@ -67,7 +69,11 @@ interface UiStore {
   pendingImage: { file: File; projectId: string | null } | null;
   setPendingImage: (image: { file: File; projectId: string | null } | null) => void;
   chatImages: Array<{ entryId: string; projectId: string | null; file: File }>;
-  rememberChatImage: (image: { entryId: string; projectId: string | null; file: File }) => void;
+  rememberChatImage: (image: {
+    entryId: string;
+    projectId: string | null;
+    file: File;
+  }) => void;
   activePreset: string | null;
   setRoute: (r: Route, projectId?: string) => void;
   select: (id: string | null) => void;
@@ -183,12 +189,16 @@ export const useUi = create<UiStore>((set, get) => ({
       return 'dark' as const;
     }
   })(),
+  projectPreview: { epoch: -1, mode: 'project' },
+  setProjectPreview: (mode) =>
+    set({ projectPreview: { epoch: useProject.getState().documentEpoch, mode } }),
   toasts: [],
   paletteFilter: preferences.paletteFilter,
   draft: '',
   pendingImage: null,
   chatImages: [],
-  rememberChatImage: (image) => set((s) => ({ chatImages: [...s.chatImages, image].slice(-30) })),
+  rememberChatImage: (image) =>
+    set((s) => ({ chatImages: [...s.chatImages, image].slice(-30) })),
   setPendingImage: (pendingImage) => set({ pendingImage }),
   draftTrimmed: false,
   activePreset: null,

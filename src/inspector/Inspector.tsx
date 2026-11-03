@@ -23,6 +23,7 @@ import { boundKeys, findNode, findParent } from '../ops/treeUtils';
 import { parseStateValue } from './stateValue';
 import { duplicateNodeBatch } from '../ops/screenOps';
 import { ThemePicker } from '../design/ThemePicker';
+import { ProjectAppearanceControls } from '../design/ProjectAppearanceControls';
 import { Icon } from '../canvas/Icon';
 import { screenSlugForLabel } from '../preview/runtime';
 import { Segmented } from '../components/ui';
@@ -1091,6 +1092,7 @@ function ScreenInspector({ screenId, open }: { screenId: string; open: boolean }
           defaultOpen
           headExtra={<span className="faint mw-shell-util-12">{doc.tokens.title}</span>}
         >
+          <ProjectAppearanceControls />
           <ThemePicker compact />
           <div className="token-row">
             <span className="field-label mw-shell-util-17">Accent</span>

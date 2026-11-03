@@ -10,6 +10,7 @@ import { probeTextRoles } from '../../muse/probe';
 import { getSessionKey, setSessionKey, hasSessionKey } from '../../muse/sessionKey';
 import { wipeProject, readThemeFile } from '../../persist/save';
 import { ThemePicker, applyDesignSystem } from '../../design/ThemePicker';
+import { ProjectAppearanceControls } from '../../design/ProjectAppearanceControls';
 import type { DesignTokens } from '../../types/tokens';
 
 const ROLE_ORDER: Array<
@@ -420,6 +421,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             Import tokens…
           </Button>
         </div>
+        <ProjectAppearanceControls />
         <ThemePicker />
         <p className="field-hint">
           Import applies the file’s theme settings and title. Separate component-token

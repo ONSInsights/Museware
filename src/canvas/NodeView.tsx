@@ -50,7 +50,7 @@ export function NodeView({
     () => (mode === 'run' ? armReveals(root.current, { noArm: noMotionArm }) : undefined),
     [mode, noMotionArm, screen.id],
   );
-  const theme = useResolvedCanvasTheme();
+  const theme = useResolvedCanvasTheme(doc.tokens.openuiTheme.theme_mode);
   return (
     <div className="mw-css-root">
       <div

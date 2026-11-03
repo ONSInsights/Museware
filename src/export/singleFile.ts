@@ -5,6 +5,7 @@ import revealSource from '../canvas/reveal.js?raw';
 import { NodeBody, StaticExportContext } from '../canvas/NodeBody';
 import { generateFullCss } from '../canvas/cssGen';
 import { materializeCss, screenLookVariables } from '../design/materialize';
+import { projectAppearance } from '../design/projectAppearance';
 import { defaultPropsFor } from '../types/library';
 import type { ProjectDoc } from '../types/tree';
 import { clone, walk } from '../ops/treeUtils';
@@ -100,7 +101,7 @@ export function buildSingleHtml(input: ProjectDoc): string {
   const reveal = revealSource.replaceAll('export function ', 'function ');
   const metadata = safeScriptJson({ nodes, screens, entry: entry?.id || '' });
   const script =
-    `document.documentElement.dataset.theme=typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';\n${motion}\n${reveal}\n(${startSite.toString()})(${metadata},mountMotion,armReveals,enterPanel);`.replace(
+    `const appearance=${JSON.stringify(projectAppearance(doc.tokens.openuiTheme.theme_mode))};const systemLight=typeof matchMedia==='function'?matchMedia('(prefers-color-scheme: light)'):null;const syncTheme=()=>{document.documentElement.dataset.theme=appearance==='auto'?(systemLight?.matches?'light':'dark'):appearance};syncTheme();if(appearance==='auto'&&systemLight){if(systemLight.addEventListener)systemLight.addEventListener('change',syncTheme);else if(systemLight.addListener)systemLight.addListener(syncTheme);}\n${motion}\n${reveal}\n(${startSite.toString()})(${metadata},mountMotion,armReveals,enterPanel);`.replace(
       /<\/script/gi,
       '<\\/script',
     );
