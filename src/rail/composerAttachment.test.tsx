@@ -42,9 +42,8 @@ describe('chat composer', () => {
   it('supports punctuation and an explicit expand and shrink control', () => {
     render(<AgentRail focused />);
     const field = screen.getByLabelText('Message muse') as HTMLTextAreaElement;
-    fireEvent.change(field, { target: { value: 'Hello' } });
-    field.setSelectionRange(5, 5);
-    fireEvent.click(screen.getByLabelText('Insert period'));
+    fireEvent.change(field, { target: { value: 'Hello.' } });
+    expect(screen.queryByLabelText('Insert period')).toBeNull();
     expect(field.value).toBe('Hello.');
     fireEvent.click(screen.getByLabelText('Expand message box'));
     expect(field.closest('.composer-box')?.getAttribute('data-expanded')).toBe('true');

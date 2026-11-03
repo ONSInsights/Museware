@@ -6480,7 +6480,7 @@ button.how-card .field-hint {
   background: transparent;
   border: 0;
   box-shadow: none;
-  resize: vertical;
+  resize: none;
   min-height: var(--mw-control-h-sm);
 }
 .composer-box[data-expanded='true'] textarea {

@@ -641,15 +641,6 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             <button type="button" className="icon-btn icon-btn-sm" aria-label={composerExpanded ? 'Shrink message box' : 'Expand message box'} onClick={() => setComposerExpanded((v) => !v)}>
               {composerExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>
-            <button type="button" className="icon-btn icon-btn-sm" aria-label="Insert period" onClick={() => {
-              const el = composerRef.current;
-              if (!el) return;
-              const start = el.selectionStart;
-              const end = el.selectionEnd;
-              if (draft.length - (end - start) >= 8000) return;
-              setDraft(draft.slice(0, start) + '.' + draft.slice(end));
-              requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start + 1, start + 1); });
-            }}>.</button>
             <button
               type="button"
               className="icon-btn icon-btn-sm"
