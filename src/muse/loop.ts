@@ -1,3 +1,5 @@
+import { validateVisualFinish, type VisualFinishGuard } from './visualFinishGuard';
+import { stopVisualPreview } from './visualDrafts';
 import { videoSourceViolation } from './videoGuard';
 import {
   getReference,
@@ -286,6 +288,7 @@ export function isAgentRunning(): boolean {
 export function stopAgent(): void {
   controller?.abort();
   stopScreenshot();
+  stopVisualPreview();
   useAgent.getState().requestStop();
   useUi.getState().toast('Stopping after the current step…', 'warn');
 }
@@ -670,6 +673,8 @@ interface ToolLoopOptions {
   imageContext?: string;
   suppressAutoImages?: boolean;
   documentEpoch?: number;
+  draftGuard?: VisualFinishGuard;
+  protectedScreen?: ScreenDoc;
 }
 
 interface ToolLoopResult {
@@ -736,28 +741,32 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
         model,
         effort,
         messages,
-        tools: opts.scope
+        tools: opts.draftGuard
           ? TOOL_DEFS.filter((t) =>
               ['read_canvas', 'edit_canvas', 'finish'].includes(t.function.name),
-            ).map((tool) => ({
-              ...tool,
-              function: {
-                ...tool.function,
-                description: tool.function.description?.replace(
-                  BUILDER_PROPS_PRIMER,
-                  [...(opts.scope?.rootIds || [opts.scope!.rootId])]
-                    .map((id) => findNodeInDoc(opts.scope!.doc, id)?.node)
-                    .filter((node): node is NonNullable<typeof node> => Boolean(node))
-                    .map(scopedPrimer)
-                    .join('\n'),
-                ),
-              },
-            }))
-          : opts.repairIds
+            )
+          : opts.scope
             ? TOOL_DEFS.filter((t) =>
-                ['edit_canvas', 'illustrate_images', 'finish'].includes(t.function.name),
-              )
-            : TOOL_DEFS,
+                ['read_canvas', 'edit_canvas', 'finish'].includes(t.function.name),
+              ).map((tool) => ({
+                ...tool,
+                function: {
+                  ...tool.function,
+                  description: tool.function.description?.replace(
+                    BUILDER_PROPS_PRIMER,
+                    [...(opts.scope?.rootIds || [opts.scope!.rootId])]
+                      .map((id) => findNodeInDoc(opts.scope!.doc, id)?.node)
+                      .filter((node): node is NonNullable<typeof node> => Boolean(node))
+                      .map(scopedPrimer)
+                      .join('\n'),
+                  ),
+                },
+              }))
+            : opts.repairIds
+              ? TOOL_DEFS.filter((t) =>
+                  ['edit_canvas', 'illustrate_images', 'finish'].includes(t.function.name),
+                )
+              : TOOL_DEFS,
         signal: controller?.signal,
         onText: (t) => useAgent.getState().appendText(t),
         onRetry: () => useAgent.getState().resetText(),
@@ -820,7 +829,10 @@ async function executeToolLoop(opts: ToolLoopOptions): Promise<ToolLoopResult> {
         calls += 1;
         if (calls < opts.maxCalls) continue;
       }
-      const typed = opts.scope || opts.repairIds ? null : parseTypedOptions(result.text);
+      const typed =
+        opts.scope || opts.repairIds || opts.draftGuard
+          ? null
+          : parseTypedOptions(result.text);
       if (typed) {
         /*
          * Same loop, typed instead of tool-called: options printed as prose
@@ -973,6 +985,10 @@ async function runTool(
         'no ops. Answer in one or two sentences and call finish().',
     };
   }
+  if (opts.draftGuard && !['read_canvas', 'edit_canvas', 'finish'].includes(name))
+    return {
+      text: 'The approved visual direction may only be finished with screen edits.',
+    };
   if (opts.scope && !['read_canvas', 'edit_canvas', 'finish'].includes(name))
     return { text: 'E_SCOPE: this tool is not allowed for scoped work.' };
   if (opts.repairIds && !['edit_canvas', 'illustrate_images', 'finish'].includes(name))
@@ -1070,6 +1086,35 @@ async function runTool(
           ?.text || '';
       if (videoSourceViolation(a.ops, opts.scope?.doc || doc, userPrompt))
         return { text: 'REJECTED: video source must appear exactly in the user’s prompt.' };
+      if (opts.protectedScreen) {
+        const staged = applyOps(a.ops, doc, {
+          source: 'agent',
+          screenAddsThisTurn: turnScreenAdds,
+        });
+        if (staged.errors.length)
+          return { text: `REJECTED (nothing applied)\n${formatErrors(staged.errors)}` };
+        const protectedAfter = staged.doc.screens.find(
+          (screen) => screen.id === opts.protectedScreen!.id,
+        );
+        if (
+          !protectedAfter ||
+          JSON.stringify(protectedAfter) !== JSON.stringify(opts.protectedScreen)
+        ) {
+          addSystem('A proposed change to the chosen visual direction was blocked.');
+          return {
+            text: 'REJECTED (nothing applied): the selected visual direction must remain unchanged while building other screens.',
+          };
+        }
+      }
+      if (opts.draftGuard) {
+        const reason = validateVisualFinish(doc, opts.draftGuard, a.ops);
+        if (reason) {
+          addSystem(`A proposed finishing change was not applied: ${reason}`);
+          return {
+            text: `REJECTED (nothing applied): ${reason} Keep the selected design and use only explicit approved interactions.`,
+          };
+        }
+      }
       if (opts.scope) {
         const filtered = filterScopedOps(
           opts.scope.doc,
@@ -1709,6 +1754,7 @@ export function presentBlueprint(text: string) {
     'blueprint',
     {
       blueprint: text,
+      visualDirections: true,
       screens: parsed.screens.map((s) => ({ id: s.id, name: s.name })),
       look: parsed.look,
       stateKeys: parsed.stateKeys,
@@ -2259,6 +2305,7 @@ export async function runScopedAction(
 
 export interface FillOptions {
   mode: 'blueprint' | 'steady' | 'fast';
+  preserveScreenId?: string;
 }
 
 /** The fill queue: one screen at a time, N-of-M, Stop, per-screen snapshots. */
@@ -2369,6 +2416,37 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     for (let i = 0; i < targets.length; i += 1) {
       if (controller.signal.aborted) break;
       const target = targets[i];
+      const selectedDraft =
+        target.id === options.preserveScreenId
+          ? useProject.getState().doc.screens.find((screen) => screen.id === target.id)
+          : undefined;
+      if (target.id === options.preserveScreenId && !selectedDraft?.root.children.length)
+        throw new Error('The selected preview is no longer available.');
+      const explicitUserText = doc.rail
+        .filter((entry) => entry.role === 'user')
+        .map((entry) => entry.text)
+        .join('\n');
+      const draftGuard: VisualFinishGuard | undefined = selectedDraft
+        ? {
+            screen: structuredClone(selectedDraft),
+            evidence: referenceBuild
+              ? explicitUserText
+              : `${parsed.wiring.join('\n')}\n${explicitUserText}`,
+            userText: explicitUserText,
+          }
+        : undefined;
+      const protectedScreen =
+        options.preserveScreenId && target.id !== options.preserveScreenId
+          ? useProject
+              .getState()
+              .doc.screens.find((screen) => screen.id === options.preserveScreenId)
+          : undefined;
+      if (
+        options.preserveScreenId &&
+        target.id !== options.preserveScreenId &&
+        !protectedScreen
+      )
+        throw new Error('The selected visual direction is no longer available.');
       const existing = useProject.getState().doc.screens.find((s) => s.id === target.id);
       if (!existing) {
         const provisional = parsed.screens.find((s) => s.id === target.id);
@@ -2444,6 +2522,14 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
               ]
             : [],
         );
+        if (draftGuard) {
+          buildMessages.push({
+            role: 'system',
+            content: `The user selected this exact visual draft. Finish the FIRST screen by adding missing planned content and only explicitly approved interactions. Preserve every existing node, its content, parent, order, styling, typography, and the project design tokens. Do not remove or redesign it. Only append needed content within this screen; do not touch other screens. No generated image replacements or guessed image URLs. Interactions must be supported by explicit user instructions${referenceBuild ? ' (not merely inferred from the screenshot)' : ' or approved WIRING'}. If a behavior cannot be established, leave it inert and tell the user.
+CHOSEN SCREEN:
+${canvasOutline(useProject.getState().doc, [target.id])}`,
+          });
+        }
         if (reference) {
           buildMessages.push({
             role: 'user',
@@ -2460,10 +2546,12 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           messages: buildMessages,
           maxCalls: 14,
           role: 'builder',
-          protectDesignTokens,
+          protectDesignTokens: protectDesignTokens || Boolean(options.preserveScreenId),
           imageContext: `${globalContext}\n${section}`,
-          suppressAutoImages: referenceBuild,
+          suppressAutoImages: referenceBuild || Boolean(draftGuard),
           documentEpoch,
+          draftGuard,
+          protectedScreen: protectedScreen ? structuredClone(protectedScreen) : undefined,
           effort: options.mode === 'fast' ? 'low' : 'medium',
           imageBudget,
         });
@@ -2477,6 +2565,16 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         const actualScreen = useProject
           .getState()
           .doc.screens.find((screen) => screen.id === target.id);
+        if (!buildResult.finished && draftGuard) {
+          useAgent.getState().patchPart(target.id, {
+            state: 'failed',
+            note: 'The selected screen was kept, but the finishing pass did not complete.',
+          });
+          addSystem(
+            'The selected design is still editable, but the finishing pass did not complete. Review and complete the screen before relying on it.',
+          );
+          continue;
+        }
         if (!buildResult.finished) {
           // Inspect the actual document, even if the model omitted finish().
           const builtContent = actualScreen && actualScreen.root.children.length > 0;
@@ -2534,6 +2632,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     // Existing screens were not created from the parsed provisional root. Apply
     // the same screen-scoped LOOK only to screens that actually completed.
     for (const id of completed) {
+      if (id === options.preserveScreenId) continue;
       const screen = useProject.getState().doc.screens.find((item) => item.id === id);
       const planned = parsed.screens.find((item) => item.id === id);
       if (screen && planned && beforeScreens.has(id)) {
@@ -2580,7 +2679,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
     if (!stopped) {
       if (!referenceBuild)
         await autoIllustrate(
-          [...completed],
+          [...completed].filter((id) => id !== options.preserveScreenId),
           blueprint,
           imageBudget.remaining,
           controller.signal,
@@ -2593,16 +2692,39 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
         addSystem(
           'Stopped during illustration — finished screens stay, without verification.',
         );
-      } else if (completed.size) {
+      } else if ([...completed].some((id) => id !== options.preserveScreenId)) {
         await verifyGate(
           blueprint.length > 14000
             ? `${blueprint.slice(0, 14000)}\n[Plan truncated for review.]`
             : blueprint,
           useProject.getState().doc,
-          [...completed],
+          [...completed].filter((id) => id !== options.preserveScreenId),
           imageBudget,
           undefined,
           referenceBuild,
+        );
+        if (useProject.getState().documentEpoch !== documentEpoch) return;
+        if (options.preserveScreenId) {
+          if (useAgent.getState().verification === 'pass')
+            useAgent
+              .getState()
+              .setVerification(
+                'unverified',
+                'Other screens passed text-only review, but the selected screen and its finishing changes were not reviewed.',
+              );
+          addSystem(
+            'The selected visual layout was preserved; its finishing changes were not included in the text-only review.',
+          );
+        }
+      } else if (completed.size && options.preserveScreenId) {
+        useAgent
+          .getState()
+          .setVerification(
+            'unverified',
+            'The selected visual layout was preserved, but finishing changes have not been reviewed.',
+          );
+        addSystem(
+          'The selected visual layout was preserved, but finishing changes have not been reviewed.',
         );
       } else {
         useAgent.getState().setVerification('problems', 'No screens completed the build.');
@@ -2610,9 +2732,10 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       }
       if (useProject.getState().documentEpoch !== documentEpoch) return;
       for (const id of completed)
-        useProject
-          .getState()
-          .rememberScreenBuild(card.id, id, beforeScreens.get(id) ?? null);
+        if (id !== options.preserveScreenId)
+          useProject
+            .getState()
+            .rememberScreenBuild(card.id, id, beforeScreens.get(id) ?? null);
       const count = completed.size;
       const entry = useProject.getState().doc.screens.find((screen) => screen.entry);
       if (
@@ -2681,6 +2804,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
 
 export async function approveBlueprint(
   mode: 'blueprint' | 'steady' | 'fast',
+  preserveScreenId?: string,
 ): Promise<void> {
   const doc = useProject.getState().doc;
   if (!doc.blueprint?.text) return;
@@ -2690,7 +2814,7 @@ export async function approveBlueprint(
     addSystem('Blueprint stored — build it whenever you are ready.');
     return;
   }
-  await runFillQueue({ mode });
+  await runFillQueue({ mode, preserveScreenId });
 }
 
 export async function adjustBlueprint(wish: string, adjustCount = 1): Promise<boolean> {
@@ -2735,6 +2859,7 @@ export async function adjustBlueprint(wish: string, adjustCount = 1): Promise<bo
       'blueprint',
       {
         blueprint: text,
+        visualDirections: true,
         adjustCount,
         screens: parsed.screens.map((s) => ({ id: s.id, name: s.name })),
         look: parsed.look,

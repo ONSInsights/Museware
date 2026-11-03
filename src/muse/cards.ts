@@ -9,10 +9,12 @@ import {
   canCreateBrandDirection,
 } from '../design/brandDirection';
 import { findNodeInDoc } from '../ops/treeUtils';
+import { applyOps } from '../ops/apply';
 import { useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
 import { useUi } from '../store/useUi';
 import { illustrateTarget } from './imagery';
+import { visualBaseline, type VisualDraft } from './visualDrafts';
 import { clearReference, getReference, isReferenceBlueprint } from './referenceSession';
 import {
   adjustBlueprint,
@@ -116,6 +118,7 @@ export async function answerBlueprint(
   cardId: string,
   action: 'build' | 'adjust' | 'cancel',
   wish = '',
+  preserveScreenId?: string,
 ): Promise<void> {
   const entry = findCard(cardId);
   if (!entry?.card) return;
@@ -184,8 +187,118 @@ export async function answerBlueprint(
     useProject.getState().setBlueprint(doc.blueprint.text, true);
     await startDemoBuild('steady');
   } else {
-    await approveBlueprint('steady');
+    await approveBlueprint('steady', preserveScreenId);
   }
+}
+
+/** Apply exactly the chosen temporary screen only after explicit approval. */
+export async function acceptVisualDraft(
+  cardId: string,
+  draft: VisualDraft,
+  epoch: number,
+  baseline: string,
+): Promise<void> {
+  const state = useProject.getState();
+  const entry = state.doc.rail.find((item) => item.id === cardId);
+  if (
+    useAgent.getState().busy ||
+    state.documentEpoch !== epoch ||
+    entry?.card?.state !== 'pending' ||
+    visualBaseline(state.doc) !== baseline
+  ) {
+    useUi
+      .getState()
+      .toast('The project or blueprint changed. Please generate new directions.', 'warn');
+    return;
+  }
+  const plan = state.doc.blueprint?.text || '';
+  if (isReferenceBlueprint(state.doc, plan) && !getReference(epoch, plan)) {
+    useUi
+      .getState()
+      .toast(
+        'The screenshot is no longer in this session. Send it again to make a new recreation plan.',
+        'warn',
+      );
+    return;
+  }
+  const existing = state.doc.screens.find((screen) => screen.id === draft.screen.id);
+  if (existing?.root.children.length) {
+    useUi
+      .getState()
+      .toast('This screen already contains work. It was not replaced.', 'warn');
+    return;
+  }
+  const screen = draft.screen;
+  const clearedProps = existing
+    ? Object.fromEntries(
+        Object.keys(existing.root.props)
+          .filter((key) => !(key in screen.root.props))
+          .map((key) => [key, null]),
+      )
+    : {};
+  const clearedStyles = existing
+    ? Object.fromEntries(
+        Object.keys(existing.root.styles)
+          .filter((key) => !(key in screen.root.styles) && key !== 'responsive')
+          .map((key) => [key, '']),
+      )
+    : {};
+  const ops: unknown[] = existing
+    ? [
+        {
+          op: 'setProps',
+          id: existing.root.id,
+          props: { ...clearedProps, ...screen.root.props },
+        },
+        {
+          op: 'setStyles',
+          id: existing.root.id,
+          styles: { ...clearedStyles, ...screen.root.styles },
+        },
+        ...screen.root.children.map((node) => ({
+          op: 'add',
+          parentId: existing.root.id,
+          node,
+        })),
+      ]
+    : [{ op: 'addScreen', screen: { ...screen, entry: state.doc.screens.length === 0 } }];
+  // Preflight the complete batch and verify that the committed root matches the
+  // candidate, including removals and responsive styles. Never silently substitute.
+  const staged = applyOps(ops, state.doc, { source: 'user', screenAddsThisTurn: 0 });
+  const actual = staged.doc.screens.find((item) => item.id === screen.id)?.root;
+  const canonical = (value: unknown): string =>
+    JSON.stringify(value, (_key, item: unknown) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+      return Object.fromEntries(
+        Object.entries(item)
+          .filter(([, part]) => part !== undefined)
+          .sort(([a], [b]) => a.localeCompare(b)),
+      );
+    });
+  if (staged.errors.length || !actual || canonical(actual) !== canonical(screen.root)) {
+    useUi
+      .getState()
+      .toast(
+        'This direction could not be applied exactly and safely. Your project was not changed.',
+        'warn',
+      );
+    return;
+  }
+  const applied = state.applyBatch(ops, { source: 'user', screenAddsThisTurn: 0 });
+  if (applied.errors.length) {
+    useUi
+      .getState()
+      .toast(
+        `Could not apply this direction safely: ${applied.errors[0].message}`,
+        'danger',
+      );
+    return;
+  }
+  useUi.getState().setActiveScreen(screen.id);
+  system(
+    `✓ ${draft.label} chosen. Its first-screen draft is now editable; the finishing pass protects its chosen layout.`,
+  );
+  await answerBlueprint(cardId, 'build', '', screen.id);
 }
 
 export async function answerBuildChoice(

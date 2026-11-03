@@ -26,6 +26,8 @@ import { runAgentTurn, stopAgent } from '../muse/loop';
 import { QUICK_SWATCHES } from '../design/palettes';
 import { KeyCard } from './KeyCard';
 import { InterruptedCard } from './InterruptedCard';
+import { VisualDirections } from './VisualDirections';
+import { acceptVisualDraft } from '../muse/cards';
 import { isKeepalive } from '../muse/keepalive';
 
 export function assetSummary(assets: Array<{ state: string; reason?: string }>): string {
@@ -56,7 +58,9 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
     stateKeys?: string[];
     wiring?: string[];
     adjustCount?: number;
+    visualDirections?: boolean;
   };
+  const busy = useAgent((state) => state.busy);
   const [adjusting, setAdjusting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
@@ -70,8 +74,22 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
         </span>
         <span className="railcard-sub">{text.split(/\s+/).length} words</span>
       </div>
-      <div id={detailsId} className={`blueprint-text${expanded ? ' blueprint-text-expanded' : ''}`} role="region" aria-label="Blueprint details" tabIndex={0}>{text}</div>
-      <button type="button" className="btn btn-sm btn-ghost blueprint-expand" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(!expanded)}>
+      <div
+        id={detailsId}
+        className={`blueprint-text${expanded ? ' blueprint-text-expanded' : ''}`}
+        role="region"
+        aria-label="Blueprint details"
+        tabIndex={0}
+      >
+        {text}
+      </div>
+      <button
+        type="button"
+        className="btn btn-sm btn-ghost blueprint-expand"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded(!expanded)}
+      >
         {expanded ? 'Show less' : 'Expand blueprint'}
       </button>
       {(data.stateKeys?.length || data.wiring?.length) && (
@@ -96,6 +114,14 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
             </span>
           ))}
         </div>
+      )}
+      {data.visualDirections && !adjusting && (
+        <VisualDirections
+          onBuild={(draft, epoch, baseline) =>
+            void acceptVisualDraft(entry.id, draft, epoch, baseline)
+          }
+          onSkip={() => void answerBlueprint(entry.id, 'build')}
+        />
       )}
       {adjusting ? (
         <>
@@ -129,17 +155,19 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
         </>
       ) : (
         <div className="card-actions">
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            onClick={() => void answerBlueprint(entry.id, 'build')}
-          >
-            <Play size={12} /> Build it
-          </button>
+          {!data.visualDirections && (
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={() => void answerBlueprint(entry.id, 'build')}
+            >
+              <Play size={12} /> Build it
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-sm btn-secondary"
-            disabled={(data.adjustCount || 0) >= 3}
+            disabled={busy || (data.adjustCount || 0) >= 3}
             title={
               (data.adjustCount || 0) >= 3 ? 'Three adjustment rounds used' : undefined
             }

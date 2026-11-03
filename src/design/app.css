@@ -6635,3 +6635,10 @@ button.how-card .field-hint {
   padding: var(--mw-space-1) var(--mw-space-3);
   align-items: center;
 }
+
+/* Isolated visual blueprints: stacked for phones, no interactive content in frames. */
+.visual-directions { display: grid; gap: var(--mw-space-2); min-width: 0; }
+.visual-direction { display: grid; gap: var(--mw-space-2); min-width: 0; padding: var(--mw-space-2); border: 1px solid var(--mw-border); border-radius: var(--mw-radius-md); }
+.visual-direction-label { display: flex; align-items: center; gap: var(--mw-space-2); }
+.visual-direction-frame { display: block; width: 100%; height: var(--mw-visual-preview-height); border: 1px solid var(--mw-border); border-radius: var(--mw-radius-sm); background: var(--mw-bg); }
+.visual-direction-outline { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--mw-fs-11); }
