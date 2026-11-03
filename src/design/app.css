@@ -6539,3 +6539,99 @@ button.how-card .field-hint {
     overflow: visible;
   }
 }
+
+/* Chat header controls occupy real layout space, rather than covering the header. */
+.chat-focus .rail[data-chat-focused] .rail-header {
+  padding-inline: var(--mw-space-3);
+  min-width: 0;
+}
+.chat-focus .chat-minimize {
+  position: static;
+  flex: 0 0 auto;
+  z-index: auto;
+  width: var(--mw-control-h-sm);
+  height: var(--mw-control-h-sm);
+  box-shadow: none;
+}
+.chat-options, .chat-suggestions {
+  min-width: 0;
+  color: var(--mw-ink-2);
+  font-size: var(--mw-fs-12);
+}
+.chat-options {
+  padding-inline: var(--mw-space-3);
+  flex: 0 0 auto;
+  max-height: 25dvh;
+  overflow: auto;
+}
+.chat-options summary, .chat-suggestions summary {
+  cursor: pointer;
+  padding-block: var(--mw-space-1);
+}
+.chat-options .chat-receipt-list {
+  max-height: 15dvh;
+}
+.chat-suggestions {
+  width: 100%;
+  max-width: var(--mw-shell-geometry-720);
+  margin-inline: auto;
+}
+.chat-latest {
+  align-self: center;
+  flex: 0 0 auto;
+}
+.chat-sent-image {
+  display: block;
+  max-width: 100%;
+  max-height: var(--mw-shell-geometry-260);
+  object-fit: contain;
+  border-radius: var(--mw-radius-sm);
+  margin-bottom: var(--mw-space-2);
+}
+.chat-image-note {
+  display: block;
+  margin-top: var(--mw-space-1);
+  color: var(--mw-ink-3);
+  font-size: var(--mw-fs-11);
+}
+.rail-msg.user .bubble-user {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-focus .composer {
+  max-height: 55dvh;
+  overflow-y: auto;
+}
+.chat-focus .composer-box textarea {
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .chat-focus .composer-box:has(.composer-attachment) {
+    flex-wrap: wrap;
+  }
+  .chat-focus .composer-box .composer-attachment {
+    width: 100%;
+    max-width: none;
+    flex: 1 0 100%;
+  }
+}
+.chat-focus .rail[data-chat-focused] .rail-header {
+  height: var(--mw-shell-geometry-48);
+}
+.chat-focus .chat-minimize,
+.chat-focus .chat-composer-actions .icon-btn,
+.chat-focus .chat-composer-actions .send-btn {
+  width: calc(var(--mw-space-8) + var(--mw-space-1));
+  height: calc(var(--mw-space-8) + var(--mw-space-1));
+}
+.chat-toast-slot {
+  flex: 0 0 auto;
+  max-height: 22dvh;
+  overflow-y: auto;
+}
+.toast-host.toast-host-in-chat {
+  position: static;
+  transform: none;
+  padding: var(--mw-space-1) var(--mw-space-3);
+  align-items: center;
+}

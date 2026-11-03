@@ -248,9 +248,12 @@ export function Menu({
 export function Toasts() {
   const toasts = useUi((s) => s.toasts);
   const dismiss = useUi((s) => s.dismissToast);
+  const chatExpanded = useUi((s) => s.chatExpanded);
+  const modalOpen = useUi((s) => s.onboardingOpen || s.settingsOpen || s.exportOpen || s.receiptsOpen || s.shortcutsOpen || s.blueprintOpen || !!s.colorCard || s.runMode);
   if (!toasts.length) return null;
-  return (
-    <div className="toast-host" aria-live="polite">
+  const chatSlot = chatExpanded && !modalOpen ? document.getElementById('chat-toast-slot') : null;
+  const content = (
+    <div className={chatSlot ? 'toast-host toast-host-in-chat' : 'toast-host'} aria-live="polite">
       {toasts.map((t) => (
         <div className="toast" key={t.id} data-tone={t.tone}>
           <span className="mw-shell-util-17">{t.text}</span>
@@ -278,6 +281,7 @@ export function Toasts() {
       ))}
     </div>
   );
+  return chatSlot ? createPortal(content, chatSlot) : content;
 }
 
 export function Banner({

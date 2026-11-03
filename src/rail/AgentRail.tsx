@@ -67,7 +67,17 @@ function Ring({ value, cap }: { value: number; cap: number }) {
   );
 }
 
-export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean }) {
+function SentImage({ file }: { file: File }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return url ? <img className="chat-sent-image" src={url} alt={`Attached image: ${file.name}`} /> : null;
+}
+
+export function RailMessage({ entry, fresh, image }: { entry: RailEntry; fresh: boolean; image?: File }) {
   if (entry.role === 'card') return <RailCard entry={entry} />;
   if (entry.role === 'system')
     return (
@@ -94,7 +104,11 @@ export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean
   if (entry.role === 'user')
     return (
       <div className="rail-msg user">
-        <div className="bubble-user chat-bubble chat-bubble--user">{entry.text}</div>
+        <div className="bubble-user chat-bubble chat-bubble--user">
+          {image && <SentImage file={image} />}
+          <div>{entry.text}</div>
+          {image && <span className="chat-image-note">Image is temporary (up to 30 recent images; not saved after refresh)</span>}
+        </div>
       </div>
     );
   return (
@@ -102,12 +116,7 @@ export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean
       <div
         className="prose-agent chat-bubble chat-bubble--agent"
         data-fresh={fresh || undefined}
-        style={{
-          display: '-webkit-box',
-          WebkitBoxOrient: 'vertical',
-          WebkitLineClamp: 2,
-          overflow: 'hidden',
-        }}
+
       >
         {entry.text}
         {entry.reasoningReplayed && (
@@ -120,7 +129,7 @@ export function RailMessage({ entry, fresh }: { entry: RailEntry; fresh: boolean
   );
 }
 
-export function AgentRail({ focused = false }: { focused?: boolean }) {
+export function AgentRail({ focused = false, onMinimize, minimizing = false }: { focused?: boolean; onMinimize?: () => void; minimizing?: boolean }) {
   const rail = useProject((s) => s.doc.rail);
   const doc = useProject((s) => s.doc);
   const projectId = useProject((s) => s.projectId);
@@ -150,7 +159,8 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const wonder = useAgent((s) => s.wonder);
   const setWonder = useAgent((s) => s.setWonder);
   const receipts = useAgent((s) => s.receipts);
-  const preview = useAgent((s) => s.screenshotPreview);
+  const chatImages = useUi((s) => s.chatImages);
+  const rememberChatImage = useUi((s) => s.rememberChatImage);
   const [filter, setFilter] = useState<string | null>(() => {
     try {
       const saved = localStorage.getItem('museware/receiptFilter');
@@ -167,7 +177,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
       /* storage unavailable */
     }
   }, [filter]);
-  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [attachmentUrl, setAttachmentUrl] = useState('');
@@ -237,6 +247,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
     if (!el) return;
     const onScroll = () => {
       stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
+      setAwayFromLatest(!stickToBottom.current);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
@@ -277,7 +288,8 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
       return;
     }
     if (text === undefined) setDraft('');
-    useProject.getState().addRail({ role: 'user', text: value || 'Recreate this screenshot.' });
+    const sent = useProject.getState().addRail({ role: 'user', text: value || 'Recreate this screenshot.' });
+    if (attachment) rememberChatImage({ entryId: sent.id, projectId, file: attachment });
     stickToBottom.current = true;
     if (attachment) {
       setPendingImage(null);
@@ -353,6 +365,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         )}
       </button>
       <div className="rail-header">
+        {focused && onMinimize && <button type="button" className="chat-minimize" aria-label="Minimize chat" onClick={onMinimize} tabIndex={minimizing ? -1 : undefined}><X size={20} /></button>}
         <Sparkles size={15} className="chat-accent-icon" />
         <div className="title-row">
           <strong>muse</strong>
@@ -406,6 +419,8 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         ) : null}
       </div>
 
+      {focused && <div id="chat-toast-slot" className="chat-toast-slot" />}
+      <details className="chat-options"><summary>Models and activity</summary>
       <div className="chat-model-strip">
         <button
           type="button"
@@ -450,41 +465,9 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             ))}
         </div>
       )}
-      {preview && (
-        <div className="chat-card chat-card--preview">
-          <img
-            src={preview.image}
-            alt="Uploaded screenshot"
-            onLoad={(e) =>
-              setImageSize({
-                width: e.currentTarget.naturalWidth,
-                height: e.currentTarget.naturalHeight,
-              })
-            }
-          />
-          <svg
-            viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
-            preserveAspectRatio="none"
-            className="chat-preview-overlay"
-          >
-            {preview.boxes.map((item, i) => (
-              <rect
-                key={i}
-                x={item.box[0]}
-                y={item.box[1]}
-                width={item.box[2]}
-                height={item.box[3]}
-                fill="none"
-                stroke="var(--mw-accent)"
-                strokeWidth={Math.max(1, imageSize.width / 400)}
-              />
-            ))}
-          </svg>
-        </div>
-      )}
+      </details>
       <div className="rail-body" ref={bodyRef}>
-        {!filter &&
-          projectId &&
+        {projectId &&
           !doc.screens.length &&
           !doc.opLog.length &&
           !doc.rail.length && (
@@ -499,24 +482,24 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             Load earlier ({visibleRail.length - VISIBLE})
           </button>
         )}
-        {!filter &&
-          visible.map((entry) => (
+        {visible.map((entry) => (
             <RailMessage
               key={entry.id}
               entry={entry}
               fresh={Date.now() - entry.at < 1200}
+              image={chatImages.find((item) => item.entryId === entry.id && item.projectId === projectId)?.file}
             />
           ))}
-        {!filter &&
-          (!interruptionCard?.cardId ||
+        {(!interruptionCard?.cardId ||
             !rail.some((entry) => entry.id === interruptionCard.cardId)) && (
             <InterruptedCard />
           )}
       </div>
 
+      {awayFromLatest && <button type="button" className="chat-latest chat-chip" onClick={() => { const el = bodyRef.current; if (el) { stickToBottom.current = true; el.scrollTop = el.scrollHeight; setAwayFromLatest(false); } }}>Latest message ↓</button>}
       <div className="composer">
         {!busy && (
-          <div className="composer-suggestions">
+          <details className="chat-suggestions" open={rail.length === 0 || undefined}><summary>Suggestions</summary><div className="composer-suggestions">
             {suggestions.map((s) => (
               <button
                 type="button"
@@ -531,7 +514,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
                 {s}
               </button>
             ))}
-          </div>
+          </div></details>
         )}
         <div className="composer-box" data-expanded={composerExpanded || undefined}>
           {imageForProject && (

@@ -12,7 +12,7 @@ import { recreateFromScreenshot } from '../muse/screenshot';
 beforeEach(() => {
   vi.mocked(recreateFromScreenshot).mockClear();
   useProject.getState().replaceDoc(createProject());
-  useUi.setState({ draft: '', pendingImage: null, chatExpanded: true });
+  useUi.setState({ draft: '', pendingImage: null, chatExpanded: true, chatImages: [] });
   useAgent.setState({ busy: false, screenshotPreview: null });
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:preview') });
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
@@ -30,6 +30,26 @@ describe('chat composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(recreateFromScreenshot).toHaveBeenCalledWith(file, 'Keep the dark layout.'));
     expect(useProject.getState().doc.rail.some((r) => r.role === 'user' && r.text === 'Keep the dark layout.')).toBe(true);
+  });
+  it('keeps each sent image with its own message and never pins a screenshot', async () => {
+    const { container } = render(<AgentRail focused />);
+    const input = container.querySelector('input[type=file]')!;
+    for (const [name, text] of [['first.png', 'First caption'], ['second.png', 'Second caption']]) {
+      fireEvent.change(input, { target: { files: [new File(['x'], name, { type: 'image/png' })] } });
+      fireEvent.change(screen.getByLabelText('Message muse'), { target: { value: text } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+      await waitFor(() => expect(screen.getByAltText(`Attached image: ${name}`)).toBeTruthy());
+      expect(screen.getByText(text).closest('.bubble-user')?.querySelector('img')?.getAttribute('alt')).toBe(`Attached image: ${name}`);
+    }
+    expect(container.querySelector('.chat-card--preview')).toBeNull();
+    expect(useUi.getState().chatImages).toHaveLength(2);
+  });
+  it('does not clamp the agent reply', () => {
+    useProject.getState().addRail({ role: 'agent', text: 'A long response with important details.' });
+    render(<AgentRail focused />);
+    const message = screen.getByText('A long response with important details.');
+    expect(message.style.overflow).not.toBe('hidden');
+    expect(message.style.webkitLineClamp).toBe('');
   });
   it('lets the user remove the image without losing their message', () => {
     const { container } = render(<AgentRail focused />);

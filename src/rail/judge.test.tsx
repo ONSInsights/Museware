@@ -38,7 +38,7 @@ describe('judge rail', () => {
     expect(screen.getByLabelText('Reasoning replayed')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Image/ }));
     expect(screen.getByLabelText('Image calls').textContent).toContain('muse-image-1.0');
-    expect(screen.queryByText('A response')).toBeNull();
+    expect(screen.getByText('A response')).toBeTruthy();
   });
   it('keeps historical receipts readable without advertising a retired model', () => {
     localStorage.setItem('museware/receiptFilter', 'SAM');

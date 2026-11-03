@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { AgentRail } from './AgentRail';
 import { useUi } from '../store/useUi';
 import { useProject } from '../store/useProject';
@@ -96,17 +96,8 @@ export function ChatHost() {
               setMinimizing(false);
           }}
         >
-          <button
-            type="button"
-            className="chat-minimize"
-            aria-label="Minimize chat"
-            onClick={minimize}
-            tabIndex={minimizing ? -1 : undefined}
-          >
-            <X size={24} />
-          </button>
           <div className="chat-focus-column">
-            <AgentRail focused />
+            <AgentRail focused onMinimize={minimize} minimizing={minimizing} />
           </div>
         </div>
       )}
