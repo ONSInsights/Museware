@@ -8,5 +8,6 @@ dist-ssr
 coverage
 .vite
 
-# Private working handover (never commit)
+# Private working notes (never commit)
 /MUSEWARE_HANDOVER.local.md
+/MUSEWARE_SKILL_MARKETPLACE.local.md
