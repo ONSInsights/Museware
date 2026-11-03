@@ -236,7 +236,8 @@ export function Inspector() {
 
   // These navigation behaviors live in widget properties, not node.events.
   // Resolve them exactly as Run does instead of claiming they are custom actions.
-  const builtInNavigation: Array<{ label: string; target: string }> = [];
+  const builtInNavigation: Array<{ label: string; target: string; isNavLabel?: boolean }> =
+    [];
   if (node.type === 'navbar' || node.type === 'bottomnav') {
     const items = Array.isArray(node.props.items)
       ? node.props.items.map(String)
@@ -246,7 +247,9 @@ export function Inspector() {
             .map((item) => item.trim())
             .filter(Boolean)
         : [];
-    items.forEach((label) => builtInNavigation.push({ label, target: label }));
+    items.forEach((label) =>
+      builtInNavigation.push({ label, target: label, isNavLabel: true }),
+    );
     if (node.type === 'navbar' && node.props.cta) {
       builtInNavigation.push({
         label: String(node.props.cta),
@@ -260,6 +263,29 @@ export function Inspector() {
       target: String(node.props.to),
     });
   }
+
+  const describeDestination = (target: string, isNavLabel = false) => {
+    if (!target) return { destination: undefined, ambiguous: false };
+    const slug = target
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const candidates = doc.screens.filter(
+      (screen) =>
+        slug &&
+        (screen.id === slug ||
+          screen.id.includes(slug) ||
+          screen.name.toLowerCase() === target.toLowerCase()),
+    );
+    const direct = isNavLabel
+      ? undefined
+      : doc.screens.find((screen) => screen.id === target);
+    const id = direct?.id || screenSlugForLabel(doc.screens, target);
+    return {
+      destination: doc.screens.find((screen) => screen.id === id),
+      ambiguous: !direct && candidates.length > 1,
+    };
+  };
 
   const dispatchScope = (stylesOnly: boolean) => {
     const submitted = scopeInstruction;
@@ -728,14 +754,15 @@ export function Inspector() {
                   These destinations come from this block’s properties, not additional
                   actions.
                 </p>
-                {builtInNavigation.map(({ label, target }, index) => {
-                  const id =
-                    doc.screens.find((screen) => screen.id === target)?.id ||
-                    (target ? screenSlugForLabel(doc.screens, target) : null);
-                  const destination = doc.screens.find((screen) => screen.id === id);
+                {builtInNavigation.map(({ label, target, isNavLabel }, index) => {
+                  const { destination, ambiguous } = describeDestination(
+                    target,
+                    isNavLabel,
+                  );
                   return (
                     <p className="field-hint" key={`${label}-${index}`}>
                       {label} → {destination ? destination.name : 'No matching screen'}
+                      {ambiguous ? ' — multiple screens match; check this destination' : ''}
                     </p>
                   );
                 })}
@@ -764,7 +791,7 @@ export function Inspector() {
                   >
                     {ev.name === 'tap' ? 'WHEN TAPPED' : ev.label.toUpperCase()} →{' '}
                     {action.type === 'navigate'
-                      ? `Go to screen: ${action.to}`
+                      ? `Go to screen: ${action.to}${!describeDestination(action.to).destination ? ' — no matching screen' : describeDestination(action.to).ambiguous ? ' — multiple screens match; check this destination' : ''}`
                       : action.type === 'toast'
                         ? `Show: ${action.text}`
                         : action.type === 'openUrl'

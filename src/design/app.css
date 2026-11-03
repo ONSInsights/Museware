@@ -4377,7 +4377,7 @@ button.how-card .field-hint {
   position: fixed;
   inset: 0;
   z-index: var(--mw-z-chat);
-  background: color-mix(in srgb, var(--mw-bg) 62%, transparent);
+  background: color-mix(in srgb, var(--mw-bg) 92%, transparent);
   backdrop-filter: blur(var(--mw-blur-chat));
   -webkit-backdrop-filter: blur(var(--mw-blur-chat));
   display: flex;

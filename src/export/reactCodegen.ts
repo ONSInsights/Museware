@@ -27,6 +27,17 @@ const jsxText = (value: unknown): string => {
 
 const str = (value: unknown) => JSON.stringify(value === undefined ? '' : value);
 
+// Match the editor/Run list vocabulary for both legacy comma text and arrays.
+const asList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.map(String)
+    : typeof value === 'string'
+      ? value
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
 function actionsCode(actions: Action[] | undefined): string {
   if (!actions || !actions.length) return '';
   return `run(${JSON.stringify(actions)})`;
@@ -107,16 +118,16 @@ function renderLeaf(
     case 'spinner':
       return `${pad}<span className="mw-spinner" />`;
     case 'button':
-      return `${pad}<button className={${str(cls)}} onClick={() => ${tap || 'undefined'}}>${jsxText(p.text)}</button>`;
+      return `${pad}<button type="button" className={${str(cls)}} disabled={${Boolean(p.disabled)}} onClick={() => ${tap || 'undefined'}}>${jsxText(p.text)}</button>`;
     case 'iconbutton':
-      return `${pad}<button className={${str(cls)}} onClick={() => ${tap || 'undefined'}} aria-label=${str(iconName(node))}><Icon name=${str(iconName(node))} size={20} /></button>`;
+      return `${pad}<button type="button" className={${str(cls)}} onClick={() => ${tap || 'undefined'}} aria-label=${str(iconName(node))}><Icon name=${str(iconName(node))} size={20} /></button>`;
     case 'input':
-      return `${pad}<input className={${str(cls)}} placeholder=${str(p.placeholder || '')} value={${bindValue(bind)}} onChange={(e) => setKey(${str(bind)}, e.target.value)} />`;
+      return `${pad}<input className={${str(cls)}} type=${str(p.inputType === 'phone' ? 'tel' : p.inputType === 'number' || p.inputType === 'password' ? p.inputType : 'text')} placeholder=${str(p.placeholder || '')} value={${bindValue(bind)}} onChange={(e) => setKey(${str(bind)}, e.target.value)}${change ? ` onBlur={() => ${change}} onKeyDown={(e) => { if (e.key === 'Enter') ${change}; }}` : ''} />`;
     case 'textarea':
-      return `${pad}<textarea className={${str(cls)}} rows={${Number(p.rows) || 4}} placeholder=${str(p.placeholder || '')} value={${bindValue(bind)}} onChange={(e) => setKey(${str(bind)}, e.target.value)} />`;
+      return `${pad}<textarea className={${str(cls)}} rows={${Number(p.rows) || 4}} placeholder=${str(p.placeholder || '')} value={${bindValue(bind)}} onChange={(e) => setKey(${str(bind)}, e.target.value)}${change ? ` onBlur={() => ${change}} onKeyDown={(e) => { if (e.key === 'Enter') ${change}; }}` : ''} />`;
     case 'select': {
-      const options = Array.isArray(p.options) ? (p.options as unknown[]).map(String) : [];
-      return `${pad}<select className={${str(cls)}} value={${bindValue(bind)}} onChange={(e) => setKey(${str(bind)}, e.target.value)}>${options
+      const options = asList(p.options);
+      return `${pad}<select className={${str(cls)}} value={${bindValue(bind)}} onChange={(e) => { setKey(${str(bind)}, e.target.value); ${change || ''} }}><option value="">${jsxText(p.placeholder || 'Choose…')}</option>${options
         .map((o) => `<option value=${str(o)}>${jsxText(o)}</option>`)
         .join('')}</select>`;
     }
@@ -133,13 +144,13 @@ function renderLeaf(
         Number(p.min) || 0
       })} onChange={(e) => { setKey(${str(bind)}, Number(e.target.value)); ${change || ''} }} />`;
     case 'datepicker':
-      return `${pad}<input className={${str(cls)}} type="date" value={${bindValue(bind)}} onChange={(e) => setKey(${str(bind)}, e.target.value)} />`;
+      return `${pad}<input className={${str(cls)}} type="date" value={${bindValue(bind)}} onChange={(e) => { setKey(${str(bind)}, e.target.value); ${change || ''} }} />`;
     case 'navbar': {
-      const items = Array.isArray(p.items) ? (p.items as unknown[]).map(String) : [];
+      const items = asList(p.items);
       const links = items
         .map(
           (item) =>
-            `<button type="button" className="mw-nav-item" onClick={() => go(${str(item)})}>${jsxText(item)}</button>`,
+            `<button type="button" className="mw-nav-item" onClick={() => { go(${str(item)}); ${tap || ''} }}>${jsxText(item)}</button>`,
         )
         .join('');
       const cta = p.cta
@@ -171,18 +182,18 @@ ${pad}</nav>`;
       return `${pad}<div className={${str(`${cls} mw-accordion`)}}>${items.map((item) => `<details><summary>${jsxText(item.question)}</summary><div className="mw-accordion-answer">${jsxText(item.answer)}</div></details>`).join('')}</div>`;
     }
     case 'bottomnav': {
-      const items = Array.isArray(p.items) ? (p.items as unknown[]).map(String) : [];
+      const items = asList(p.items);
       return `${pad}<nav className={${str(cls)}}>${items
         .map(
           (item) =>
-            `<button className="mw-nav-item" onClick={() => go(${str(item)})}>${jsxText(item)}</button>`,
+            `<button className="mw-nav-item" onClick={() => { go(${str(item)}); ${tap || ''} }}>${jsxText(item)}</button>`,
         )
         .join('')}</nav>`;
     }
     case 'link':
-      return `${pad}<button className={${str(cls)}} onClick={() => ${tap || `go(${str(p.to || '')})`}}>${jsxText(p.text)} <Icon name="chevron-right" size={14} /></button>`;
+      return `${pad}<button type="button" className={${str(cls)}} onClick={() => { ${p.to ? `go(${str(p.to)});` : ''} ${tap || ''} }}>${jsxText(p.text)} <Icon name="chevron-right" size={14} /></button>`;
     case 'fab':
-      return `${pad}<button className={${str(cls)}} onClick={() => ${tap || 'undefined'}}><Icon name=${str(iconName(node))} size={24} /></button>`;
+      return `${pad}<button type="button" className={${str(cls)}} onClick={() => ${tap || 'undefined'}}><Icon name=${str(iconName(node))} size={24} /></button>`;
     case 'list': {
       const rows = (data as Array<Record<string, unknown>> | undefined) || [];
       const items = rows.slice(0, 5);
@@ -351,11 +362,11 @@ function renderNode(
       );
     }
     case 'tabs': {
-      const items = Array.isArray(p.items) ? (p.items as unknown[]).map(String) : [];
+      const items = asList(p.items);
       return wrap(
         `<TabsBlock>\n${pad}  ${children}\n${pad}</TabsBlock>`.replace(
           '<TabsBlock>',
-          `<TabsBlock items={${JSON.stringify(items)}}>`,
+          `<TabsBlock items={${JSON.stringify(items)}}${attrEvents(node, 'change') ? ` onChange={() => ${attrEvents(node, 'change')}}` : ''}>`,
         ),
       );
     }
@@ -495,7 +506,7 @@ export function useSetScreen(): (id: string) => void {
   return ctx.setScreen;
 }
 
-export function TabsBlock({ items, children }: { items: string[]; children: ReactNode }) {
+export function TabsBlock({ items, children, onChange }: { items: string[]; children: ReactNode; onChange?: () => void }) {
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const previous = useRef(active);
@@ -507,7 +518,7 @@ export function TabsBlock({ items, children }: { items: string[]; children: Reac
     <div ref={root}>
       <div className="mw-tab-strip">
         {items.map((item, i) => (
-          <button key={item} className="mw-tab" data-active={i === active} onClick={() => setActive(i)}>{item}</button>
+          <button key={item} className="mw-tab" data-active={i === active} onClick={() => { setActive(i); onChange?.(); }}>{item}</button>
         ))}
       </div>
       {Children.toArray(children)[active] ?? children}
@@ -545,11 +556,13 @@ export default function App() {
       state,
       setKey: (key: string, value: unknown) => setState((s) => ({ ...s, [key]: value })),
       navigate: (to: string) => {
-        if (SCREEN_COMPONENTS[to as keyof typeof SCREEN_COMPONENTS]) setScreen(to);
+        api.go(to);
       },
       go: (target: string) => {
-        const match = SCREENS.find((s) => s.id === target || s.id === slug(target) || s.name === target);
+        const normalized = slug(target);
+        const match = SCREENS.find((s) => s.id === target) || (normalized && SCREENS.find((s) => s.id === normalized || s.id.includes(normalized) || s.name.toLowerCase() === target.toLowerCase()));
         if (match) setScreen(match.id);
+        else if (target) api.toast('No screen called “' + target + '” yet.');
       },
       toast: (text: string) => {
         setToastText(text);

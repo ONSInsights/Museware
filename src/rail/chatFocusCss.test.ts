@@ -17,8 +17,8 @@ describe('fullscreen chat CSS', () => {
     expect(launcher).toMatch(/left:\s*auto\s*;/);
     expect(launcher).toMatch(/right:\s*var\(--mw-space-4\)\s*;/);
   });
-  it('uses a full-width blurred overlay with centered readable content', () => {
-    expect(rule('.chat-focus')).toMatch(/var\(--mw-bg\)\s+62%/);
+  it('uses a legible, full-width blurred overlay with centered readable content', () => {
+    expect(rule('.chat-focus')).toMatch(/var\(--mw-bg\)\s+92%/);
     expect(rule('.chat-focus')).toMatch(/backdrop-filter:\s*blur\(var\(--mw-blur-chat\)\)/);
     expect(rule('.chat-focus-column')).toMatch(/width:\s*100%\s*;/);
     const messages = rule('.chat-focus .rail-body > *');

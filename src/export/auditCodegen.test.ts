@@ -12,6 +12,32 @@ const node = (
 ): ComponentNode => ({ id, type, props, styles: {}, children });
 
 describe('exported interactive components', () => {
+  it('preserves comma-list navigation and both link destination and explicit action', async () => {
+    const home = emptyScreen('Home', { id: 'home', entry: true });
+    const story = emptyScreen('Our Story + Visit', { id: 'our_story_visit', entry: false });
+    const nav = node('nav', 'navbar', {
+      items: 'Home, Our Story',
+      cta: 'Go',
+      ctaTo: 'home',
+    });
+    nav.events = { tap: [{ type: 'toast', text: 'nav action' }] };
+    const link = node('link', 'link', { text: 'Story', to: 'our_story_visit' });
+    link.events = { tap: [{ type: 'toast', text: 'link action' }] };
+    const select = node('select', 'select', { bindKey: 'choice', options: 'One, Two' });
+    select.events = { change: [{ type: 'toast', text: 'changed' }] };
+    home.root.children = [nav, link, select];
+    const files = generateProjectFiles({ ...createProject(), screens: [home, story] });
+    const source = files['src/screens/Home.tsx'];
+    expect(source).toContain('go("Our Story")');
+    expect(source).toContain('nav action');
+    expect(source).toContain('go("our_story_visit"); run(');
+    expect(source).toContain('link action');
+    expect(source).toContain('changed');
+    expect(source).toContain('>Two</option>');
+    expect(files['src/App.tsx']).toContain('s.id.includes(normalized)');
+    await expect(transform(source, { loader: 'tsx' })).resolves.toBeTruthy();
+  });
+
   it('exports a form submit control and a truthful fallback', async () => {
     const screen = emptyScreen('Home', { id: 'home', entry: true });
     screen.root.children = [node('form_a', 'form', { submitLabel: 'Reserve' })];

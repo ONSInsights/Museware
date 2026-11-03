@@ -302,6 +302,46 @@ describe('the events tab tells the truth', () => {
     expect(screen.getByText('Visit → Screen 1')).toBeTruthy();
     expect(screen.getByText('No additional actions set.')).toBeTruthy();
   });
+  it('flags ambiguous labels without changing which screen Run opens', () => {
+    const doc = docWith();
+    doc.screens.push({ ...screenDoc(), id: 'menu_drinks', name: 'Drinks' });
+    doc.screens.push({ ...screenDoc(), id: 'menu_food', name: 'Food' });
+    doc.screens[0].root.children.push(node('nav_a', 'navbar', [], { items: ['menu'] }));
+    useProject.getState().replaceDoc(doc);
+    useUi.setState({
+      activeScreenId: 'screen_1',
+      selectedId: 'nav_a',
+      route: 'editor',
+      propertiesOpen: true,
+      inspectorCollapsed: false,
+    });
+    render(<Inspector />);
+    openTab('Events');
+    expect(
+      screen.getByText('menu → Drinks — multiple screens match; check this destination'),
+    ).toBeTruthy();
+  });
+  it('warns about missing explicit navigation without silently rewiring it', () => {
+    const doc = docWith();
+    const btn = node('lost_btn', 'button', [], { text: 'Go' });
+    btn.events = { tap: [{ type: 'navigate', to: 'missing' }] };
+    doc.screens[0].root.children.push(btn);
+    useProject.getState().replaceDoc(doc);
+    useUi.setState({
+      activeScreenId: 'screen_1',
+      selectedId: 'lost_btn',
+      route: 'editor',
+      propertiesOpen: true,
+      inspectorCollapsed: false,
+    });
+    render(<Inspector />);
+    fireEvent.click(screen.getByText('Events •'));
+    expect(screen.getByText(/Go to screen: missing — no matching screen/)).toBeTruthy();
+    expect(
+      useProject.getState().doc.screens[0].root.children.at(-1)?.events?.tap?.[0],
+    ).toEqual({ type: 'navigate', to: 'missing' });
+  });
+
   it('shows a link destination without inventing an explicit event', () => {
     const doc = docWith();
     doc.screens[0].root.children.push(
