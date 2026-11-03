@@ -44,6 +44,7 @@ describe('chat composer', () => {
     const field = screen.getByLabelText('Message muse') as HTMLTextAreaElement;
     fireEvent.change(field, { target: { value: 'Hello.' } });
     expect(screen.queryByLabelText('Insert period')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^(hold to talk|click to talk|stop recording)$/i })).toBeNull();
     expect(field.value).toBe('Hello.');
     fireEvent.click(screen.getByLabelText('Expand message box'));
     expect(field.closest('.composer-box')?.getAttribute('data-expanded')).toBe('true');

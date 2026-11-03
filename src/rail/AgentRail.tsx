@@ -3,7 +3,6 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  Mic,
   Maximize2,
   Minimize2,
   Send,
@@ -19,7 +18,6 @@ import { runAgentTurn, runScopedAction, stopAgent } from '../muse/loop';
 import { recreateFromScreenshot } from '../muse/screenshot';
 import { stageScreenshot } from './stageScreenshot';
 import { generateHeroImage } from '../muse/cards';
-import { transcribe } from '../muse/client';
 import { RailCard } from './RailCard';
 import { InterruptedCard } from './InterruptedCard';
 import { isKeepalive } from '../muse/keepalive';
@@ -149,7 +147,6 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const sessionCents = useAgent((s) => s.sessionCents);
   const modelMatrix = useAgent((s) => s.models);
   const demoMode = useAgent((s) => s.demoMode);
-  const configured = useAgent((s) => s.configured);
   const wonder = useAgent((s) => s.wonder);
   const setWonder = useAgent((s) => s.setWonder);
   const receipts = useAgent((s) => s.receipts);
@@ -172,7 +169,6 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   }, [filter]);
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const [showAll, setShowAll] = useState(false);
-  const [recording, setRecording] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [attachmentUrl, setAttachmentUrl] = useState('');
   useEffect(() => {
@@ -184,8 +180,6 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const stickToBottom = useRef(true);
 
   const hiddenThinkingEntries = new Set(
@@ -293,57 +287,6 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
     }
   };
 
-  const startRecording = async () => {
-    if (recording) return;
-    if (!configured) {
-      toast('Voice input needs a muse key — add one in Settings.', 'warn');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        setRecording(false);
-        const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || 'audio/webm',
-        });
-        if (!blob.size) return;
-        toast('Transcribing…');
-        try {
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(blob);
-          });
-          const text = await transcribe(base64, blob.type || 'audio/webm');
-          if (text.trim())
-            setDraft(
-              `${useUi.getState().draft}${useUi.getState().draft ? ' ' : ''}${text.trim()}`,
-            );
-        } catch (err) {
-          toast(err instanceof Error ? err.message : 'Transcription failed', 'danger');
-        }
-      };
-      recorder.start();
-      recorderRef.current = recorder;
-      setRecording(true);
-    } catch {
-      toast('No microphone permission — voice stays off.', 'warn');
-    }
-  };
-
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-  };
-
-  // Touch presses and holds; a mouse clicks to start and clicks again to stop.
   const coarsePointer =
     typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
@@ -649,36 +592,6 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
               onClick={() => fileRef.current?.click()}
             >
               <Camera size={15} />
-            </button>
-            <button
-              type="button"
-              className="icon-btn icon-btn-sm mic-btn"
-              data-recording={recording}
-              aria-label={
-                recording
-                  ? 'Stop recording'
-                  : coarsePointer
-                    ? 'Hold to talk'
-                    : 'Click to talk'
-              }
-              data-tip={coarsePointer ? 'Hold to talk' : 'Click to talk'}
-              // §8.10: press-and-hold on touch, click-to-toggle on desktop.
-              onPointerDown={() => {
-                if (coarsePointer) void startRecording();
-              }}
-              onPointerUp={() => {
-                if (coarsePointer) stopRecording();
-              }}
-              onPointerLeave={() => {
-                if (coarsePointer && recording) stopRecording();
-              }}
-              onClick={() => {
-                if (coarsePointer) return;
-                if (recording) stopRecording();
-                else void startRecording();
-              }}
-            >
-              <Mic size={15} />
             </button>
             <button
               type="button"
