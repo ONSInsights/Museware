@@ -123,7 +123,7 @@ export const nodeSchema: z.ZodType<RawNode> = z.lazy(() =>
       id: idSchema.optional(),
       name: z.string().max(40).optional(),
       type: z.enum(ALL_TYPES),
-      props: z.record(z.unknown()).optional(),
+      props: z.record(z.string(), z.unknown()).optional(),
       styles: styleSchema.optional(),
       children: z.array(nodeSchema).max(120).optional(),
       events: eventsSchema,
@@ -148,7 +148,12 @@ const screenSchema = z.object({
   entry: z.boolean().optional(),
   mockData: z
     .record(
-      z.array(z.record(z.union([z.string(), z.number().finite(), z.boolean()]))).max(100),
+      z.string(),
+      z
+        .array(
+          z.record(z.string(), z.union([z.string(), z.number().finite(), z.boolean()])),
+        )
+        .max(100),
     )
     .optional(),
 });
@@ -167,7 +172,11 @@ export const opSchema = z.discriminatedUnion('op', [
     parentId: idSchema,
     index: z.number().int().min(0).max(200).optional(),
   }),
-  z.object({ op: z.literal('setProps'), id: idSchema, props: z.record(z.unknown()) }),
+  z.object({
+    op: z.literal('setProps'),
+    id: idSchema,
+    props: z.record(z.string(), z.unknown()),
+  }),
   z.object({ op: z.literal('setStyles'), id: idSchema, styles: styleSchema }),
   z.object({ op: z.literal('setText'), id: idSchema, text: z.string().max(2000) }),
   z.object({
@@ -175,7 +184,7 @@ export const opSchema = z.discriminatedUnion('op', [
     screenId: screenIdSchema,
     key: stateKey,
     rows: z
-      .array(z.record(z.union([z.string(), z.number().finite(), z.boolean()])))
+      .array(z.record(z.string(), z.union([z.string(), z.number().finite(), z.boolean()])))
       .max(100),
   }),
   z.object({ op: z.literal('rename'), id: idSchema, name: z.string().min(1).max(40) }),
@@ -189,7 +198,7 @@ export const opSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setEntry'), id: screenIdSchema }),
   z.object({
     op: z.literal('setTokens'),
-    patch: z.record(z.unknown()),
+    patch: z.record(z.string(), z.unknown()),
     replace: z.boolean().optional(),
   }),
   z.object({
@@ -222,10 +231,10 @@ export const toolSchemas = {
         theme_mode: z.string().max(20).optional(),
         corner_profile: z.string().max(20).optional(),
         density: z.string().max(20).optional(),
-        radii_dp: z.record(z.number()).optional(),
-        metrics_dp: z.record(z.number()).optional(),
-        light_colors: z.record(z.string()).optional(),
-        dark_colors: z.record(z.string()).optional(),
+        radii_dp: z.record(z.string(), z.number()).optional(),
+        metrics_dp: z.record(z.string(), z.number()).optional(),
+        light_colors: z.record(z.string(), z.string()).optional(),
+        dark_colors: z.record(z.string(), z.string()).optional(),
         font_heading: z.string().max(160).optional(),
         font_body: z.string().max(160).optional(),
       })

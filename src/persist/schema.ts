@@ -25,7 +25,7 @@ const railCardSchema = z
       'key',
     ]),
     state: z.enum(['pending', 'answered', 'cancelled', 'expired']),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   })
   .passthrough();
 
@@ -40,7 +40,7 @@ export const railEntrySchema = z
   .passthrough();
 
 export const mockRowsSchema = z.array(
-  z.record(z.union([z.string(), z.number().finite(), z.boolean()])),
+  z.record(z.string(), z.union([z.string(), z.number().finite(), z.boolean()])),
 );
 
 export const screenSchema = z
@@ -49,7 +49,7 @@ export const screenSchema = z
     name: z.string().min(1).max(80),
     root: nodeSchema,
     entry: z.boolean().optional(),
-    mockData: z.record(mockRowsSchema).optional(),
+    mockData: z.record(z.string(), mockRowsSchema).optional(),
   })
   .passthrough();
 
@@ -70,11 +70,11 @@ const tokensSchema = z
       .object({
         brand_color: z.string().default('#2563EB'),
         secondary_color: z.string().default('#6366F1'),
-        light_colors: z.record(z.string()).default({}),
-        dark_colors: z.record(z.string()).default({}),
+        light_colors: z.record(z.string(), z.string()).default({}),
+        dark_colors: z.record(z.string(), z.string()).default({}),
       })
       .passthrough(),
-    tokens: z.array(z.record(z.unknown())).default([]),
+    tokens: z.array(z.record(z.string(), z.unknown())).default([]),
   })
   .passthrough();
 
@@ -105,7 +105,7 @@ export const projectSchema = z
           .object({
             at: z.number(),
             source: z.enum(['agent', 'user']),
-            batch: z.array(z.record(z.unknown())).default([]),
+            batch: z.array(z.record(z.string(), z.unknown())).default([]),
             summary: z.string().default(''),
           })
           .passthrough(),
@@ -245,7 +245,8 @@ function recoverProject(input: unknown): { value: unknown; details: RecoveryDeta
     if (parsed.success) break;
     let changed = false;
     for (const issue of parsed.error.issues) {
-      const path = issue.path;
+      if (issue.path.some((part) => typeof part === 'symbol')) continue;
+      const path = issue.path as Array<string | number>;
       const style = path.indexOf('styles');
       if (style < 0 || style === path.length - 1) continue;
       let parent: unknown = doc;

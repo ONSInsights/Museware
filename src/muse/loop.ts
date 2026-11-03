@@ -1,5 +1,5 @@
 import { videoSourceViolation } from './videoGuard';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod';
 import { editCanvasWire, readCanvasWire, illustrateImagesWire } from '../types/wire';
 import { TOOL_NAMES, toolSchemas, type ToolName } from '../types/tools';
 import { useAgent } from '../store/useAgent';
@@ -122,6 +122,9 @@ function tighten(node: unknown): unknown {
   if (!node || typeof node !== 'object') return node;
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    // JSON object keys are already strings; omit this redundant draft-7 keyword
+    // to preserve the exact tool contract accepted by the model provider.
+    if (key === 'propertyNames') continue;
     const next = tighten(value);
     // An empty `properties` stays: a no-argument tool still reads as an object.
     if (key === 'required' && Array.isArray(next) && next.length === 0) continue;
@@ -136,19 +139,13 @@ function tighten(node: unknown): unknown {
   return out;
 }
 
-/**
- * `$refStrategy: 'none'` inlines every sub-schema. Without it zod hoists any
- * schema object used twice (a node appears in `add`, `addScreen` and
- * `saveComponent`) into `definitions` and points at it with `$ref` — and Meta
- * answers a `$ref` with 400 "Recursive JSON schemas are not currently
- * supported", which killed every turn before the first token.
- */
+/** Inline reused schemas and preserve the established, reference-free tool contract. */
 export function toolParameters(name: ToolName): Record<string, unknown> {
-  const raw = zodToJsonSchema(wireSchema(name), {
-    target: 'openApi3',
-    $refStrategy: 'none',
+  const raw = z.toJSONSchema(wireSchema(name), {
+    target: 'draft-7',
+    unrepresentable: 'any',
+    reused: 'inline',
   }) as Record<string, unknown>;
-  // Belt and braces: never send a reference to anywhere.
   delete raw.$schema;
   delete raw.definitions;
   return tighten(raw) as Record<string, unknown>;

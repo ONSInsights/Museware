@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { TOOL_DEFS, toolParameters } from '../muse/loop';
 import { TOOL_NAMES, opSchema } from './tools';
 import type { Op } from './tree';
@@ -58,6 +59,24 @@ function editCanvasParams(): Schema & {
 }
 
 describe('the schemas sent to the model', () => {
+  it('rejects an oversized invalid tool batch without producing one error per item', () => {
+    const input = { ops: Array.from({ length: 100_000 }, () => ({ op: 'invalid' })) };
+    const result = editCanvasWire.safeParse(input);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.length).toBeLessThan(10);
+  });
+
+  it('preserves the exact pre-upgrade provider tool contract', () => {
+    const old = JSON.parse(
+      readFileSync('src/types/fixtures/tool-parameters-v3.json', 'utf8'),
+    );
+    expect(
+      TOOL_DEFS.map((tool) => ({
+        name: tool.function.name,
+        parameters: tool.function.parameters,
+      })),
+    ).toEqual(old);
+  });
   it('covers every tool', () => {
     expect(TOOL_DEFS.map((t) => t.function.name).sort()).toEqual([...TOOL_NAMES].sort());
     for (const def of TOOL_DEFS) {

@@ -681,10 +681,24 @@ export function applyOps(
     const r = opSchema.safeParse(raw);
     if (!r.success) {
       const issue = r.error.issues[0];
+      // Keep the rejected enum value in the correction, as the previous
+      // validator did, without leaking entire nested inputs into the rail.
+      const invalidValue =
+        issue.code === 'invalid_value'
+          ? issue.path.reduce<unknown>(
+              (value, key) =>
+                value && typeof value === 'object'
+                  ? (value as Record<PropertyKey, unknown>)[key]
+                  : undefined,
+              raw,
+            )
+          : undefined;
+      const received =
+        typeof invalidValue === 'string' ? ` (received ${invalidValue.slice(0, 120)})` : '';
       errors.push(
         error(
           'E_BAD_OP',
-          `${issue.path.join('.') || 'op'}: ${issue.message}`,
+          `${issue.path.map(String).join('.') || 'op'}: ${issue.message}${received}`,
           'fix the offending field and retry strict JSON',
           i,
         ),
