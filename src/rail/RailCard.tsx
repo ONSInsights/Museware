@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -26,12 +26,6 @@ import { runAgentTurn, stopAgent } from '../muse/loop';
 import { QUICK_SWATCHES } from '../design/palettes';
 import { KeyCard } from './KeyCard';
 import { InterruptedCard } from './InterruptedCard';
-import { VisualDirections } from './VisualDirections';
-import { acceptVisualDraft } from '../muse/cards';
-import {
-  getVisualDraftSession,
-  subscribeVisualDraftSession,
-} from '../muse/visualDrafts';
 import { isKeepalive } from '../muse/keepalive';
 
 export function assetSummary(assets: Array<{ state: string; reason?: string }>): string {
@@ -62,23 +56,8 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
     stateKeys?: string[];
     wiring?: string[];
     adjustCount?: number;
-    visualDirections?: boolean;
   };
   const busy = useAgent((state) => state.busy);
-  const epoch = useProject((state) => state.documentEpoch);
-  const [session, setSession] = useState(() => getVisualDraftSession());
-  useEffect(() => {
-    setSession(getVisualDraftSession());
-    return subscribeVisualDraftSession(() => {
-      setSession(getVisualDraftSession());
-    });
-  }, [epoch]);
-  const hasDrafts = Boolean(
-    data.visualDirections &&
-      session &&
-      session.epoch === epoch &&
-      session.drafts.length > 0,
-  );
   const [adjusting, setAdjusting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
@@ -133,14 +112,6 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
           ))}
         </div>
       )}
-      {data.visualDirections && !adjusting && (
-        <VisualDirections
-          onBuild={(draft, epoch, baseline) =>
-            void acceptVisualDraft(entry.id, draft, epoch, baseline)
-          }
-          onSkip={() => void answerBlueprint(entry.id, 'build')}
-        />
-      )}
       {adjusting ? (
         <>
           <textarea
@@ -173,16 +144,14 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
         </>
       ) : (
         <div className="card-actions">
-          {!hasDrafts && (
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              disabled={busy}
-              onClick={() => void answerBlueprint(entry.id, 'build')}
-            >
-              <Play size={12} /> Build it
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={busy}
+            onClick={() => void answerBlueprint(entry.id, 'build')}
+          >
+            <Play size={12} /> Build it
+          </button>
           <button
             type="button"
             className="btn btn-sm btn-secondary"

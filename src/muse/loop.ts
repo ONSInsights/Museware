@@ -1755,7 +1755,6 @@ export function presentBlueprint(text: string) {
     'blueprint',
     {
       blueprint: text,
-      visualDirections: true,
       screens: parsed.screens.map((s) => ({ id: s.id, name: s.name })),
       look: parsed.look,
       stateKeys: parsed.stateKeys,
@@ -2862,7 +2861,6 @@ export async function adjustBlueprint(wish: string, adjustCount = 1): Promise<bo
       'blueprint',
       {
         blueprint: text,
-        visualDirections: true,
         adjustCount,
         screens: parsed.screens.map((s) => ({ id: s.id, name: s.name })),
         look: parsed.look,
