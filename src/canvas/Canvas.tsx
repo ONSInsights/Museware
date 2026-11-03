@@ -15,7 +15,7 @@ import { useDrag, buildDropOps, nodeIdFromElement, dropTargetFor } from './drag'
 import { fitScale, fitSize, toLocalBox } from './fit';
 import { CanvasStyle, NodeView } from './NodeView';
 import { findNode } from '../ops/treeUtils';
-import { recreateFromScreenshot } from '../muse/screenshot';
+import { stageScreenshot } from '../rail/stageScreenshot';
 import { Button } from '../components/ui';
 
 const TEXTISH = new Set(['heading', 'text', 'label', 'badge', 'button', 'link']);
@@ -323,7 +323,7 @@ export function Canvas() {
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 e.target.value = '';
-                if (file) await recreateFromScreenshot(file);
+                if (file && stageScreenshot(file)) useUi.getState().setChatExpanded(true);
               }}
             />
           </div>
@@ -420,7 +420,7 @@ export function Canvas() {
           const file = Array.from(e.dataTransfer.files).find((f) =>
             f.type.startsWith('image/'),
           );
-          if (file) await recreateFromScreenshot(file);
+          if (file && stageScreenshot(file)) useUi.getState().setChatExpanded(true);
         }}
       >
         <div className="frame-fit" style={{ width: fit.w || width, height: fit.h || 780 }}>

@@ -24,11 +24,12 @@ function stubResponse(text: string, finish = 'stop') {
 describe('direct screenshot vision', () => {
   it('sends the image to vision without SAM and presents the text blueprint for approval', async () => {
     const fetcher = stubResponse('RULES: Recreate\nSCREEN: Home\n- title (heading) Welcome\nLOOK: pad 16\nSTATE: none\nWIRING: none');
-    await recreateFromScreenshot(shot());
+    await recreateFromScreenshot(shot(), 'Use the reference and keep its dark colours.');
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0][0]).toBe('/api/muse/chat');
     const request = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string);
     expect(request.max_tokens).toBe(4096);
+    expect(request.messages[1].content[0].text).toContain('Use the reference and keep its dark colours.');
     expect(request.messages[1].content.some((part: {type: string; image_url?: {url: string}}) =>
       part.type === 'image_url' && part.image_url?.url.startsWith('data:image/jpeg;base64,'))).toBe(true);
     expect(useProject.getState().doc.blueprint?.decided).toBe(false);

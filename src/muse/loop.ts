@@ -450,7 +450,7 @@ function contextMessages(
   const sheet = buildTokenSheet(doc.tokens);
   const index = buildProjectIndex(doc, { selectionId: useUi.getState().selectedId });
   return [
-    { role: 'system', content: `${SYSTEM_PROMPT}\n\nTOKEN SHEET (design law):\n${sheet}` },
+    { role: 'system', content: `${SYSTEM_PROMPT}\n\nPROJECT TOKENS (honor explicitly supplied designs; defaults are not mandatory):\n${sheet}` },
     {
       role: 'system',
       content: `CANVAS INDEX:\n${index}\n\n${decisionLedger(doc)}\nPROJECT MEMORY (honor and cite relevant preferences):\n${(doc.designNotes || []).slice(-10).join('\n') || 'none'}${extraSystem.length ? `\n${extraSystem.join('\n')}` : ''}`,
@@ -2385,7 +2385,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
       const section = sections[i] || blueprint;
       const fillText = fillPrompt({
         screenName: target.name,
-        section: section.slice(0, 1600),
+        section,
         lookLine: `pad ${parsed.look.pad}, gap ${parsed.look.gap}, card radius ${parsed.look.cardRadius}, title ${parsed.look.title}px, body ${parsed.look.body}px`,
         tokenSheet: buildTokenSheet(useProject.getState().doc.tokens),
         indexRules:

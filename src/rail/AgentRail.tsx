@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Mic,
   Maximize2,
+  Minimize2,
   Send,
   Sparkles,
   Square,
@@ -16,6 +17,7 @@ import { useAgent } from '../store/useAgent';
 import { emptyProjectLabel, useSaveStatus } from '../store/useSaveStatus';
 import { runAgentTurn, runScopedAction, stopAgent } from '../muse/loop';
 import { recreateFromScreenshot } from '../muse/screenshot';
+import { stageScreenshot } from './stageScreenshot';
 import { generateHeroImage } from '../muse/cards';
 import { transcribe } from '../muse/client';
 import { RailCard } from './RailCard';
@@ -128,6 +130,9 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const setDraft = useUi((s) => s.setDraft);
   const draftTrimmed = useUi((s) => s.draftTrimmed);
   const draft = useUi((s) => s.draft);
+  const pendingImage = useUi((s) => s.pendingImage);
+  const setPendingImage = useUi((s) => s.setPendingImage);
+  const imageForProject = pendingImage?.projectId === projectId ? pendingImage.file : null;
   const railCollapsed = useUi((s) => s.railCollapsed);
   const setChatExpanded = useUi((s) => s.setChatExpanded);
   const toggleRail = useUi((s) => s.toggleRail);
@@ -167,6 +172,14 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const [showAll, setShowAll] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [composerExpanded, setComposerExpanded] = useState(false);
+  const [attachmentUrl, setAttachmentUrl] = useState('');
+  useEffect(() => {
+    if (!imageForProject) { setAttachmentUrl(''); return; }
+    const url = URL.createObjectURL(imageForProject);
+    setAttachmentUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageForProject]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -262,15 +275,21 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
 
   const send = async (text?: string) => {
     const value = (text ?? draft).slice(0, 8000).trim();
-    if (!value) return;
+    const attachment = text === undefined ? imageForProject : null;
+    if (!value && !attachment) return;
     if (useAgent.getState().busy) {
       toast('muse is already working — Stop first.', 'warn');
       return;
     }
     if (text === undefined) setDraft('');
-    useProject.getState().addRail({ role: 'user', text: value });
+    useProject.getState().addRail({ role: 'user', text: value || 'Recreate this screenshot.' });
     stickToBottom.current = true;
-    await runAgentTurn(value);
+    if (attachment) {
+      setPendingImage(null);
+      await recreateFromScreenshot(attachment, value);
+    } else {
+      await runAgentTurn(value);
+    }
   };
 
   const startRecording = async () => {
@@ -570,7 +589,14 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             ))}
           </div>
         )}
-        <div className="composer-box">
+        <div className="composer-box" data-expanded={composerExpanded || undefined}>
+          {imageForProject && (
+            <div className="composer-attachment">
+              {attachmentUrl && <img src={attachmentUrl} alt="Attached image preview" />}
+              <span>{imageForProject.name}</span>
+              <button type="button" className="icon-btn icon-btn-sm" aria-label="Remove attached image" onClick={() => setPendingImage(null)}><X size={15} /></button>
+            </div>
+          )}
           <textarea
             ref={composerRef}
             value={draft}
@@ -611,6 +637,18 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             }}
           />
           <div className="chat-composer-actions">
+            <button type="button" className="icon-btn icon-btn-sm" aria-label={composerExpanded ? 'Shrink message box' : 'Expand message box'} onClick={() => setComposerExpanded((v) => !v)}>
+              {composerExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+            <button type="button" className="icon-btn icon-btn-sm" aria-label="Insert period" onClick={() => {
+              const el = composerRef.current;
+              if (!el) return;
+              const start = el.selectionStart;
+              const end = el.selectionEnd;
+              if (draft.length - (end - start) >= 8000) return;
+              setDraft(draft.slice(0, start) + '.' + draft.slice(end));
+              requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start + 1, start + 1); });
+            }}>.</button>
             <button
               type="button"
               className="icon-btn icon-btn-sm"
@@ -654,7 +692,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
               type="button"
               className="send-btn"
               aria-label="Send"
-              disabled={!draft.trim() || busy}
+              disabled={(!draft.trim() && !imageForProject) || busy}
               onClick={() => void send()}
             >
               <Send size={15} />
@@ -703,7 +741,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
             const file = e.target.files?.[0];
             e.target.value = '';
             if (!file) return;
-            await recreateFromScreenshot(file);
+            stageScreenshot(file);
           }}
         />
       </div>

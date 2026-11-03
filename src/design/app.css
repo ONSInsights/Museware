@@ -6471,3 +6471,52 @@ button.how-card .field-hint {
     max-height: calc(12em + var(--mw-space-1) + var(--mw-space-1));
   }
 }
+
+/* One unified chat composer; expansion is an explicit touch-friendly control. */
+.composer-box {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  background: var(--mw-surface);
+}
+.composer-box textarea {
+  flex: 1 1 100%;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  resize: vertical;
+  min-height: var(--mw-control-h-sm);
+}
+.composer-box[data-expanded='true'] textarea {
+  min-height: min(30dvh, 18rem);
+  max-height: 50dvh;
+}
+.composer-box .chat-composer-actions {
+  width: 100%;
+}
+.composer-box .send-btn {
+  margin-left: auto;
+}
+.composer-attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--mw-space-2);
+  width: 100%;
+  min-width: 0;
+}
+.composer-attachment img {
+  width: var(--mw-control-h-sm);
+  height: var(--mw-control-h-sm);
+  object-fit: cover;
+  border-radius: var(--mw-radius-sm);
+}
+.composer-attachment span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-composer-status {
+  background: transparent;
+  border: 0;
+}

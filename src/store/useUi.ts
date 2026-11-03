@@ -64,6 +64,8 @@ interface UiStore {
   paletteFilter: string;
   draft: string;
   draftTrimmed: boolean;
+  pendingImage: { file: File; projectId: string | null } | null;
+  setPendingImage: (image: { file: File; projectId: string | null } | null) => void;
   activePreset: string | null;
   setRoute: (r: Route, projectId?: string) => void;
   select: (id: string | null) => void;
@@ -182,6 +184,8 @@ export const useUi = create<UiStore>((set, get) => ({
   toasts: [],
   paletteFilter: preferences.paletteFilter,
   draft: '',
+  pendingImage: null,
+  setPendingImage: (pendingImage) => set({ pendingImage }),
   draftTrimmed: false,
   activePreset: null,
 

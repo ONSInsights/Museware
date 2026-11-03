@@ -159,6 +159,7 @@ export function elementsOutline(roots: SegmentNode[], limit = 40): string {
 async function describeBlueprint(
   doc: ProjectDoc,
   imageUrl: string,
+  instruction: string,
 ): Promise<{ text: string; finishReason: string }> {
   const sheet = buildTokenSheet(doc.tokens);
   const index = buildProjectIndex(doc).slice(0, 1400);
@@ -172,14 +173,14 @@ async function describeBlueprint(
       messages: [
         {
           role: 'system',
-          content: `You recreate UIs as Museware blueprints. Format exactly: RULES, then "SCREEN: <Name>", component lines "- <id> (<type>) <what it does>", a LOOK line with hard numbers, STATE, WIRING. Library types only (screen, row, col, grid, card, hero, section, form, heading, text, label, badge, button, input, image, list, table, stat, chart, navbar, bottomnav, link, icon, avatar, progress). Keep copy verbatim. Never invent hexes.\n\nTOKEN SHEET:\n${sheet}\n\nEXISTING CANVAS (keep ids unique):\n${index}`,
+          content: `You recreate UIs as Museware blueprints. Format exactly: RULES, then "SCREEN: <Name>", component lines "- <id> (<type>) <what it does>", a LOOK line with hard numbers, STATE, WIRING. Library types only (screen, row, col, grid, card, hero, section, form, heading, text, label, badge, button, input, image, list, table, stat, chart, navbar, bottomnav, link, icon, avatar, progress). Match the reference closely. Describe visible colours honestly; do not claim exact colour values you cannot determine. Honor a user-supplied design system when explicitly provided, otherwise do not impose the default look. Keep copy verbatim.\n\nTOKEN SHEET:\n${sheet}\n\nEXISTING CANVAS (keep ids unique):\n${index}`,
         },
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Recreate the provided screenshot as an editable, responsive screen blueprint. Inspect the image directly. Describe the visible layout, hierarchy, colours, typography, spacing and copy as accurately as possible. Use library components, and do not invent working interactions. If a detail is unclear, say so rather than guessing.',
+              text: `Recreate the provided screenshot as an editable, responsive screen blueprint. Match the reference as closely as the available components permit. Inspect the image directly. Describe the visible layout, hierarchy, colours, typography, spacing and copy as accurately as possible. Do not invent working interactions. If a detail is unclear, say so rather than guessing. User instructions: ${instruction || 'Recreate this screenshot.'}`,
             },
             { type: 'image_url', image_url: { url: imageUrl } },
           ] as unknown as string,
@@ -226,7 +227,7 @@ async function describeBlueprint(
 }
 
 /** Screenshot → vision → text blueprint approval. SAM remains available separately. */
-export async function recreateFromScreenshot(file: File): Promise<void> {
+export async function recreateFromScreenshot(file: File, instruction = ''): Promise<void> {
   const agent = useAgent.getState();
   const addSystem = (text: string) =>
     useProject.getState().addRail({ role: 'system', text });
@@ -256,7 +257,7 @@ export async function recreateFromScreenshot(file: File): Promise<void> {
     useAgent.getState().startTurn();
     useAgent.getState().setLive('Reading the screenshot with the vision model…');
     addSystem('Screenshot received — asking the vision model for a blueprint…');
-    const result = await describeBlueprint(useProject.getState().doc, dataUrl);
+    const result = await describeBlueprint(useProject.getState().doc, dataUrl, instruction);
     if (!result.text.trim() || result.finishReason === 'length') {
       addAgent(
         result.finishReason === 'length'
