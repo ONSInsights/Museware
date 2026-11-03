@@ -87,7 +87,7 @@ const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Fill every list/table/chart dataKey with setMockData: 5–20 realistic rows matching the brief; a dataKey without rows ships an empty section. setMockData replaces all rows at that screen/key, so preserve existing data unless replacement is intended. Video src must be in the user prompt; leave it empty for a procedural reel. ' +
     'Long batches: split them into several edit_canvas calls of at most 12 ops each. An oversized call can be cut off mid-JSON and dropped without being applied.',
   illustrate_images:
-    'Generate images for up to six existing hero, image or card nodes: targets [{id, prompt?}]. One image per target, with palette-aware prompts.',
+    'Generate images for up to six existing hero, image or card nodes: targets [{id, prompt?}]. Preserve the requested medium, mood, lighting and restrictions in each prompt. Do not generate images for image-free designs; existing images are preserved during automatic builds.',
   finish: 'End the turn with a two-sentence user-facing summary.',
 };
 
@@ -659,6 +659,7 @@ interface ToolLoopOptions {
   allowReplaceImages?: boolean;
   imageBudget?: ImageBudget;
   protectDesignTokens?: boolean;
+  imageContext?: string;
 }
 
 interface ToolLoopResult {
@@ -1212,7 +1213,7 @@ async function runTool(
       const results = budget
         ? await queueAssetTargets(
             allowed,
-            '',
+            opts.imageContext || '',
             budget.remaining,
             controller?.signal,
             budget.cardId,
@@ -1222,11 +1223,12 @@ async function runTool(
         : await illustrateTargets(allowed, {
             signal: controller?.signal,
             onlyEmpty: Boolean(opts.repairIds && !opts.allowReplaceImages),
+            context: opts.imageContext,
           });
       return {
         text: results.length
           ? results.map((r) => `${r.id}: ${r.ok ? 'applied' : r.message}`).join('\n')
-          : 'No automated image budget remains; targets were skipped and placeholders remain.',
+          : 'No automatic image requests were run; check the asset status for the reason. Placeholders remain.',
       };
     }
 
@@ -1428,6 +1430,7 @@ export async function verifyGate(
           .filter((f) => f.protectMotion)
           .map((f) => f.nodeId),
         imageBudget,
+        imageContext: task,
       });
     } catch (err) {
       addSystem(
@@ -1529,6 +1532,7 @@ export async function verifyGate(
         .filter((f) => f.protectMotion)
         .map((f) => f.nodeId),
       imageBudget,
+      imageContext: task,
     });
   } catch (err) {
     addSystem(`Repair call failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1809,6 +1813,7 @@ export async function runAgentTurn(
       repairIds: repairFollowup ? [...repairIds] : undefined,
       protectedMotionIds,
       allowReplaceImages: repairFollowup && explicitReplace,
+      imageContext: userText,
       imageBudget:
         manualImageRequest || (repairFollowup && explicitReplace) ? undefined : imageBudget,
       maxCalls: TURN_CALL_CAP,
@@ -2374,6 +2379,7 @@ export async function runFillQueue(options: FillOptions): Promise<void> {
           maxCalls: 14,
           role: 'builder',
           protectDesignTokens,
+          imageContext: `${globalContext}\n${section}`,
           effort: options.mode === 'fast' ? 'low' : 'medium',
           imageBudget,
         });

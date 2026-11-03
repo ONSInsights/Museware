@@ -220,7 +220,9 @@ describe('quality lint and gate', () => {
     );
     expect(useAgent.getState().verification).toBe('pass');
     expect(
-      useProject.getState().doc.rail.some((entry) => entry.text.includes('budget cap')),
+      useProject
+        .getState()
+        .doc.rail.some((entry) => entry.text.includes('image budget spent')),
     ).toBe(true);
   });
   it('keeps empty image placeholders as warnings when no image budget remains', async () => {

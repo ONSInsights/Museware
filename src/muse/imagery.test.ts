@@ -5,8 +5,13 @@ import { useAgent } from '../store/useAgent';
 import type { ComponentNode } from '../types/tree';
 import { toolSchemas } from '../types/tools';
 import { generateImage, chatStream, type ChatResult } from './client';
-import { autoIllustrate, illustrateTarget, imageSizeFor } from './imagery';
-import { runAgentTurn } from './loop';
+import {
+  autoIllustrate,
+  illustrateTarget,
+  imageSizeFor,
+  queueAssetTargets,
+} from './imagery';
+import { runAgentTurn, runFillQueue } from './loop';
 
 vi.mock('./client', async (original) => ({
   ...(await original<typeof import('./client')>()),
@@ -82,7 +87,7 @@ describe('build imagery', () => {
     ).toBe(true);
     expect(useProject.getState().doc.screens[0].root.children[0].props.src).toBe('');
   });
-  it('uses nearby product copy to request a photograph rather than a vector', async () => {
+  it('uses nearby product copy without imposing a photographic style', async () => {
     const doc = structuredClone(useProject.getState().doc);
     const image = doc.screens[0].root.children[0];
     image.props.alt = 'Image';
@@ -107,9 +112,156 @@ describe('build imagery', () => {
     useProject.getState().replaceDoc(doc);
     await illustrateTarget({ id: 'image_0' });
     const prompt = vi.mocked(generateImage).mock.calls[0][0];
-    expect(prompt).toMatch(/photograph/i);
+    expect(prompt).not.toMatch(/photograph|warm natural light|shallow depth/i);
     expect(prompt).toContain('Jasmine Green Tea');
     expect(prompt).not.toMatch(/flat vector|abstract background|no text/i);
+  });
+  it('preserves explicit vector, no-text and abstract direction in a manual request', async () => {
+    const request =
+      'Flat vector-style illustration of tea leaves, abstract waves, no text in the image';
+    await illustrateTarget({ id: 'image_0', prompt: request });
+    const prompt = vi.mocked(generateImage).mock.calls[0][0];
+    expect(prompt).toContain(request);
+    expect(prompt).not.toMatch(
+      /professional subject-driven photograph|warm natural light|shallow depth/i,
+    );
+    expect(prompt.length).toBeLessThanOrEqual(1200);
+  });
+  it('keeps moody photography and lighting instead of replacing it with a warm default', async () => {
+    const request =
+      'Moody photography of tea leaves in cool moonlight, deep shadows, no text';
+    await illustrateTarget({ id: 'image_0', prompt: request });
+    const prompt = vi.mocked(generateImage).mock.calls[0][0];
+    expect(prompt).toContain(request);
+    expect(prompt).not.toMatch(/warm natural light|shallow depth/i);
+  });
+  it('retains a full 700-character target request before context within the proxy cap', async () => {
+    const request = `${'x'.repeat(675)} flat vector no text end`;
+    await illustrateTarget(
+      { id: 'image_0', prompt: request },
+      { context: 'A brief with muted colours.' },
+    );
+    const prompt = vi.mocked(generateImage).mock.calls[0][0];
+    expect(prompt).toContain(request);
+    expect(prompt.length).toBeLessThanOrEqual(1200);
+  });
+  it('carries shared plan art direction and the relevant image line, not another screen', async () => {
+    const plan =
+      'RULES: All imagery uses flat vector illustration, no text.\nSCREEN: Tea\n- image_0 (image) tea leaves in cool blue.\nSCREEN: Other\n- image_other (image) unrelated orange photograph.';
+    await autoIllustrate(['tea'], plan, 1);
+    const prompt = vi.mocked(generateImage).mock.calls[0][0];
+    expect(prompt).toContain('flat vector illustration, no text');
+    expect(prompt).toContain('tea leaves in cool blue');
+    expect(prompt).not.toContain('unrelated orange photograph');
+  });
+  it('does not auto-generate for a clearly image-free brief, but permits an explicit manual image', async () => {
+    const original = structuredClone(useProject.getState().doc.screens[0]);
+    let reservations = 0;
+    await autoIllustrate(
+      ['tea'],
+      'An image-free utility, no images.',
+      3,
+      undefined,
+      undefined,
+      undefined,
+      () => {
+        reservations++;
+        return true;
+      },
+    );
+    expect(generateImage).not.toHaveBeenCalled();
+    expect(reservations).toBe(0);
+    expect(useProject.getState().doc.screens[0]).toEqual(original);
+    await queueAssetTargets(
+      [{ id: 'image_0', prompt: 'a picture' }],
+      'RULES: no images.\nSCREEN: Tea\n- image_0 (image) tea',
+      3,
+      undefined,
+      undefined,
+      true,
+      () => {
+        reservations++;
+        return true;
+      },
+    );
+    expect(generateImage).not.toHaveBeenCalled();
+    expect(reservations).toBe(0);
+    expect(useAgent.getState().assetJobs[0]).toMatchObject({
+      state: 'skipped',
+      reason: expect.stringContaining('image-free'),
+    });
+    await illustrateTarget({ id: 'image_0', prompt: 'Actually make a flat illustration' });
+    expect(generateImage).toHaveBeenCalledTimes(1);
+  });
+  it('does not add unrequested images to a gradient hero; an explicitly planned hero image remains eligible', async () => {
+    const doc = structuredClone(useProject.getState().doc);
+    doc.screens[0].root.children = [
+      {
+        id: 'hero_tea',
+        type: 'hero',
+        props: { title: 'Tea', subtitle: 'A quiet moment', surface: 'gradient' },
+        styles: {},
+        children: [],
+      },
+    ];
+    useProject.getState().replaceDoc(doc);
+    await autoIllustrate(
+      ['tea'],
+      'SCREEN: Tea\n- hero_tea (hero) gradient with text, no image.',
+      2,
+    );
+    expect(generateImage).not.toHaveBeenCalled();
+    await autoIllustrate(
+      ['tea'],
+      'SCREEN: Tea\n- hero_tea (hero) moody photograph of tea leaves, no text.',
+      2,
+    );
+    expect(generateImage).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(generateImage).mock.calls[0][0]).toContain('moody photograph');
+  });
+  it('leaves existing user images untouched in the automatic pass', async () => {
+    const screen = useProject.getState().doc.screens[0];
+    screen.root.children[0].props.src = 'https://example.com/user.png';
+    await autoIllustrate(['tea'], 'vector images', 1);
+    expect(screen.root.children[0].props.src).toBe('https://example.com/user.png');
+    expect(vi.mocked(generateImage)).toHaveBeenCalledTimes(1);
+    expect(useProject.getState().doc.screens[0].root.children[0].props.src).toBe(
+      'https://example.com/user.png',
+    );
+  });
+  it('passes an explicit manual chat instruction to the image provider even if the tool prompt is missing', async () => {
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(reply('illustrate_images', { targets: [{ id: 'image_0' }] }))
+      .mockResolvedValueOnce(reply('finish', { summary: 'Done' }));
+    await runAgentTurn('Generate image as a flat vector, no text', { skipVerify: true });
+    expect(vi.mocked(generateImage).mock.calls[0][0]).toContain('flat vector, no text');
+  });
+  it('blocks a builder image tool call on an approved image-free build without spending the cap', async () => {
+    useAgent.setState({ buildImages: 2 });
+    useProject
+      .getState()
+      .setBlueprint(
+        'RULES: This is image-free.\nSCREEN: Tea\n- image_0 (image) keep empty',
+        true,
+      );
+    const before = useProject.getState().doc.automatedImageBudget?.used;
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('illustrate_images', {
+          targets: [{ id: 'image_0', prompt: 'draw a photo' }],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'Done' }))
+      .mockResolvedValueOnce({
+        ...reply('finish', {}),
+        toolCalls: [],
+        text: 'PASS',
+        finishReason: 'stop',
+      });
+    await runFillQueue({ mode: 'steady' });
+    expect(generateImage).not.toHaveBeenCalled();
+    expect(useProject.getState().doc.automatedImageBudget?.used).toBe(before);
+    expect(useProject.getState().doc.screens[0].root.children[0].props.src).toBe('');
   });
   it('identifies targets skipped by the automated cap', async () => {
     await autoIllustrate(['tea'], 'tea', 3);

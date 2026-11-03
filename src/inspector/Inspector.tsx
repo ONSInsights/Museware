@@ -138,7 +138,9 @@ export function Inspector() {
     try {
       await illustrate(
         id,
-        regenerate ? 'A fresh photographic variation of the same subject' : undefined,
+        regenerate
+          ? 'A fresh variation of the same subject and requested art direction'
+          : undefined,
       );
     } finally {
       pendingImageRef.current.delete(key);

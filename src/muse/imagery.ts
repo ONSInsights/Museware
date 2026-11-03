@@ -5,6 +5,7 @@ import { useAgent, type AssetJob } from '../store/useAgent';
 import { useProject } from '../store/useProject';
 import type { ComponentNode, ProjectDoc, ScreenDoc } from '../types/tree';
 import { generateImage, MuseError } from './client';
+import { blueprintGlobalContext, blueprintScreenSections } from './blueprintParse';
 
 export type ImageTarget = { id: string; prompt?: string };
 export type ImageOutcome = {
@@ -23,7 +24,7 @@ export function imageSubject(
   doc: ProjectDoc,
   screen: ScreenDoc,
   node: ComponentNode,
-  brief?: string,
+  _brief?: string,
   context?: string,
 ): string {
   const parts: string[] = [];
@@ -62,14 +63,6 @@ export function imageSubject(
     .split(/\r?\n/)
     .find((line) => line.toLowerCase().includes(node.id.toLowerCase()));
   if (related) add(related.replace(/^\s*[-*]\s*/, '').slice(0, 220));
-  add(
-    brief
-      ?.replace(
-        /flat vector(?:-style)?|abstract (?:background|waves)|no text(?: in the image)?/gi,
-        '',
-      )
-      .trim(),
-  );
   if (!parts.length) add(screen.name);
   if (!parts.length) add(doc.name);
   // Include the screen's headline as broad brand context, after local product copy.
@@ -84,6 +77,118 @@ export function imageSubject(
   };
   add(headline(screen.root));
   return parts.slice(0, 6).join('; ') || 'the featured product or scene';
+}
+
+// Image calls are limited to 1,200 characters by the proxy. Carry explicit
+// target direction first, followed by applicable plan context and local copy.
+const IMAGE_WORDS =
+  /\b(?:images?|imagery|photos?|photograph\w*|illustrat\w*|vectors?|artwork|art direction|draw\w*|paint\w*|watercolou?r|lighting|light|palette|mood|style|no text|text-free|lettering)\b/i;
+function relevantImageContext(
+  context: string,
+  screen: ScreenDoc,
+  node: ComponentNode,
+): string {
+  if (!context.trim()) return '';
+  const sections = blueprintScreenSections(context);
+  if (!sections.length) {
+    if (context.length <= 300) return context.trim();
+    return context
+      .split(/(?<=[.!?])\s+|\n+/)
+      .filter((line) => IMAGE_WORDS.test(line))
+      .join(' ');
+  }
+  const shared = blueprintGlobalContext(context);
+  const section =
+    sections.find((part) => {
+      const header = part.split(/\r?\n/, 1)[0].replace(/[#*`]/g, '').trim();
+      return (
+        header
+          .replace(/^SCREEN\s*\d*\s*:\s*/i, '')
+          .trim()
+          .toLowerCase() === screen.name.trim().toLowerCase()
+      );
+    }) || '';
+  const lines = [...shared.split(/\r?\n/), ...section.split(/\r?\n/).slice(1)];
+  return lines
+    .filter(
+      (line) =>
+        IMAGE_WORDS.test(line) &&
+        (shared.split(/\r?\n/).includes(line) ||
+          !/^\s*[-*]\s*\w+\s*\(/.test(line) ||
+          line.toLowerCase().includes(node.id.toLowerCase())),
+    )
+    .join(' ')
+    .trim();
+}
+function imageFree(context: string): boolean {
+  return /\bimage[ -]free\b|\b(?:no|without)\s+(?:any\s+)?images?(?:\s+(?:on|in)\s+this\s+(?:screen|page))?(?=\s*(?:[.!;,]|$))/i.test(
+    context,
+  );
+}
+function imageRequestForHero(
+  context: string,
+  screen: ScreenDoc,
+  node: ComponentNode,
+): boolean {
+  const sections = blueprintScreenSections(context);
+  if (!sections.length) return false;
+  const section = sections.find(
+    (part) =>
+      part
+        .split(/\r?\n/, 1)[0]
+        .replace(/[#*`]/g, '')
+        .trim()
+        .replace(/^SCREEN\s*\d*\s*:\s*/i, '')
+        .trim()
+        .toLowerCase() === screen.name.trim().toLowerCase(),
+  );
+  const line =
+    section
+      ?.split(/\r?\n/)
+      .find((item) => item.toLowerCase().includes(node.id.toLowerCase())) || '';
+  return (
+    /\b(?:image|photo|photograph|illustration|artwork|picture)\b/i.test(line) &&
+    !imageFree(line) &&
+    !/\b(?:no|without)\s+(?:an?\s+)?(?:image|photo|photograph|illustration|artwork|picture)\b/i.test(
+      line,
+    )
+  );
+}
+function providerPrompt(
+  doc: ProjectDoc,
+  screen: ScreenDoc,
+  node: ComponentNode,
+  target: ImageTarget,
+  context = '',
+): string {
+  const targetText = (target.prompt || '').trim().slice(0, 700);
+  const direction = relevantImageContext(
+    context || (doc.blueprint?.decided ? doc.blueprint.text : ''),
+    screen,
+    node,
+  ).slice(0, 250);
+  const subject = imageSubject(doc, screen, node, undefined, context).slice(0, 120);
+  const theme = doc.tokens.openuiTheme;
+  const colors = [
+    theme.brand_color,
+    theme.secondary_color,
+    theme.light_colors?.openui_bg,
+  ].filter(
+    (value): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value),
+  );
+  return [
+    targetText ? `Requested image: ${targetText}` : '',
+    direction
+      ? `Applicable brief/plan context (follow explicit requests; newer target instructions take precedence): ${direction}`
+      : '',
+    `Subject and nearby content: ${subject}`,
+    colors.length
+      ? `Palette cues, only when compatible with the request: ${[...new Set(colors)].join(', ')}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 1200);
 }
 
 /** Wide editorial slots get more detail than compact product cards. */
@@ -215,21 +320,7 @@ export async function illustrateTarget(
       stop: true,
       message: 'Stopped before image generation.',
     });
-  const light = doc.tokens.openuiTheme.light_colors || {};
-  const palette = [
-    ...new Set(
-      [
-        doc.tokens.openuiTheme.brand_color,
-        doc.tokens.openuiTheme.secondary_color,
-        light.openui_bg,
-      ].filter((v): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)),
-    ),
-  ].slice(0, 3);
-  const subject = imageSubject(doc, hit.screen, node, target.prompt, options.context);
-  const paletteHint = palette.length
-    ? ` Accent colors and props inspired by ${palette.join(', ')}.`
-    : '';
-  const prompt = `Professional subject-driven photograph of ${subject.slice(0, 700)}. Warm natural light, shallow depth of field, carefully styled real-world materials.${paletteHint}`;
+  const prompt = providerPrompt(doc, hit.screen, node, target, options.context);
   const size = imageSizeFor(hit.screen, node);
   let attempts = 0;
   try {
@@ -334,7 +425,7 @@ export async function illustrateTarget(
 
 export async function illustrateTargets(
   targets: ImageTarget[],
-  options: { signal?: AbortSignal; onlyEmpty?: boolean } = {},
+  options: { signal?: AbortSignal; onlyEmpty?: boolean; context?: string } = {},
 ): Promise<ImageOutcome[]> {
   const outcomes: ImageOutcome[] = [];
   const documentEpoch = useProject.getState().documentEpoch;
@@ -372,18 +463,23 @@ export async function autoIllustrate(
   reserveAttempt?: () => boolean,
 ): Promise<ImageOutcome[]> {
   const targets: ImageTarget[] = [];
-  const visit = (node: ComponentNode) => {
-    if (
-      (node.type === 'hero' || node.type === 'image') &&
-      (!eligibleIds || eligibleIds.has(node.id)) &&
-      !node.props.src &&
-      !node.props.image
-    )
-      targets.push({ id: node.id });
-    node.children.forEach(visit);
-  };
-  for (const screen of useProject.getState().doc.screens)
-    if (screenIds.includes(screen.id)) visit(screen.root);
+  for (const screen of useProject.getState().doc.screens) {
+    if (!screenIds.includes(screen.id)) continue;
+    const visit = (node: ComponentNode) => {
+      const applicable = relevantImageContext(context, screen, node);
+      if (
+        (node.type === 'image' ||
+          (node.type === 'hero' && imageRequestForHero(context, screen, node))) &&
+        !imageFree(applicable) &&
+        (!eligibleIds || eligibleIds.has(node.id)) &&
+        !node.props.src &&
+        !node.props.image
+      )
+        targets.push({ id: node.id });
+      node.children.forEach(visit);
+    };
+    visit(screen.root);
+  }
   return queueAssetTargets(targets, context, limit, signal, cardId, true, reserveAttempt);
 }
 
@@ -403,17 +499,25 @@ export async function queueAssetTargets(
     const hit = findNodeInDoc(useProject.getState().doc, target.id);
     return {
       nodeId: target.id,
-      prompt: hit
-        ? imageSubject(
-            useProject.getState().doc,
-            hit.screen,
-            hit.node,
-            target.prompt,
-            context,
-          )
-        : target.prompt,
+      prompt:
+        target.prompt?.trim().slice(0, 240) ||
+        (hit
+          ? imageSubject(
+              useProject.getState().doc,
+              hit.screen,
+              hit.node,
+              target.prompt,
+              context,
+            )
+          : undefined),
       size: hit ? imageSizeFor(hit.screen, hit.node) : '768x768',
-      state: 'queued',
+      state:
+        hit && onlyEmpty && imageFree(relevantImageContext(context, hit.screen, hit.node))
+          ? 'skipped'
+          : 'queued',
+      ...(hit && onlyEmpty && imageFree(relevantImageContext(context, hit.screen, hit.node))
+        ? { reason: 'The current brief or plan requests an image-free design.' }
+        : {}),
     };
   });
   const initialCard = cardId
@@ -498,7 +602,7 @@ export async function queueAssetTargets(
     if (budgetSkipped.length) rail(`image budget spent — ${budgetSkipped.length} skipped`);
     if (skipped.length)
       rail(
-        `Auto-illustration skipped ${skipped.length} asset(s) (budget cap or unavailable): ${skipped.map((job) => `${job.nodeId} (${job.reason || 'not generated'})`).join(', ')}. Placeholders remain.`,
+        `Auto-illustration skipped ${skipped.length} asset(s) (see reasons): ${skipped.map((job) => `${job.nodeId} (${job.reason || 'not generated'})`).join(', ')}. Placeholders remain.`,
       );
   }
   return outcomes;

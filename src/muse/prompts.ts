@@ -61,7 +61,7 @@ ${MOTION_PRIMER}
 When a 3-column grid benefits from an asymmetric lead card, it can span 2 (styles.colSpan: 2); use other compositions when appropriate.
 LOOK numbers are binding: ${args.lookLine}. Token sheet: ${args.tokenSheet}
 Use ordered edit_canvas calls with at most 12 ops each to add all components for this screen (library components only), then use small calls for styling deviations. Add parents before their children. Ids: ${args.indexRules}.
-Build the approved sections appropriate to this screen; do not automatically repeat a hero, marquee, grid or FAQ. Images are generated automatically for empty hero and image slots, so create such slots only when useful to the brief, not to use the budget. Never invent image URLs or claim an image was generated when it was not. Wire intended navigation using supported actions and exact existing screen ids; do not present unsupported booking, payments or orders as functional. Write finished content, never scaffold placeholder text.
+Build the approved sections appropriate to this screen; do not automatically repeat a hero, marquee, grid or FAQ. Empty image nodes may be automatically illustrated. Blank hero images keep the gradient unless the approved hero line explicitly requests an image. Use imagery only when useful to the brief; honor image-free designs. Never invent image URLs or claim an image was generated when it was not. Wire intended navigation using supported actions and exact existing screen ids; do not present unsupported booking, payments or orders as functional. Write finished content, never scaffold placeholder text.
 ART DIRECTION — MOBILE FIRST: Make the compact layout usable without overflow, with legible text and reachable controls. Grids already render one column on phones and expand automatically from their declared column count. Rows wrap by default. Add medium (>=600px) and expanded (>=1024px) overrides when this particular design needs a different reflow; a deliberately single-column design needs no forced override. Preserve the approved direction and explicit user typography, spacing, geometry and component treatments. When the plan includes navigation, build the intended navigation, not a generic extra node.
 Use setMockData {screenId, key, rows} to generate mockData rows (5-20, realistic) for every list/table/chart dataKey. Then finish() with one sentence.
 CURRENT CANVAS: ${args.existingIndex}`;
@@ -101,7 +101,7 @@ export function imageBrief(
   w = 1024,
   h = 640,
 ): string {
-  return `Professional photograph of ${subject}, warm natural light, shallow depth of field, on-palette props inspired by ${palette.join(', ')} and ${bgHex}, ${w}×${h}.`;
+  return `Image of ${subject}. Palette cues, only if appropriate: ${palette.join(', ')} and ${bgHex}. Size hint: ${w}×${h}.`;
 }
 
 export const SCREENSHOT_ASSEMBLE_PROMPT = `You are rebuilding a UI from measured boxes. You get a JSON list of elements in reading order (id, type guess, text, box x/y/w/h, fill, radius) and the token sheet. Produce ordered edit_canvas calls of at most 12 ops each to assemble a responsive component tree, adding parents before children: flex/grid only, no absolute positioning, real library types, texts verbatim, ids snake_case. Then finish() in one sentence.`;
