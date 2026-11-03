@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -58,6 +58,8 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
     adjustCount?: number;
   };
   const [adjusting, setAdjusting] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const [wish, setWish] = useState('');
   const text = data.blueprint || '';
   return (
@@ -68,7 +70,10 @@ function BlueprintCard({ entry }: { entry: RailEntry }) {
         </span>
         <span className="railcard-sub">{text.split(/\s+/).length} words</span>
       </div>
-      <div className="blueprint-text" role="region" aria-label="Blueprint details" tabIndex={0}>{text}</div>
+      <div id={detailsId} className={`blueprint-text${expanded ? ' blueprint-text-expanded' : ''}`} role="region" aria-label="Blueprint details" tabIndex={0}>{text}</div>
+      <button type="button" className="btn btn-sm btn-ghost blueprint-expand" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(!expanded)}>
+        {expanded ? 'Show less' : 'Expand blueprint'}
+      </button>
       {(data.stateKeys?.length || data.wiring?.length) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--mw-space-1)' }}>
           {(data.stateKeys || []).slice(0, 6).map((key) => (

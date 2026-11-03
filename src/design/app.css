@@ -1630,12 +1630,21 @@ a {
   color: var(--mw-ink-2);
   white-space: pre-wrap;
   max-height: var(--mw-shell-geometry-116);
-  overflow: hidden;
+  overflow: auto;
+  overflow-wrap: anywhere;
   border-radius: 8px;
   background: var(--mw-surface);
   border: 1px solid var(--mw-border);
   padding: var(--mw-space-2);
-  mask-image: linear-gradient(180deg, var(--mw-neutral-1000) 70%, transparent);
+}
+
+.blueprint-expand {
+  align-self: flex-start;
+}
+
+.blueprint-text.blueprint-text-expanded {
+  max-height: none;
+  overflow: visible;
 }
 
 .card-actions {
@@ -6513,5 +6522,12 @@ button.how-card .field-hint {
     max-height: var(--mw-shell-geometry-260);
     overflow-y: auto;
     mask-image: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .chat-focus .blueprint-text.blueprint-text-expanded {
+    max-height: none;
+    overflow: visible;
   }
 }
