@@ -121,6 +121,87 @@ describe('repair mends, never redesigns', () => {
     expect(chatStream).toHaveBeenCalledTimes(1);
     expect(useProject.getState().doc.screens[0].root.children[2].props.motion).toBe('rise');
   });
+  it('does not auto-scope or disable advisory-only motion in a generic repair turn', async () => {
+    const d = structuredClone(useProject.getState().doc);
+    d.kind = 'app';
+    const section = n('story', 'section', { motion: 'rise' });
+    section.children = Array.from({ length: 9 }, (_, i) => n(`item${i}`, 'text'));
+    d.screens[0].root.children = [section];
+    useProject.getState().replaceDoc(d);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setProps', id: 'story', props: { motion: 'none' } }],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'done' }));
+    await runAgentTurn('Fix issues on this page', { skipVerify: true });
+    expect(useProject.getState().doc.screens[0].root.children[0].props.motion).toBe('rise');
+  });
+  it('protects advisory motion while allowing a separate actionable fix on the same node', async () => {
+    const d = structuredClone(useProject.getState().doc);
+    d.kind = 'app';
+    const section = n('story', 'section', { motion: 'rise', role: 'nav' });
+    section.children = Array.from({ length: 9 }, (_, i) => n(`item${i}`, 'text'));
+    d.screens[0].root.children = [section];
+    useProject.getState().replaceDoc(d);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [
+            { op: 'setProps', id: 'story', props: { motion: 'none' } },
+            { op: 'setStyles', id: 'story', styles: { animation: 'none' } },
+            {
+              op: 'setStyles',
+              id: 'story',
+              styles: { responsive: { medium: { animation: 'none' } } },
+            },
+            { op: 'setStyles', id: 'story', styles: { gap: 16 } },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'done' }));
+    await runAgentTurn('Fix issues on this page', { skipVerify: true });
+    const actual = useProject.getState().doc.screens[0].root.children[0];
+    expect(actual.props.motion).toBe('rise');
+    expect(actual.styles.gap).toBe(16);
+    expect(actual.styles.animation).toBeUndefined();
+    expect(actual.styles.responsive).toBeUndefined();
+  });
+  it('does not infer a request to remove motion from a vague motion repair', async () => {
+    const d = structuredClone(useProject.getState().doc);
+    d.kind = 'app';
+    const section = n('story', 'section', { motion: 'rise' });
+    section.children = Array.from({ length: 9 }, (_, i) => n(`item${i}`, 'text'));
+    d.screens[0].root.children = [section];
+    useProject.getState().replaceDoc(d);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setProps', id: 'story', props: { motion: 'none' } }],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'done' }));
+    await runAgentTurn('Fix motion on story', { skipVerify: true });
+    expect(useProject.getState().doc.screens[0].root.children[0].props.motion).toBe('rise');
+  });
+  it('allows an explicitly requested motion change for the named section', async () => {
+    const d = structuredClone(useProject.getState().doc);
+    d.kind = 'app';
+    const section = n('story', 'section', { motion: 'rise' });
+    section.children = Array.from({ length: 9 }, (_, i) => n(`item${i}`, 'text'));
+    d.screens[0].root.children = [section];
+    useProject.getState().replaceDoc(d);
+    vi.mocked(chatStream)
+      .mockResolvedValueOnce(
+        reply('edit_canvas', {
+          ops: [{ op: 'setProps', id: 'story', props: { motion: 'none' } }],
+        }),
+      )
+      .mockResolvedValueOnce(reply('finish', { summary: 'done' }));
+    await runAgentTurn('Fix motion on story by setting it to none', { skipVerify: true });
+    expect(useProject.getState().doc.screens[0].root.children[0].props.motion).toBe('none');
+  });
   it('repairs an unscrimmed immersive image using a scoped existing style op', async () => {
     const d = structuredClone(useProject.getState().doc);
     const hero = n('h', 'hero', { layout: 'immersive', title: 'Tea' });

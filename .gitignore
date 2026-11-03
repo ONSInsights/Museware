@@ -7,3 +7,6 @@ dist-ssr
 .DS_Store
 coverage
 .vite
+
+# Private working handover (never commit)
+/MUSEWARE_HANDOVER.local.md

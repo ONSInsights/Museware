@@ -569,6 +569,15 @@ function reserveImageAttempt(budget: ImageBudget): boolean {
   return true;
 }
 
+/** Animation declarations at any breakpoint can override a chosen preset. */
+function touchesAnimationStyles(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).some(
+    ([key, nested]) =>
+      /^animation(?:$|[A-Z-])/i.test(key) || touchesAnimationStyles(nested),
+  );
+}
+
 interface ToolLoopOptions {
   messages: ChatMessage[];
   maxCalls: number;
@@ -1014,6 +1023,13 @@ async function runTool(
             op.op === 'setProps' &&
             op.props &&
             'motion' in op.props
+          )
+            return false;
+          if (
+            opts.protectedMotionIds?.includes(op.id) &&
+            op.op === 'setStyles' &&
+            op.styles &&
+            touchesAnimationStyles(op.styles)
           )
             return false;
           if (opts.repairStyleOnly) {
@@ -1797,23 +1813,39 @@ export async function runAgentTurn(
       : [];
     const isImageRepair =
       repairFollowup && /\b(image|images|photo|photos|picture|pictures)\b/i.test(userText);
-    const repairIds = new Set(
-      initialFindings
-        .filter((f) => !isImageRepair || f.code === 'imagery')
-        .map((f) => f.nodeId),
-    );
+    // Advisory findings are not repair instructions. Derive protection from
+    // the uncapped motion lint, so a crowded findings list cannot hide it.
+    const explicitIds = new Set<string>();
     if (repairFollowup)
       for (const screen of before.screens)
         walk(screen.root, (node) => {
           if (new RegExp(`(^|[^a-z0-9_])${node.id}([^a-z0-9_]|$)`, 'i').test(userText))
-            repairIds.add(node.id);
+            explicitIds.add(node.id);
         });
+    const repairIds = new Set(
+      initialFindings
+        .filter((f) => !f.advisory && (!isImageRepair || f.code === 'imagery'))
+        .map((f) => f.nodeId),
+    );
+    explicitIds.forEach((id) => repairIds.add(id));
+    const explicitMotionRequest =
+      /\b(?:motion|animation)\b/i.test(userText) &&
+      /\b(?:none|off|disable|disabled|remove|stop|rise|fade|slide|scale)\b/i.test(userText);
+    const protectedMotionIds = repairFollowup
+      ? before.screens
+          .flatMap(lintMotion)
+          .filter(
+            (f) => f.protectMotion && !(explicitMotionRequest && explicitIds.has(f.nodeId)),
+          )
+          .map((f) => f.nodeId)
+      : [];
     const flaggedImages = imageIdsFromFindings(before, initialFindings).filter((id) =>
       repairIds.has(id),
     );
     const result = await executeToolLoop({
       messages,
       repairIds: repairFollowup ? [...repairIds] : undefined,
+      protectedMotionIds,
       allowReplaceImages: repairFollowup && explicitReplace,
       imageBudget:
         manualImageRequest || (repairFollowup && explicitReplace) ? undefined : imageBudget,
