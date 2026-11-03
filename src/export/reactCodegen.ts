@@ -6,7 +6,7 @@ import type { ComponentNode, ProjectDoc, ScreenDoc, Action } from '../types/tree
 import { materializeCss, screenLookVariables } from '../design/materialize';
 import { projectAppearance } from '../design/projectAppearance';
 import { generateFullCss, nodeClass } from '../canvas/cssGen';
-import { ICON_NAMES } from '../types/library';
+import { ICON_NAMES, defaultPropsFor } from '../types/library';
 import { accordionItems, marqueeItems } from '../types/editorial';
 
 const pascal = (id: string) =>
@@ -77,7 +77,18 @@ function renderLeaf(
 ): string {
   const pad = '  '.repeat(indent);
   const cls = nodeClass(node.id);
-  const p = node.props as Record<string, unknown>;
+  const p = [
+    'button',
+    'progress',
+    'slider',
+    'bottomnav',
+    'checkbox',
+    'switch',
+    'list',
+    'chart',
+  ].includes(node.type)
+    ? ({ ...defaultPropsFor(node.type), ...node.props } as Record<string, unknown>)
+    : (node.props as Record<string, unknown>);
   const tap = attrEvents(node, 'tap');
   const change = attrEvents(node, 'change');
   const bind =
@@ -113,13 +124,18 @@ function renderLeaf(
     case 'avatar':
       return `${pad}<span className={${str(cls)}} style={{ width: ${Number(p.size) || 44}, height: ${Number(p.size) || 44}, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>${jsxText(p.initials)}</span>`;
     case 'progress': {
-      const value = Number(p.value) || 0;
-      return `${pad}<div className={${str(cls)}}><div className="mw-progress-track"><div className="mw-progress-fill" style={{ width: String(state[${str(bind || 'progress')}] ?? ${value}) + '%' }} /></div></div>`;
+      const value = Math.max(0, Math.min(100, Number(p.value) || 0));
+      const current = `Math.max(0, Math.min(100, Number(state[${str(typeof p.bindKey === 'string' ? p.bindKey : '')}] ?? ${value}) || 0))`;
+      const label =
+        p.label || p.bindKey
+          ? `<div className="mw-progress-label"><span>${jsxText(p.label || 'Progress')}</span><span>{${current}}%</span></div>`
+          : '';
+      return `${pad}<div className={${str(cls)}}>${label}<div className="mw-progress-track"><div className="mw-progress-fill" style={{ width: String(${current}) + '%' }} /></div></div>`;
     }
     case 'spinner':
       return `${pad}<span className="mw-spinner" />`;
     case 'button':
-      return `${pad}<button type="button" className={${str(cls)}} disabled={${Boolean(p.disabled)}} onClick={() => ${tap || 'undefined'}}>${jsxText(p.text)}</button>`;
+      return `${pad}<button type="button" className={${str(cls)}} disabled={${Boolean(p.disabled)}}${p.disabled ? ' data-disabled="true"' : ''} onClick={() => ${tap || 'undefined'}}>${p.icon ? `<Icon name=${str(iconName(node))} size={16} />` : ''}${jsxText(p.text)}</button>`;
     case 'iconbutton':
       return `${pad}<button type="button" className={${str(cls)}} onClick={() => ${tap || 'undefined'}} aria-label=${str(iconName(node))}><Icon name=${str(iconName(node))} size={20} /></button>`;
     case 'input':
@@ -133,17 +149,25 @@ function renderLeaf(
         .join('')}</select>`;
     }
     case 'checkbox':
-      return `${pad}<label className={${str(cls)}}><input type="checkbox" checked={Boolean(state[${str(bind)}])} onChange={(e) => { setKey(${str(bind)}, e.target.checked); ${
-        change || ''
-      } }} /> ${jsxText(p.label)}</label>`;
-    case 'switch':
-      return `${pad}<label className={${str(cls)}}><input type="checkbox" checked={Boolean(state[${str(bind)}])} onChange={(e) => { setKey(${str(bind)}, e.target.checked); ${
-        change || ''
-      } }} /> ${jsxText(p.label)}</label>`;
-    case 'slider':
-      return `${pad}<input className={${str(cls)}} type="range" min={${Number(p.min) || 0}} max={${Number(p.max) || 100}} step={${Number(p.step) || 1}} value={Number(state[${str(bind)}] ?? ${
-        Number(p.min) || 0
-      })} onChange={(e) => { setKey(${str(bind)}, Number(e.target.value)); ${change || ''} }} />`;
+    case 'switch': {
+      const stateKey = typeof p.bindKey === 'string' ? p.bindKey : '';
+      const on = `Boolean(state[${str(stateKey)}])`;
+      const visual =
+        node.type === 'switch'
+          ? `<span className="mw-switch" data-on={${on}} aria-hidden="true"><span className="mw-switch-track"><span className="mw-switch-thumb" /></span></span>`
+          : `<span className="mw-check" data-on={${on}} aria-hidden="true">{${on} && <Icon name="check" size={12} strokeWidth={3} />}</span>`;
+      return `${pad}<label className={${str(cls)}}><input className="mw-accessible-toggle" type="checkbox"${node.type === 'switch' ? ' role="switch"' : ''} checked={${on}} onChange={(e) => { setKey(${str(stateKey)}, e.target.checked); ${change || ''} }} />${visual}<span>${jsxText(p.label)}</span></label>`;
+    }
+    case 'slider': {
+      const min = Number(p.min) || 0;
+      const max = Number(p.max) || 100;
+      const current = `typeof state[${str(bind)}] === 'number' ? Number(state[${str(bind)}]) : ${min}`;
+      const caption = typeof p.label === 'string' ? p.label : '';
+      const control = `<input className={${str(caption ? 'mw-slider' : cls)}} type="range" min={${min}} max={${max}} step={${Number(p.step) || 1}} value={${current}}${caption ? ` aria-label={${str(caption)}}` : ''} onChange={(e) => { setKey(${str(bind)}, Number(e.target.value)); ${change || ''} }} />`;
+      return caption
+        ? `${pad}<div className={${str(`${cls} mw-slider-field`)}}><div className="mw-progress-label"><span>${jsxText(caption)}</span><span>{${current}}</span></div>${control}</div>`
+        : `${pad}${control}`;
+    }
     case 'datepicker':
       return `${pad}<input className={${str(cls)}} type="date" value={${bindValue(bind)}} onChange={(e) => { setKey(${str(bind)}, e.target.value); ${change || ''} }} />`;
     case 'navbar': {
@@ -186,8 +210,8 @@ ${pad}</nav>`;
       const items = asList(p.items);
       return `${pad}<nav className={${str(cls)}}>${items
         .map(
-          (item) =>
-            `<button className="mw-nav-item" onClick={() => { go(${str(item)}); ${tap || ''} }}>${jsxText(item)}</button>`,
+          (item, i) =>
+            `<button type="button" className="mw-nav-item" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3, fontSize: 11, color: ${str(i === 0 ? 'var(--openui-text-brand)' : 'var(--openui-text-secondary)')} }} onClick={() => { go(${str(item)}); ${tap || ''} }}><Icon name=${str(['home', 'grid', 'settings'][i % 3])} size={20} /><span>${jsxText(item)}</span></button>`,
         )
         .join('')}</nav>`;
     }
@@ -198,14 +222,14 @@ ${pad}</nav>`;
     case 'list': {
       const rows = (data as Array<Record<string, unknown>> | undefined) || [];
       const items = rows.slice(0, 5);
-      return `${pad}<div className={${str(cls)}}>
+      return `${pad}<div className={${str(`${cls}${p.divider ? ' mw-list-divided' : ''}`)}}>
 ${items
   .map((row, i) => {
     const keys = Object.keys(row);
     const title = row.title ?? row.name ?? row[keys[0]] ?? 'Item';
     const sub = row.detail ?? row.subtitle ?? row[keys[1]] ?? '';
     const tail = row.meta ?? row.value ?? row[keys[2]] ?? '';
-    return `${pad}  <div className="mw-row-item" key={${i}}>
+    return `${pad}  <div className="mw-row-item" key={${i}} onClick={() => { setKey("selected_row", ${str(String(title))}); ${tap || ''} }}>
 ${pad}    <div className="mw-row-main"><div className="mw-row-title">${jsxText(title)}</div>${
       sub ? `<div className="mw-row-sub">${jsxText(sub)}</div>` : ''
     }</div>${tail ? `<span className="mw-row-value">${jsxText(tail)}</span>` : ''}<Icon name="chevron-right" size={16} />
@@ -251,21 +275,34 @@ ${pad}</div>`;
         p.value,
       )}</span><span style={{ fontSize: 12, color: 'var(--openui-success-text)' }}>${jsxText(p.delta)}</span></div>`;
     case 'chart': {
-      const rows = (data as Array<Record<string, unknown>> | undefined) || [];
-      const values = rows.length
-        ? rows
-            .slice(0, 12)
-            .map((r) => Number(Object.values(r).find((v) => typeof v === 'number') ?? 0))
-        : [];
-      if (!values.length)
+      const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
+      if (!rows.length)
         return `${pad}<div className={${str(cls)}}><div className="mw-empty">No data yet</div></div>`;
-      const max = Math.max(...values, 1);
-      return `${pad}<div className={${str(cls)}}><div className="mw-chart">${values
-        .map(
-          (v) =>
-            `<div className="mw-chart-bar" style={{ height: '${Math.max(6, Math.round((v / max) * 100))}%' }} />`,
-        )
-        .join('')}</div></div>`;
+      const valueKey = Object.keys(rows[0]).find((key) => typeof rows[0][key] === 'number');
+      const labelKey = Object.keys(rows[0]).find((key) => typeof rows[0][key] === 'string');
+      const points = rows.slice(0, 12).map((row) => ({
+        value: valueKey ? Number(row[valueKey]) : 0,
+        label: labelKey ? String(row[labelKey]) : '',
+      }));
+      const max = Math.max(...points.map((point) => point.value), 1);
+      const onClick = tap ? ` onClick={() => ${tap}}` : '';
+      if (p.kind === 'line' || p.kind === 'spark') {
+        const w = 240,
+          h = 72,
+          step = points.length > 1 ? w / (points.length - 1) : w;
+        const line = points
+          .map(
+            (point, i) =>
+              `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)},${(h - (point.value / max) * (h - 8) - 4).toFixed(1)}`,
+          )
+          .join(' ');
+        const area =
+          p.kind === 'spark'
+            ? `<path d=${str(`${line} L${w},${h} L0,${h} Z`)} fill="var(--openui-accent)" opacity="0.14" />`
+            : '';
+        return `${pad}<svg className={${str(cls)}} viewBox="0 0 240 72" preserveAspectRatio="none" style={{ height: 96 }}${onClick}><path d=${str(line)} fill="none" stroke="var(--openui-accent)" strokeWidth="2.5" strokeLinecap="round" />${area}</svg>`;
+      }
+      return `${pad}<div className={${str(cls)}}${onClick}><div className="mw-chart">${points.map((point) => `<div className="mw-chart-bar" style={{ height: ${str(`${Math.max(6, (point.value / max) * 100)}%`)} }} title={${str(`${point.label}: ${point.value}`)}} />`).join('')}</div></div>`;
     }
     case 'hero': {
       const media = node.children.filter(
@@ -449,9 +486,9 @@ ${Array.from(usedIcons)
   .join('\n')}
 };
 
-export function Icon({ name, size = 20 }: { name: string; size?: number }) {
+export function Icon({ name, size = 20, strokeWidth = 1.9 }: { name: string; size?: number; strokeWidth?: number }) {
   const Cmp = MAP[name] || L.Star;
-  return <Cmp size={size} strokeWidth={1.9} aria-hidden />;
+  return <Cmp size={size} strokeWidth={strokeWidth} aria-hidden />;
 }
 `;
 
@@ -653,7 +690,7 @@ if ('serviceWorker' in navigator) {
   files['src/nodes.css'] =
     `/* Generated from the Museware tree — do not hand-edit. */\n.mw-site-frame{width:100%;max-width:${doc.kind === 'web' ? '1280px' : '480px'};margin:0 auto;container-type:inline-size;container-name:mw}.mw-app{${doc.kind === 'web' ? 'min-height:100vh' : 'height:100vh;overflow-y:auto'};margin:0 auto;width:100%;max-width:${doc.kind === 'web' ? '1280px' : '480px'};background:var(--openui-bg);color:var(--openui-text-primary);container-type:inline-size;container-name:mw;font-family:var(--font-body)}\n${generateFullCss(doc, { scrollModel: 'web' })}\n`;
   files['src/app.css'] =
-    `.hero-title{font-family:var(--font-heading);font-size:clamp(24px,4cqw + 14px,40px);font-weight:700;line-height:1.12;letter-spacing:-0.02em;margin:0;color:inherit}\n.hero-sub{font-size:15px;line-height:1.55;margin:0;opacity:.9;max-width:560px}\n.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--openui-elevated);color:var(--openui-text-primary);border:1px solid var(--openui-border-default);border-radius:12px;padding:10px 16px;font-size:13px;box-shadow:0 12px 32px rgba(0,0,0,.22);z-index:50}\nbody{margin:0}\n`;
+    `.hero-title{font-family:var(--font-heading);font-size:clamp(24px,4cqw + 14px,40px);font-weight:700;line-height:1.12;letter-spacing:-0.02em;margin:0;color:inherit}\n.hero-sub{font-size:15px;line-height:1.55;margin:0;opacity:.9;max-width:560px}\n.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--openui-elevated);color:var(--openui-text-primary);border:1px solid var(--openui-border-default);border-radius:12px;padding:10px 16px;font-size:13px;box-shadow:0 12px 32px rgba(0,0,0,.22);z-index:50}\nbody{margin:0}\n.mw-accessible-toggle{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}.mw-accessible-toggle:focus-visible + :is(.mw-check,.mw-switch){outline:2px solid var(--openui-border-accent);outline-offset:3px}\n`;
 
   files['index.html'] = `<!doctype html>
 <html lang="en">

@@ -87,7 +87,9 @@ describe('exported interactive components', () => {
     ];
     const files = generateProjectFiles({ ...createProject(), screens: [screen] });
     const source = files['src/screens/Home.tsx'];
-    expect(source).toContain('String(state["percent"] ?? 45) + \'%\'');
+    expect(source).toContain(
+      'Math.max(0, Math.min(100, Number(state["percent"] ?? 45) || 0))',
+    );
     expect(source).toContain('matchesValue(state["enabled"], false)');
     expect(source).toContain('Hello');
     expect(source).toContain('Tapped');
