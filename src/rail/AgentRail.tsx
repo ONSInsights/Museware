@@ -491,7 +491,7 @@ export function AgentRail({ focused = false }: { focused?: boolean }) {
         <div className="chat-card chat-card--preview">
           <img
             src={preview.image}
-            alt="Screenshot segmented by SAM"
+            alt="Uploaded screenshot"
             onLoad={(e) =>
               setImageSize({
                 width: e.currentTarget.naturalWidth,

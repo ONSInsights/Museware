@@ -2,11 +2,12 @@ import type { ProjectDoc } from '../types/tree';
 import { useProject } from '../store/useProject';
 import { useAgent } from '../store/useAgent';
 import { useUi } from '../store/useUi';
-import { chatStream, segmentImage, MuseError, estimateCents } from './client';
+import { chatStream, MuseError, estimateCents } from './client';
 import { buildTokenSheet } from './tokenSheet';
 import { buildProjectIndex } from './projectIndex';
 import { offerKey, presentBlueprint } from './loop';
 import { diagnose } from './connection';
+import { SCREEN_HEAD } from './blueprintParse';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -20,43 +21,6 @@ function readAsDataUrl(file: File): Promise<string> {
 export interface SegmentBox {
   label: string;
   box: [number, number, number, number];
-}
-
-function normalizeSegments(raw: unknown): SegmentBox[] {
-  const out: SegmentBox[] = [];
-  const seen = new Set<string>();
-  const visit = (value: unknown, depth = 0) => {
-    if (depth > 6 || !value) return;
-    if (Array.isArray(value)) {
-      value.forEach((v) => visit(v, depth + 1));
-      return;
-    }
-    if (typeof value !== 'object') return;
-    const obj = value as Record<string, unknown>;
-    const label =
-      (typeof obj.label === 'string' && obj.label) ||
-      (typeof obj.name === 'string' && obj.name) ||
-      (typeof obj.phrase === 'string' && obj.phrase) ||
-      '';
-    const rawBox: unknown =
-      obj.box ??
-      obj.bbox ??
-      obj.bounds ??
-      (obj.x !== undefined ? [obj.x, obj.y, obj.width, obj.height] : null);
-    if (label && Array.isArray(rawBox) && rawBox.length >= 4) {
-      const nums = rawBox.slice(0, 4).map((n) => Number(n));
-      if (nums.every((n) => Number.isFinite(n))) {
-        const key = `${label}:${nums.join(',')}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          out.push({ label, box: nums as [number, number, number, number] });
-        }
-      }
-    }
-    for (const v of Object.values(obj)) visit(v, depth + 1);
-  };
-  visit(raw);
-  return out.slice(0, 40);
 }
 
 export interface SegmentNode {
@@ -192,53 +156,12 @@ export function elementsOutline(roots: SegmentNode[], limit = 40): string {
     .join('\n');
 }
 
-/**
- * §8.9 step 3: crop every box so spark can read the pixels, not just the label.
- * One batched pass, one request — never one call per element. In a test
- * environment there is no 2d context, and the pipeline falls back to the
- * full image (still a single call).
- */
-async function cropRegions(
-  imageUrl: string,
-  roots: SegmentNode[],
-  maxCrops = 24,
-): Promise<Array<{ label: string; b64: string }>> {
-  if (typeof document === 'undefined') return [];
-  const nodes = flattenSegments(roots).slice(0, maxCrops);
-  if (!nodes.length) return [];
-  const image = new Image();
-  const loaded = await new Promise<boolean>((resolve) => {
-    image.onload = () => resolve(true);
-    image.onerror = () => resolve(false);
-    image.src = imageUrl;
-  });
-  if (!loaded) return [];
-  const crops: Array<{ label: string; b64: string }> = [];
-  for (const node of nodes) {
-    const [x, y, w, h] = node.box;
-    const scale = Math.min(1, 512 / Math.max(w, h, 1));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(w * scale));
-    canvas.height = Math.max(1, Math.round(h * scale));
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return [];
-    ctx.drawImage(image, x, y, w, h, 0, 0, canvas.width, canvas.height);
-    // JPEG keeps the request small; these crops are scouting, not output.
-    const b64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1] || '';
-    if (b64) crops.push({ label: node.label, b64 });
-  }
-  return crops;
-}
-
 async function describeBlueprint(
   doc: ProjectDoc,
   imageUrl: string,
-  roots: SegmentNode[],
-): Promise<string> {
+): Promise<{ text: string; finishReason: string }> {
   const sheet = buildTokenSheet(doc.tokens);
   const index = buildProjectIndex(doc).slice(0, 1400);
-  const outline = elementsOutline(roots);
-  const crops = await cropRegions(imageUrl, roots);
   const model = useAgent.getState().models?.chat.id || 'muse-spark-1.3';
   const started = Date.now();
   let result;
@@ -256,20 +179,13 @@ async function describeBlueprint(
           content: [
             {
               type: 'text',
-              text: `Rebuild this mockup as a blueprint. SAM measured ${flattenSegments(roots).length} elements, already sorted in reading order and nested by containment (indent = child). Name EVERY numbered element in one pass — type from the library, text verbatim, role, and which Museware container it belongs in. Geometry is a scaffold, never absolute output: the tree stays responsive.\n\nELEMENTS:\n${outline}`,
+              text: 'Recreate the provided screenshot as an editable, responsive screen blueprint. Inspect the image directly. Describe the visible layout, hierarchy, colours, typography, spacing and copy as accurately as possible. Use library components, and do not invent working interactions. If a detail is unclear, say so rather than guessing.',
             },
             { type: 'image_url', image_url: { url: imageUrl } },
-            ...crops.flatMap((crop, i) => [
-              { type: 'text', text: `crop ${i + 1} — ${crop.label}:` },
-              {
-                type: 'image_url',
-                image_url: { url: `data:image/jpeg;base64,${crop.b64}` },
-              },
-            ]),
           ] as unknown as string,
         },
       ],
-      maxTokens: 1800,
+      maxTokens: 4096,
     });
   } catch (error) {
     const source = useAgent.getState().keySource;
@@ -278,7 +194,7 @@ async function describeBlueprint(
       model,
       status: 'failed',
       latencyMs: Date.now() - started,
-      promptChars: sheet.length + index.length + outline.length,
+      promptChars: sheet.length + index.length,
       toolNames: [],
       ...(source === 'none'
         ? {}
@@ -289,8 +205,9 @@ async function describeBlueprint(
   useAgent.getState().addReceipt({
     role: 'vision',
     model: result.model,
+    ...(!result.text.trim() || result.finishReason === 'length' ? { status: 'failed' as const } : {}),
     latencyMs: result.latencyMs,
-    promptChars: sheet.length + index.length + outline.length,
+    promptChars: sheet.length + index.length,
     toolNames: [],
     inputTokens: result.usage.inputTokens,
     outputTokens: result.usage.outputTokens,
@@ -305,10 +222,10 @@ async function describeBlueprint(
               : ('house' as const),
         }),
   });
-  return result.text;
+  return { text: result.text, finishReason: result.finishReason };
 }
 
-/** Screenshot → Canvas: SAM measures, spark reads, output = a normal approval card. */
+/** Screenshot → vision → text blueprint approval. SAM remains available separately. */
 export async function recreateFromScreenshot(file: File): Promise<void> {
   const agent = useAgent.getState();
   const addSystem = (text: string) =>
@@ -327,7 +244,7 @@ export async function recreateFromScreenshot(file: File): Promise<void> {
         );
       } else {
         addSystem(
-          'The local engine is on, and it has no vision model (SAM + spark). That is a setting, not a suggestion that you did something wrong.',
+          'The local engine is on, and it has no vision model. That is a setting, not a suggestion that you did something wrong.',
         );
       }
       addAgent(
@@ -337,47 +254,20 @@ export async function recreateFromScreenshot(file: File): Promise<void> {
       return;
     }
     useAgent.getState().startTurn();
-    useAgent.getState().setLive('Reading the screenshot — SAM is segmenting elements…');
-    addSystem('Screenshot dropped — segmenting with SAM…');
-    let roots: SegmentNode[] = [];
-    try {
-      const seg = await segmentImage(dataUrl);
-      roots = layoutSegments(normalizeSegments(seg));
-      useAgent
-        .getState()
-        .setScreenshotPreview({
-          image: dataUrl,
-          boxes: flattenSegments(roots).map(({ label, box }) => ({ label, box })),
-        });
-      const total = flattenSegments(roots).length;
-      addSystem(
-        `SAM found ${total} element${total === 1 ? '' : 's'} — sorted in reading order, nested by containment, spark is naming all of them in one pass…`,
-      );
-    } catch (err) {
-      const why = diagnose(err);
-      // A key problem or a missing deployment will fail the next call too, so we
-      // stop here and say the true thing instead of blaming the screenshot.
-      if (why.kind !== 'other') {
-        addSystem(why.text);
-        if (why.offerKey) offerKey(why.text, '');
-        else
-          addAgent(
-            'The canvas, drag/drop, the inspector and the export all work without the proxy. Screenshot reading is the one thing that needs it.',
-          );
-        useUi
-          .getState()
-          .toast('Vision is unavailable — the reason is in the rail.', 'warn');
-        return;
-      }
-      addSystem(
-        `SAM segmentation failed (${err instanceof Error ? err.message : String(err)}). Continuing with vision only.`,
-      );
-    }
-    const blueprint = await describeBlueprint(useProject.getState().doc, dataUrl, roots);
-    if (!blueprint.trim()) {
+    useAgent.getState().setLive('Reading the screenshot with the vision model…');
+    addSystem('Screenshot received — asking the vision model for a blueprint…');
+    const result = await describeBlueprint(useProject.getState().doc, dataUrl);
+    if (!result.text.trim() || result.finishReason === 'length') {
       addAgent(
-        'I could not read that image clearly. Try a cleaner screenshot, or describe the screen in one line.',
+        result.finishReason === 'length'
+          ? 'The vision response stopped before it was complete, so no blueprint was created. Please retry or describe the screen in words.'
+          : 'The vision model returned no usable blueprint. Please retry or describe the screen in words.',
       );
+      return;
+    }
+    const blueprint = result.text;
+    if (!blueprint.split('\n').some((line) => SCREEN_HEAD.test(line))) {
+      addAgent('The vision model did not return a usable screen blueprint. Please retry or describe the screen in words.');
       return;
     }
     presentBlueprint(blueprint);
