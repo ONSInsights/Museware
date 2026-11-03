@@ -13,7 +13,7 @@ const parse = (text: string) => parseLook(text, MUSEWARE_DEFAULT_THEME);
 describe('LOOK measurements cannot crush a viewport', () => {
   it('keeps LOOK responsive and screen-scoped instead of leaf pixels', () => {
     const parsed = parseBlueprint(
-      'LOOK: pad 24, gap 18, title 30, body 16\nSCREEN: Home\n- title_home (heading) Welcome\n- body_home (text) Hello',
+      'LOOK: pad 24, gap 18, card radius 6, title 30, body 16\nSCREEN: Home\n- title_home (heading) Welcome\n- body_home (text) Hello',
       MUSEWARE_DEFAULT_THEME,
     );
     const root = parsed.screens[0].root;
@@ -22,6 +22,7 @@ describe('LOOK measurements cannot crush a viewport', () => {
       lookBody: 16,
       lookPad: 24,
       lookGap: 18,
+      lookCardRadius: 6,
     });
     expect(root.styles.padding).toBe('var(--pad-screen)');
     expect(root.children.every((child) => child.styles.fontSize === undefined)).toBe(true);
@@ -29,6 +30,7 @@ describe('LOOK measurements cannot crush a viewport', () => {
     expect(vars['--type-title-base']).toBe('30px');
     expect(vars['--type-title-md']).toBe('38px');
     expect(vars['--pad-screen-lg']).toBe('67px');
+    expect(vars['--radius-card']).toBe('6px');
     expect(materializeCss(MUSEWARE_DEFAULT_THEME)).toContain(
       '--shadow-card:0 2px 6px rgba',
     );

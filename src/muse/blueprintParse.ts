@@ -153,6 +153,7 @@ function applyLook(node: ComponentNode, look: LookNumbers): void {
       lookBody: look.body,
       lookPad: look.pad,
       lookGap: look.gap,
+      lookCardRadius: look.cardRadius,
     };
   }
   if (node.type === 'card') {

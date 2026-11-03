@@ -353,10 +353,17 @@ export async function applyColorCard(
     return;
   }
   if (scope === 'everywhere') {
-    const fresh = canCreateBrandDirection(useProject.getState().doc);
+    const currentDoc = useProject.getState().doc;
+    const fresh = canCreateBrandDirection(currentDoc);
+    const existingSecondary = currentDoc.tokens.openuiTheme.secondary_color;
+    const existingBrand = currentDoc.tokens.openuiTheme.brand_color;
+    const secondary =
+      !fresh && existingSecondary && existingSecondary !== existingBrand
+        ? existingSecondary
+        : hex;
     const ops = fresh
       ? brandDirectionOps(hex, hex)
-      : [{ op: 'setTokens', patch: { brand_color: hex, secondary_color: hex } }];
+      : [{ op: 'setTokens', patch: { brand_color: hex, secondary_color: secondary } }];
     const res = useProject.getState().applyBatch(ops, { source: 'user' });
     if (res.errors.length) {
       useUi.getState().toast(res.errors[0].message, 'danger');

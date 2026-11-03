@@ -36,6 +36,7 @@ import {
   walk,
 } from './treeUtils';
 import { ID_PATTERN, suggestIds } from './ids';
+import { accentFamilyColors } from '../design/brandDirection';
 
 export interface ApplyOptions {
   source: 'agent' | 'user';
@@ -533,11 +534,13 @@ function applyOne(
         secondary: string,
       ) => {
         const colors = { ...((nextTheme[mode] as Record<string, string>) || {}) };
-        colors.openui_accent = brand;
-        colors.openui_accent_pressed = brand;
-        colors.openui_text_brand = brand;
-        colors.openui_border_accent = brand;
-        colors.openui_secondary = secondary;
+        const family = accentFamilyColors(
+          brand,
+          secondary,
+          mode === 'dark_colors',
+          colors.openui_bg,
+        );
+        Object.assign(colors, family);
         nextTheme[mode] = colors;
       };
       const brand =

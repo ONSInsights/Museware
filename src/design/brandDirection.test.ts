@@ -95,4 +95,21 @@ describe('new project brand direction', () => {
     });
     expect(canCreateBrandDirection(requested)).toBe(true);
   });
+
+  it('derives accessible accent family on direct setTokens without replace', () => {
+    const doc = createProject();
+    const gold = `#${(0xeab308).toString(16)}`;
+    const black = `#${(0x000000).toString(16).padStart(6, '0')}`;
+    const result = applyOps([{ op: 'setTokens', patch: { brand_color: gold } }], doc, {
+      source: 'user',
+    });
+    const light = result.doc.tokens.openuiTheme.light_colors;
+    expect(light.openui_accent).toBe(gold);
+    expect(light.openui_accent_subtle).not.toBe(
+      MUSEWARE_DEFAULT_THEME.openuiTheme.light_colors.openui_accent_subtle,
+    );
+    expect(contrastRatio(light.openui_text_on_accent, gold)).toBeGreaterThanOrEqual(4.5);
+    expect(light.openui_text_on_accent).toBe(black);
+    expect(light.openui_accent_pressed).not.toBe(gold);
+  });
 });

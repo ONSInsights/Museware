@@ -81,6 +81,39 @@ function dangerPair(dark: boolean, onAccent: string): { bg: string; text: string
 }
 
 /** New-project colour roles only; unrelated fields remain intact. */
+export function accentFamilyColors(
+  brandHex: string,
+  secondaryHex: string,
+  dark: boolean,
+  currentSurface?: string,
+): Partial<ColorMap> {
+  const brand = rgb(brandHex);
+  const base = dark ? black : white;
+  const surface = (amount: number) => hex(blend(base, brand, amount));
+  const bg =
+    currentSurface && /^#[0-9a-f]{6}$/i.test(currentSurface)
+      ? currentSurface
+      : surface(dark ? 0.045 : 0.035);
+  const subtle = surface(dark ? 0.2 : 0.13);
+  const ink = dark ? white : black;
+  const textBrand = brandInk(brand, [bg, subtle], ink);
+  const onAccent = inkOn(brandHex);
+  const danger = dangerPair(dark, onAccent);
+  return {
+    openui_accent: brandHex,
+    openui_accent_pressed: hex(blend(brand, onAccent === hex(black) ? white : black, 0.16)),
+    openui_accent_subtle: subtle,
+    openui_text_on_accent: onAccent,
+    openui_secondary: secondaryHex,
+    openui_text_on_secondary: inkOn(secondaryHex),
+    openui_text_brand: textBrand,
+    openui_border_interactive: textBrand,
+    openui_border_accent: textBrand,
+    openui_danger_bg: danger.bg,
+    openui_danger_text: danger.text,
+  };
+}
+
 export function directionColors(
   brandHex: string,
   secondaryHex: string,
@@ -93,33 +126,20 @@ export function directionColors(
   const fg = surface(dark ? 0.075 : 0.015);
   const elevated = surface(dark ? 0.11 : 0.01);
   const sunk = surface(dark ? 0.08 : 0.07);
-  const subtle = surface(dark ? 0.2 : 0.13);
   const ink = dark ? white : black;
-  const textBrand = brandInk(brand, [bg, fg, elevated, sunk, subtle], ink);
-  const onAccent = inkOn(brandHex);
-  const danger = dangerPair(dark, onAccent);
+  const family = accentFamilyColors(brandHex, secondaryHex, dark, bg);
   return {
     openui_bg: bg,
     openui_fg: fg,
     openui_sunk: sunk,
     openui_elevated: elevated,
     openui_highlight: surface(dark ? 0.16 : 0.09),
-    openui_accent: brandHex,
-    openui_accent_pressed: hex(blend(brand, onAccent === hex(black) ? white : black, 0.16)),
-    openui_accent_subtle: subtle,
-    openui_text_on_accent: onAccent,
-    openui_secondary: secondaryHex,
-    openui_text_on_secondary: inkOn(secondaryHex),
     openui_text_primary: hex(blend(ink, brand, dark ? 0.06 : 0.12)),
     openui_text_secondary: hex(blend(ink, brand, dark ? 0.28 : 0.36)),
     openui_text_tertiary: hex(blend(ink, brand, dark ? 0.38 : 0.45)),
-    openui_text_brand: textBrand,
     openui_border_default: surface(dark ? 0.3 : 0.2),
-    openui_border_interactive: textBrand,
-    openui_border_accent: textBrand,
-    openui_danger_bg: danger.bg,
-    openui_danger_text: danger.text,
-  };
+    ...family,
+  } as ColorMap;
 }
 
 /** Two ops in one atomic undo group: shared setTokens derives five fields after

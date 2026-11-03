@@ -1,4 +1,5 @@
 import type { DesignTokens } from '../types/tokens';
+import { projectAppearance } from '../design/projectAppearance';
 
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '');
@@ -22,23 +23,37 @@ function mix(a: string, b: string, t: number): string {
     .join('')}`;
 }
 
-function palette(tokens: DesignTokens): { a: string; b: string; bg: string; ink: string } {
-  const light = tokens.openuiTheme.light_colors || {};
-  const dark = tokens.openuiTheme.dark_colors || {};
+function palette(
+  tokens: DesignTokens,
+  mode?: 'light' | 'dark',
+): { a: string; b: string; bg: string; ink: string } {
+  const isLight = (mode || projectAppearance(tokens.openuiTheme?.theme_mode)) === 'light';
+  const primary = isLight
+    ? tokens.openuiTheme?.light_colors || {}
+    : tokens.openuiTheme?.dark_colors || {};
+  const fallback = isLight
+    ? tokens.openuiTheme?.dark_colors || {}
+    : tokens.openuiTheme?.light_colors || {};
   const a = String(
-    dark.openui_accent ||
-      light.openui_accent ||
-      tokens.openuiTheme.brand_color ||
+    primary.openui_accent ||
+      fallback.openui_accent ||
+      tokens.openuiTheme?.brand_color ||
       '#6D5CFF',
   );
   const b = String(
-    dark.openui_secondary ||
-      light.openui_secondary ||
-      tokens.openuiTheme.secondary_color ||
+    primary.openui_secondary ||
+      fallback.openui_secondary ||
+      tokens.openuiTheme?.secondary_color ||
       '#A855F7',
   );
-  const bg = String(dark.openui_elevated || light.openui_elevated || '#ffffff');
-  const ink = String(dark.openui_text_tertiary || light.openui_text_tertiary || '#8892a6');
+  const bg = String(
+    primary.openui_elevated || fallback.openui_elevated || (isLight ? '#ffffff' : '#18233f'),
+  );
+  const ink = String(
+    primary.openui_text_tertiary ||
+      fallback.openui_text_tertiary ||
+      (isLight ? '#64748b' : '#8892a6'),
+  );
   return { a, b, bg, ink };
 }
 
@@ -53,9 +68,10 @@ export function placeholderImage(
     width?: number;
     height?: number;
     variant?: 'hero' | 'card' | 'wide';
+    mode?: 'light' | 'dark';
   } = {},
 ): string {
-  const { a, b, bg } = palette(tokens);
+  const { a, b, bg } = palette(tokens, opts.mode);
   const w = opts.width || 960;
   const h = opts.height || 600;
   const seed = opts.seed || 'muse';
@@ -93,8 +109,12 @@ export function placeholderImage(
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-export function avatarPlaceholder(tokens: DesignTokens, initials: string): string {
-  const { a, b } = palette(tokens);
+export function avatarPlaceholder(
+  tokens: DesignTokens,
+  initials: string,
+  mode?: 'light' | 'dark',
+): string {
+  const { a, b } = palette(tokens, mode);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
   <defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
   <stop offset="0%" stop-color="${a}"/><stop offset="100%" stop-color="${b}"/></linearGradient></defs>

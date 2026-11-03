@@ -111,4 +111,20 @@ describe('direct screenshot vision', () => {
     await pending;
     expect(useProject.getState().doc).toEqual(other);
   });
+
+  it('extracts visible hex colours into project tokens on an untouched starting sheet', async () => {
+    const green = `#${(0x059669).toString(16).padStart(6, '0')}`;
+    const teal = `#${(0x0d9488).toString(16).padStart(6, '0')}`;
+    stubResponse(
+      `RULES: Recreate\nSCREEN: Store\n- hero (hero) Plant Store\nLOOK: pad 20, brand ${green}, secondary ${teal}\nSTATE: none\nWIRING: none`,
+    );
+    await recreateFromScreenshot(shot(), 'Match screenshot palette');
+    const tokens = useProject.getState().doc.tokens.openuiTheme;
+    expect(tokens.brand_color).toBe(green);
+    expect(tokens.secondary_color).toBe(teal);
+    expect(tokens.light_colors.openui_accent).toBe(green);
+    expect(tokens.light_colors.openui_accent_subtle).not.toBe(
+      useProject.getState().doc.tokens.openuiTheme.light_colors.openui_accent,
+    );
+  });
 });

@@ -168,6 +168,7 @@ export function screenLookVariables(
   const display = title + 8;
   const pad = Number(props.lookPad);
   const gap = Number(props.lookGap);
+  const cardRadius = Number(props.lookCardRadius);
   return {
     ...(Number.isFinite(pad) && pad >= 0 && props.lookPad !== undefined
       ? {
@@ -181,6 +182,13 @@ export function screenLookVariables(
           '--gap-section-base': `${gap}px`,
           '--gap-section-md': `${Math.round(gap * 2)}px`,
           '--gap-section-lg': `${Math.round(gap * 3)}px`,
+        }
+      : {}),
+    ...(Number.isFinite(cardRadius) &&
+    cardRadius >= 0 &&
+    props.lookCardRadius !== undefined
+      ? {
+          '--radius-card': `${Math.round(cardRadius)}px`,
         }
       : {}),
     '--type-display-base': `${display}px`,

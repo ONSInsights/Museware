@@ -13,6 +13,10 @@ import {
   screenshotReferenceNotice,
   setScreenshotAbort,
 } from './referenceSession';
+import {
+  brandDirectionOps,
+  canCreateBrandDirection,
+} from '../design/brandDirection';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -163,6 +167,17 @@ export async function recreateFromScreenshot(file: File, instruction = ''): Prom
     }
     rememberReference(epoch, blueprint, dataUrl);
     addSystem(screenshotReferenceNotice);
+    const currentDoc = useProject.getState().doc;
+    if (canCreateBrandDirection(currentDoc)) {
+      const hexes = (blueprint.match(/#[0-9A-Fa-f]{6}/g) || []).slice(0, 2);
+      if (hexes.length > 0) {
+        const brand = hexes[0];
+        const secondary = hexes[1] || brand;
+        useProject
+          .getState()
+          .applyBatch(brandDirectionOps(brand, secondary), { source: 'agent' });
+      }
+    }
     presentBlueprint(blueprint);
     addSystem('Recreation drafted — approve it to fill the screen, or adjust.');
   } catch (err) {

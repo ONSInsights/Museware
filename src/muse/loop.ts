@@ -35,6 +35,7 @@ import {
   type ChatResult,
 } from './client';
 import {
+  BLUEPRINT_PROMPT,
   JSON_CORRECTION,
   SYSTEM_PROMPT,
   TYPED_OPTIONS_CORRECTION,
@@ -1849,7 +1850,9 @@ export async function runAgentTurn(
   }
 
   try {
+    const isPlanning = !before.blueprint?.text && before.screens.length === 0;
     const messages = contextMessages(before, userText, [
+      ...(isPlanning ? [BLUEPRINT_PROMPT] : []),
       ...(pickTurn ? [pickReceipt(pickTurn)] : []),
       ...(opts.resumeJournal ? [opts.resumeJournal] : []),
     ]);
