@@ -164,7 +164,7 @@ export function AgentRail({ focused = false, onMinimize, minimizing = false }: {
   const [filter, setFilter] = useState<string | null>(() => {
     try {
       const saved = localStorage.getItem('museware/receiptFilter');
-      return ['Wonder', 'Spark', 'Image', 'Voice'].includes(saved || '') ? saved : null;
+      return ['Wonder', 'Spark', 'Image'].includes(saved || '') ? saved : null;
     } catch {
       return null;
     }
@@ -430,7 +430,7 @@ export function AgentRail({ focused = false, onMinimize, minimizing = false }: {
         >
           Wonder {wonder ? '· 4x cost' : '· off'}
         </button>
-        {['Wonder', 'Spark', 'Image', 'Voice'].map((model) => (
+        {['Wonder', 'Spark', 'Image'].map((model) => (
           <button
             key={model}
             type="button"
