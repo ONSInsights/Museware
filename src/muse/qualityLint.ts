@@ -40,8 +40,8 @@ export function lintComposition(screen: ScreenDoc): LintFinding[] {
           6,
           Number(
             node.styles.responsive?.expanded?.columns ??
-              node.styles.columns ??
-              node.props.columns,
+              node.props.columns ??
+              node.styles.columns,
           ) || 2,
         ),
       );
@@ -318,8 +318,8 @@ export function lintScreen(
           6,
           Number(
             node.styles.responsive?.expanded?.columns ??
-              node.styles.columns ??
-              node.props.columns,
+              node.props.columns ??
+              node.styles.columns,
           ) || 2,
         ),
       );
