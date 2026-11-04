@@ -707,12 +707,15 @@ function ThinkingCard({ entry }: { entry: RailEntry }) {
   const liveLine = useAgent((s) => s.liveLine);
   const liveText = useAgent((s) => s.liveText);
   const expanded = Boolean(data.expanded);
-  const active = Boolean(data.active) && busy;
-  const lines = Array.isArray(data.lines)
-    ? data.lines.filter(
-        (line): line is string => typeof line === 'string' && !isKeepalive(line),
-      )
-    : [];
+  const active = Boolean(data.active ?? busy) && busy;
+  const rawLines = Array.isArray(data.lines)
+    ? data.lines
+    : Array.isArray(data.timeline)
+      ? (data.timeline as Array<{ text?: string }>).map((item) => item.text || '')
+      : [];
+  const lines = rawLines.filter(
+    (line): line is string => typeof line === 'string' && !isKeepalive(line),
+  );
   return (
     <div className="thinking-card chat-card chat-card--work">
       <button
@@ -768,12 +771,21 @@ export function RailCard({ entry }: { entry: RailEntry }) {
       return <ChoiceCard entry={entry} />;
     case 'color':
       return <ColorCard entry={entry} />;
-    case 'progress':
+    case 'progress': {
+      if (
+        card.data.turnCard &&
+        card.data.phase === 'live' &&
+        (card.data.ops || 0) === 0 &&
+        !(card.data.assets && card.data.assets.length > 0)
+      ) {
+        return <ThinkingCard entry={entry} />;
+      }
       return card.data.turnCard ? (
         <LiveBuildCard entry={entry} />
       ) : (
         <ProgressCard entry={entry} />
       );
+    }
     case 'error':
       return <ErrorCard entry={entry} />;
     case 'key':

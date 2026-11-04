@@ -4794,6 +4794,17 @@ button.how-card .field-hint {
   cursor: pointer;
   font: inherit;
 }
+.thinking-toggle .spin {
+  display: inline-block;
+  width: var(--mw-space-3);
+  height: var(--mw-space-3);
+  margin-right: var(--mw-space-2);
+  border-radius: 999px;
+  border: 1.5px solid var(--mw-border-strong);
+  border-top-color: var(--mw-accent);
+  animation: spin 0.9s linear infinite;
+  vertical-align: middle;
+}
 .thinking-transcript {
   color: var(--mw-ink-2);
   font-size: var(--mw-fs-11);

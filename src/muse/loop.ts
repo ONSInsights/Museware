@@ -54,7 +54,7 @@ import {
   lintRemovedImageVoids,
   type LintFinding,
 } from './qualityLint';
-import { beginTurnJournal, endTurnJournal } from './turnJournal';
+import { beginTurnJournal, endTurnJournal, type TurnJournal } from './turnJournal';
 import { isKeepalive } from './keepalive';
 import {
   startBuildPresenter,
@@ -680,6 +680,7 @@ interface ToolLoopOptions {
   documentEpoch?: number;
   draftGuard?: VisualFinishGuard;
   protectedScreen?: ScreenDoc;
+  journal?: TurnJournal;
 }
 
 interface ToolLoopResult {
@@ -1019,6 +1020,7 @@ async function runTool(
       };
 
     case 'set_design_tokens': {
+      if (opts.journal && !buildCardId()) startBuildPresenter(opts.journal);
       if (pickTurn?.protectTokens || opts.protectDesignTokens)
         return {
           text: 'E_THEME_PROTECTED: the existing design system was preserved. Do not change it without an explicit user request.',
@@ -1082,6 +1084,7 @@ async function runTool(
     }
 
     case 'edit_canvas': {
+      if (opts.journal && !buildCardId()) startBuildPresenter(opts.journal);
       const a = args as { screen_id?: string; ops: unknown[] };
       if (
         (opts.protectDesignTokens || pickTurn?.protectTokens) &&
@@ -1251,6 +1254,7 @@ async function runTool(
     }
 
     case 'illustrate_images': {
+      if (opts.journal && !buildCardId()) startBuildPresenter(opts.journal);
       if (opts.suppressAutoImages)
         return {
           text: 'Reference recreation uses placeholders for unavailable source assets; automatic image generation is disabled.',
@@ -1938,7 +1942,11 @@ The user has ${before.screens.length} existing screen(s) in this project (active
       maxCalls: TURN_CALL_CAP,
       role: opts.role || (wonder ? 'architect' : 'builder'),
       effort: opts.effort || (wonder ? 'max' : 'medium'),
+      journal,
     });
+    if (result.changed && !buildCardId()) {
+      startBuildPresenter(journal);
+    }
     if (result.changed && !result.choiceAsked) terminal = 'receipt';
     if (repairFollowup) {
       repairSummary(flaggedImages);
