@@ -334,6 +334,7 @@ export function startSite(
                 const val = r[key] ?? r[c] ?? r[Object.keys(r)[ci] ?? ''] ?? '';
                 const cell = document.createElement('span');
                 cell.className = 'mw-table-cell';
+                cell.setAttribute('data-col', c.toLowerCase().trim());
                 cell.textContent = String(val);
                 row.appendChild(cell);
               });

@@ -196,7 +196,7 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     icon: 'grid',
     hint: 'Even columns. Cells share the width; override the column count per breakpoint.',
     defaultProps: { columns: 2 },
-    styles: { width: '100%', columns: 2, gap: 'var(--gap-item)' },
+    styles: { width: '100%', gap: 'var(--gap-item)' },
     props: [
       p(
         'columns',

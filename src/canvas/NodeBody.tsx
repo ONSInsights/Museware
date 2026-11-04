@@ -731,7 +731,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
         <div className={cls} data-source-url={asText(p.dataSourceUrl) || undefined} {...tapProps}>
           <div className="mw-table-head">
             {cols.map((c) => (
-              <span className="mw-table-cell" key={c}>
+              <span className="mw-table-cell" data-col={c.toLowerCase().trim()} key={c}>
                 {c}
               </span>
             ))}
@@ -742,7 +742,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
                 const key = c.toLowerCase().replace(/\s+/g, '_');
                 const val = r[key] ?? r[c] ?? r[Object.keys(r)[ci] ?? ''] ?? '';
                 return (
-                  <span className="mw-table-cell" key={c}>
+                  <span className="mw-table-cell" data-col={c.toLowerCase().trim()} key={c}>
                     {String(val)}
                   </span>
                 );

@@ -388,7 +388,7 @@ describe('marquee readability', () => {
   });
 
   it('eyebrows and hero badges adapt to the chip corner token', () => {
-    expect(UTILITY_CSS).toContain('.mw-sec-eyebrow{display:inline-flex;padding:5px 10px;border:1px solid currentColor;border-radius:var(--radius-chip,999px);font-size:12px}');
+    expect(UTILITY_CSS).toContain('.mw-sec-eyebrow{display:inline-flex;align-self:flex-start;width:fit-content;padding:5px 10px;border:1px solid currentColor;border-radius:var(--radius-chip,999px);font-size:12px}');
     expect(UTILITY_CSS).toContain('.mw-hero-badge{display:inline-flex;align-self:flex-start;border:1px solid currentColor;border-radius:var(--radius-chip,999px);padding:5px 10px;font-size:12px;font-weight:600;letter-spacing:.04em}');
   });
 });
