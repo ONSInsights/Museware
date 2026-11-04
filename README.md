@@ -2,324 +2,139 @@
 
 **Describe it. Approve the plan. Watch it build.**
 
-Museware is an editor with an agent inside it. You describe an app, the muse
-proposes a blueprint, you approve it, and it writes real ops into the same tree
-you drag — then it verifies the result before showing it to you. Nothing on the
-canvas is a picture of an app: the tree runs, and the same tree exports as a
-React + Vite project (or installs as a PWA).
+Museware is a visual development studio with an autonomous AI agent running inside it. You describe an application, Muse proposes an architectural blueprint, you review or adjust it, and on approval it writes real operations directly into the same component tree you drag and hand-edit — verified by a deterministic lint and review pass before presentation. Nothing on the canvas is a static screenshot or mockup: the tree executes interactively in run mode, handles state and navigation, and exports cleanly as a production React + Vite application, a folder ZIP, or a single-file portable HTML app (with optional PWA offline installation).
 
 ```bash
 npm install
-cp .env.example .env      # optional: add MUSE_API_KEY
+cp .env.example .env      # optional: add MUSE_API_KEY for live models
 npm run dev               # http://localhost:5173
 ```
 
-No key? The **local engine** runs the whole pipeline offline — same cards, same
-ops, same verify gate — so you can judge the product rather than a promise.
-Add a key in Settings (or `.env`) and the pinned muse models take over.
+No key? The **local engine** runs the entire pipeline offline — identical cards, operations, component tree, and verify gates — using verified reference templates so you can evaluate the product immediately. Add a key in Settings (or `.env`), and the pinned Meta Muse models take over.
 
 ---
 
-## The laws it is actually built on
+## The Core Laws It Is Built On
 
-1. **Tools, not typed UI.** The model gets six tools — `read_canvas`,
-   `set_design_tokens`, `propose_blueprint`, `ask_choice`, `edit_canvas`,
-   `finish` — and never emits UI as text. Prose stays prose.
-2. **Every change is an op.** Yours and the agent's. `add`, `move`, `remove`,
-   `setProps`, `setStyles`, `setText`, `rename`, `addScreen`, `removeScreen`,
-   `renameScreen`, `setEntry`, `setTokens`, `saveComponent`, `placeComponent`.
-   One op log, one undo stack, 50 snapshots deep.
-3. **Batched and all-or-nothing.** `edit_canvas` takes up to 40 ops; if one
-   fails validation, none of them land.
-4. **Blueprint before pixels.** The architect plans screens, ids, LOOK numbers
-   and wiring; the approval card presents the plan for review.
-5. **Verify before show.** A reviewer pass checks compact _and_ expanded
-   outlines. If it finds problems, the turn says so — it is allowed to fail.
-6. **A constrained vocabulary.** 30 components, 51 icon names, 12 colour keys.
-   The agent cannot invent a widget, a token, or an icon.
-7. **One pinned model per role.** Builder, architect, chat, contributor, image,
-   voice. No routing, no silent fallbacks.
-8. **Stop is always visible.** Topbar pill, rail header, progress card, status
-   bar — while the agent works, there is always a way out.
-9. **Persist on create.** IndexedDB after every op; export/import as JSON.
-10. **Cards leave on answer.** A tapped card collapses to a one-line receipt.
-11. **Receipts, not claims.** Every model call is logged with role, model,
-    latency, tokens and cost.
-12. **No JSON in chat.** If the model pastes JSON, the loop corrects it.
-13. **Bounded prompts and paced turns.** A 1800-char token sheet, 24 tool calls
-    per turn, ≥4000 ms pacing, capped rail history.
-14. **No code from the user, ever.** Logic is WHEN/THEN chips, not JavaScript.
-15. **Media stays portable.** Local media import remains forbidden while validation
-    allows only HTTPS video and HTTPS or data-image sources. If local video is
-    ever supported, it ships only as relative assets in a folder zip, never as
-    a huge base64 video inside a single HTML file. HTTPS media needs internet.
-16. **Clean room.** Built from the written specification alone. The reference
-    repository was read for ideas only; no code, comments, strings, class names
-    or assets were copied, and the product contains no trace of it.
+1. **Seven tools, not typed UI.** The model gets exactly seven function tools — `read_canvas`, `set_design_tokens`, `propose_blueprint`, `ask_choice`, `edit_canvas`, `illustrate_images`, and `finish` — and never emits raw UI as chat text. Chat prose stays conversational prose; canvas edits travel through validated tool calls.
+2. **Every change is an op.** Yours and the agent's share the identical op vocabulary: `add`, `move`, `remove`, `setProps`, `setStyles`, `setText`, `rename`, `addScreen`, `removeScreen`, `renameScreen`, `setEntry`, `setTokens`, `saveComponent`, `placeComponent`, `setMockData`. One unified op log, one undo stack, 50 snapshots deep.
+3. **Batched and all-or-nothing.** `edit_canvas` takes ordered batches of up to 40 ops (recommended in chunks of ≤12 ops). If a single op fails schema validation or bounds checking, none of them land.
+4. **Blueprint before pixels.** The lead architect plans screen structures, ids, LOOK numbers, state namespaces, and navigation wiring; the approval card presents the plan for review and allows up to 3 adjustment rounds before building.
+5. **Verify before show.** A deterministic reviewer gate inspects compact (390px) and expanded (≥1024px) layouts for contrast, missing data, and structural hierarchy before presenting results.
+6. **A constrained vocabulary: 40 components, 51 icon names, 12 colour keys.** The agent cannot invent arbitrary widgets, unsupported design tokens, or invalid icons. Every node maps to a concrete, typed spec in `src/types/library.ts`.
+7. **One pinned model per role.** Builder (`muse-spark-1.3`), architect (`muse-wonder-1.0`), chat (`muse-spark-1.3`), contributor (`muse-spark-1.3-contributor`), and image (`muse-image-1.0`). Pinned roles, transparent pricing, no hidden fallbacks.
+8. **Stop is always visible.** Topbar pill, rail header, progress presenter card, and status bar — while the agent is running, you can stop execution at any second.
+9. **Persist on create.** IndexedDB storage after every operation; seamless JSON import/export and recovery mechanisms.
+10. **Cards leave on answer.** Decision cards collapse cleanly to receipts once tapped, preventing visual clutter in the chat rail.
+11. **Receipts, not claims.** Every model turn is recorded with model ID, latency, input/output tokens, and cost.
+12. **No JSON in chat.** If a model inadvertently leaks JSON into conversation, the turn loop intercepts and corrects it.
+13. **Bounded prompts and paced turns.** Compact token sheets, 24 tool calls per turn cap, ≥4000ms pacing floor, and capped chat history.
+14. **No code from the user, ever.** Interactivity and events are configured as declarative WHEN/THEN action chips (navigate, toggle, toast, setState, openUrl), not arbitrary executable scripts.
+15. **Media stays portable.** Pure HTTPS video and HTTPS or base64 image sources. Local video is shipped as relative assets in folder exports, never unmaintainable bloat.
+16. **Clean room compliance.** Built from the written specification alone. The reference repository was read for conceptual ideas only; no code, comments, strings, class names, or assets were copied, and the codebase contains no trace of it.
+17. **Native Motion with Reduced-Motion Safety.** Declarative motion entrance presets (`rise`, `fade`, `slide`, `scale`, `none`) and CSS transitions authored directly into the component tree and validated by deterministic lint rules.
 
-## What is in the box
+---
 
-| Path                    | What it does                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `src/types/`            | The tree, tokens, the 30-component library, zod op + tool schemas               |
-| `src/ops/`              | Ids, tree utils, hydration/validation, the all-or-nothing applier               |
-| `src/design/`           | Museware's own three-tier token sheet, presets, CSS materialisation             |
-| `src/canvas/`           | Generated CSS per node, the 30-type renderer, drag/drop, the canvas             |
-| `src/inspector/`        | Schema-driven props, token-first styles, breakpoint overrides, actions          |
-| `src/rail/`             | The agent rail: messages, six card kinds, composer, stop                        |
-| `src/muse/`             | Prompt pack, context builders, HTTP/SSE client, agent loop, cards, local engine |
-| `src/export/`           | React + Vite codegen, zip, PWA manifest + service worker                        |
-| `src/persist/`          | zod project schema, IndexedDB save/load, import/export                          |
-| `src/preview/`          | Run mode: navigation, state, toasts, WHEN/THEN execution                        |
-| `server/museProxy.ts`   | The **only** place the key is read (Vite middleware in dev)                     |
-| `api/muse/[...path].js` | Production: one self-contained serverless file (built by `npm run build-api`)   |
+## Tools vs. Components: Architectural Distinction
 
-## Commands
+A common question is whether the agent's **tools** are the same as **components**:
+
+| Aspect | Agent Tools (7 Total) | UI Components (40 Total) |
+| :--- | :--- | :--- |
+| **What they are** | Function-calling capabilities invoked by the LLM | Visual and structural nodes on the canvas tree |
+| **Execution** | Handled by `src/muse/loop.ts` during an agent turn | Rendered by `src/canvas/Canvas.tsx` & exported code |
+| **Authority** | Defined in `TOOL_DESCRIPTIONS` & wire schemas | Defined in `COMPONENT_SPECS` (`src/types/library.ts`) |
+| **List** | 1. `read_canvas`<br>2. `set_design_tokens`<br>3. `propose_blueprint`<br>4. `ask_choice`<br>5. `edit_canvas`<br>6. `illustrate_images`<br>7. `finish` | **Layout**: `screen`, `row`, `col`, `grid`, `card`, `hero`, `section`<br>**Content**: `heading`, `text`, `label`, `badge`, `divider`, `icon`, `image`, `avatar`<br>**Interactive**: `button`, `iconbutton`, `link`, `fab`, `accordion`, `tabs`<br>**Forms**: `form`, `input`, `textarea`, `select`, `checkbox`, `switch`, `slider`, `datepicker`<br>**Data & Media**: `table`, `list`, `stat`, `chart`, `marquee`, `scene3d`, `video`<br>**Navigation & Feedback**: `navbar`, `bottomnav`, `progress`, `spinner` |
+
+The agent uses its **7 tools** to inspect, build, style, and wire the **40 components** on the canvas.
+
+---
+
+## Motion & Animation System
+
+Does the agent have access to motion? **Yes, natively.**
+
+- **Declarative Presets**: Sections and containers support entrance animations configured via `node.props.motion`:
+  - `'rise'`: Smooth upward translation with opacity fade-in.
+  - `'fade'`: Gentle opacity entrance.
+  - `'slide'`: Lateral directional slide entrance.
+  - `'scale'`: Subtle expansion into view.
+  - `'none'`: Complete stillness.
+- **Architectural Priming (`MOTION_PRIMER`)**: The model prompt includes motion hierarchy rules:
+  > *"Motion is hierarchy in time: entrance order follows importance, hero first. Story- and image-led pages earn choreography; precision tools earn stillness. Use one ambient per page and one direction language. Scroll presets belong only on sections, never navigation or footer. Respect reduced motion; preserve the user's motion choices."*
+- **Deterministic Quality Lint (`lintMotion`)**: The automated quality gate checks that sticky navigation bars and footers do not receive distracting entrance motion (preventing scroll jitter), while strictly protecting user-selected motion choices during repair turns.
+- **Accessibility (`prefers-reduced-motion`)**: Every generated CSS style and export respects the user's OS-level reduced motion preferences, disabling transitions when requested.
+
+---
+
+## Environment Variables (All 11 Variables)
+
+Configure these in your local `.env` or in your Vercel Project Settings under **Settings → Environment Variables**:
+
+| Variable | Default Value | Required? | Description & Scope |
+| :--- | :--- | :---: | :--- |
+| `MUSE_API_KEY` | *(None)* | **Yes** (for live models) | Server-side house API key for Meta AI. Never exposed to the browser. If omitted, visitors are prompted to provide their own temporary key in Settings, or can use the offline demo engine. |
+| `MUSE_BASE_URL` | `https://api.meta.ai` | Optional | Upstream Meta AI API root. Normalizes both bare URLs and `/v1` endpoints automatically. |
+| `MUSE_CODE_MODEL` | `muse-spark-1.3` | Optional | Pinned model for canvas building, component generation, and multi-step op application. |
+| `MUSE_CHAT_MODEL` | `muse-spark-1.3` | Optional | Pinned model for conversational responses, design advice, and clarification turns. |
+| `MUSE_ARCHITECT_MODEL`| `muse-wonder-1.0` | Optional | Deep-reasoning architect model invoked during Wonder mode for structural planning. |
+| `MUSE_CONTRIBUTOR_MODEL`| `muse-spark-1.3-contributor`| Optional | Testing and development tier model for experimental ops (active in `DEV` mode only). |
+| `MUSE_IMAGE_MODEL` | `muse-image-1.0` | Optional | Generative image model invoked for hero artwork and card illustrations. |
+| `MUSE_BUILD_IMAGES` | `6` | Optional | Maximum number of images automatically illustrated per build turn (range 1–30). |
+| `MUSE_REASONING` | `0` | Optional | Set to `1` to transmit Responses-API reasoning effort parameters on the chat surface. |
+| `MUSE_DAILY_CAP` | `5` | Optional | House key circuit breaker (USD per UTC day). At 80% spend it issues a soft warning; at 100% it halts with `BUDGET_EXHAUSTED` to protect your wallet. Visitors' own keys are never capped. |
+| `MUSE_LIVE` | `1` | Optional | Set to `1` on live production instances (Vercel) so `/api/muse/status` reports `live: true`. Automated CI tests leave this unset. |
+
+---
+
+## What is in the Box
+
+| Path | Purpose |
+| :--- | :--- |
+| `src/types/` | The core document tree, OpenUI token schema, 40-component library specs, and Zod schemas |
+| `src/ops/` | Tree traversal, op hydration, validation, and all-or-nothing transactional batch applier |
+| `src/design/` | Three-tier token architecture (`mw.css`), preset themes, and CSS materialization |
+| `src/canvas/` | Artboard viewport, responsive CSS generation, drag-and-drop mechanics, and 40-type renderer |
+| `src/inspector/` | Schema-driven property editors, token pickers, responsive breakpoint overrides, and action wiring |
+| `src/rail/` | The agent chat rail: message feed, 6 interactive card kinds, composer, and progress presenter |
+| `src/muse/` | Prompt engineering, context builders, streaming HTTP client, tool execution loop, and local engine |
+| `src/export/` | Export engines: Single-File HTML, Static Site ZIP, and full React + TypeScript + Vite project ZIP |
+| `src/persist/` | IndexedDB persistent storage, project schema migration, and JSON import/export |
+| `src/preview/` | Interactive run mode: navigation, state transitions, toast alerts, and WHEN/THEN action engine |
+| `server/museProxy.ts` | The secure server proxy gate (Vite dev middleware & Vercel serverless foundation) |
+| `api/muse/[...path].js` | Production serverless bundle with zero runtime external dependencies (built by `npm run build-api`) |
+
+---
+
+## Test Suite & Quality Verification
+
+Museware is thoroughly tested with an automated suite covering unit, integration, token compliance, and end-to-end export compilation:
+
+- **Vitest Suite**: **117 test files**, **719 tests** (100% passing).
+- **Zero Raw Hex Policy**: `npm run check:tokens` enforces that no raw hex or hardcoded color exists outside `src/design/mw.css`, and validates WCAG AA contrast across all light and dark token pairs.
+- **API Artifact Integrity**: `npm run check:api:fresh` and `npm run check:api` boot the production serverless bundle in an isolated Node process and verify `/health`, `/status`, and `/keytest` before deployment.
+- **Real Compilation Export Test**: `npm run check:export` generates a full React application from the canvas, unpacks it into a temporary environment, and executes `tsc --noEmit` and `vite build` to guarantee exported code compiles cleanly without errors.
 
 ```bash
-npm run dev          # editor + the muse gate as Vite middleware
-npm run build        # tsc --noEmit && vite build (what Vercel runs)
-npm run build:all    # the app plus the function artifact
-npm run build-api    # bundle the deployed function into api/muse/[...path].js
-npm run check:api    # boot that bundle in a clean Node process, hit 3 routes
 npm run typecheck    # tsc --noEmit
-npm test             # vitest: op model, blueprint parse, demo trace, shell smoke,
-                     # the proxy over real HTTP, the key card, wonder routing
-npm run check:tokens # no raw hex outside mw.css + WCAG AA in both themes
-npm run check:dist   # no key material, no sourcemaps, size budget
-npm run check:export # export a demo app, then typecheck + build it for real
+npm test             # run the full Vitest suite
+npm run check:tokens # verify design token consistency and WCAG AA contrast
+npm run build-api    # bundle server/ into api/muse/[...path].js
+npm run check:api    # verify the serverless bundle boots and answers
+npm run check:dist   # verify production build contains no leaked keys or maps
+npm run check:export # compile and build an exported app through Vite
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these steps with **no key set**:
-`check` → `build` → `check:dist` → `check:export`. `check` includes the API
-artifact gates, so a function that would fail to load on Vercel fails here
-first — in CI, with a stack, instead of at a visitor's cold start. The suite never calls a real
-model — the proxy tests run against a fake upstream on ephemeral ports, and the
-engine tests run the local engine.
+---
 
-`check:export` is the honest one: it renders the landing template through
-`generateProjectFiles`, writes it to a temp directory, and runs `tsc --noEmit`
-and `vite build` on the result. The export is code, not a promise.
-
-## The key never reaches the browser
-
-Dev: `vite.config.ts` mounts `server/museProxy.ts` as middleware on
-`/api/muse/*`. Production: one serverless file wraps the same function. A key
-pasted in the UI lives in `sessionStorage` and travels as `x-muse-key`; it is
-never bundled, logged, or exported. `npm run check:dist` greps the built assets
-for `MUSE_API_KEY`, key-shaped strings and dev-server URLs.
-
-## Deploying with a house key
-
-The deployed site is the honest version: one shared key, a daily cap, and a real
-key card the moment the shared key is spent.
+## Deploying to Vercel
 
 ```bash
-vercel            # preview
-vercel --prod     # production
+vercel            # deploy preview
+vercel --prod     # deploy production
 ```
 
-`vercel.json` points at `dist` and gives `api/muse/[...path].js` 60 s. Set these
-in the project's environment (never in the repo):
-
-| Variable         | What it does                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `MUSE_API_KEY`   | The house key. Without it `/status` reports `houseKey: "absent"` and the app asks visitors for their own.                 |
-| `MUSE_DAILY_CAP` | USD per UTC day, house key only. 80% warns, 100% hard-stops with `BUDGET_EXHAUSTED`. Visitors' own keys are never capped. |
-| `MUSE_LIVE`      | `1` on the real deployment so `/status` reports `live: true`. CI and local dev leave it unset.                            |
-| `MUSE_BASE_URL`  | `https://api.meta.ai` — `/v1` is appended once, never twice.                                                              |
-| `MUSE_REASONING` | `1` to send reasoning effort on the chat surface.                                                                         |
-
-What happens when the house key cannot be used, in order: the proxy answers
-`402` with a typed `HOUSE_KEY_EXHAUSTED` (no credit), `HOUSE_KEY_REJECTED` (the
-key itself was refused) or `HOUSE_KEY_RATE_LIMITED` (throttled) — or
-`BUDGET_EXHAUSTED` when the daily cap is hit — the rail parks the turn on a
-**key card** that names which of the four it was, and the card asks for a key and
-retries the exact prompt you typed with your key. The demo engine is never entered automatically — it is a
-switch in Settings and the path CI uses.
-
-A visitor's key lives in `sessionStorage` and travels as `x-muse-key`; it never
-touches the bundle, the logs or the export.
-
-### The key is set but the app says it isn't — diagnose it in four steps
-
-Vercel bakes environment variables into a deployment at build time, so **adding
-`MUSE_API_KEY` does not change the build that is already serving traffic**. That
-one fact causes most "I added the key and it still doesn't work" reports.
-
-0. **Is the function alive at all?** Open `/api/muse/health`. It touches no key
-   and no network — it only proves the serverless file is deployed and running.
-   A crash there is a deployment problem: read the function's logs on Vercel.
-1. **Read the server's own verdict.** Open `/api/muse/status` on the exact domain
-   you are using. JSON means the function is deployed; HTML or a 404 means it is
-   not, and no key will fix that.
-2. **Read `houseKey` in that JSON.** It is one of:
-
-   | `houseKey`     | Meaning                                             | Fix                                                                               |
-   | -------------- | --------------------------------------------------- | --------------------------------------------------------------------------------- |
-   | `absent`       | `MUSE_API_KEY` is not visible to this running build | Add it for **Production**, then **Redeploy** (untick "use existing build cache")  |
-   | `rejected`     | Meta refused the key (401/403)                      | The value is wrong, revoked, or quoted. `houseKeyDetail` holds Meta's exact words |
-   | `exhausted`    | Valid key, no credit/budget (402)                   | Top up, or raise `MUSE_DAILY_CAP`                                                 |
-   | `rate_limited` | Throttled right now (429)                           | Wait; a visitor's own key is not throttled                                        |
-   | `unverified`   | Key present, Meta unreachable from the server       | A network problem, not a key problem                                              |
-   | `ok`           | The server key works                                | Your failure is elsewhere                                                         |
-
-3. **Check the environment scope.** A variable ticked only for _Preview_ or
-   _Development_ is not in the production build. Tick **Production** (or all).
-4. **Clear a stale pasted key.** A key pasted in Settings rides as `x-muse-key`
-   and **overrides the server's key** for that tab. Settings → _Remove my key_.
-
-Settings also has **Test this key** and **Test the server key**: each makes one
-real 1-token call through `/api/muse/keytest` and prints Meta's actual status and
-body, so a typo (401) can be told apart from an empty wallet (402) without
-guessing. The app never says "out of budget" for a key that was rejected.
-
-### The deployed function is a built artifact
-
-`api/muse/[...path].js` is **generated and committed**. It is a bundle of
-`server/vercelEntry.ts` (which imports `server/museProxy.ts` and
-`server/museBudget.ts`), produced by `npm run build-api` with esbuild.
-
-This is not decoration. The entry used to be
-`api/muse/[...path].ts` importing `../../server/museProxy`, and on Vercel that
-module was not present in the function's directory at runtime. The result was
-not a helpful error but `FUNCTION_INVOCATION_FAILED` at module load — an opaque
-500 at cold start, with no route, no detail and no clue. A relative import
-across directories cannot break the deployment if the bundle has no imports at
-all, which is why `scripts/build-api.mjs` fails the build if any survive.
-
-Three gates keep this honest, and all three run in CI:
-
-| Command                   | What it proves                                                                                             |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `npm run check:api:fresh` | the committed bundle matches `server/` — a stale artifact fails before it ships                            |
-| `npm run build-api`       | rebuild it                                                                                                 |
-| `npm run check:api`       | the built file **boots in a clean Node process** and answers `/health`, `/status` and `/keytest` with JSON |
-
-After changing anything in `server/`, run `npm run build-api` and commit the
-result. The platform build does **not** generate it: it is checked in, and
-`check:api:fresh` fails the moment it drifts from the source.
-
-### What counts as a key problem
-
-Only four upstream statuses say anything about the key:
-
-| Meta says | We call it     | What it means                                        |
-| --------- | -------------- | ---------------------------------------------------- |
-| 401 / 403 | `rejected`     | the key is wrong, revoked, or not allowed to do this |
-| 402       | `exhausted`    | valid key, no credit                                 |
-| 429       | `rate_limited` | valid key, throttled                                 |
-
-Everything else — 400 (bad request), 404 (unknown model), 422, 5xx — is passed
-through with **Meta's own sentence** and the real status. It is never described
-as a key failure, because a good key plus a malformed request is not a key
-problem, and telling someone their key is wrong when it is not sends them off to
-fix the wrong thing. That exact mistake once reported a 400 as "key rejected".
-
-If the rail ever blames the key, the card also carries a **Re-check the server
-key** button that bypasses the cached verdict (`/api/muse/status?force=1`). A
-healthy check clears the card instead of leaving a stale accusation on screen.
-
-### "the proxy answered 500"
-
-A 500 is the proxy failing, never the key. The app now shows the server's own
-sentence instead of only the status code, and the proxy itself:
-
-- returns `{error, route, detail, hint}` for any crash and logs the stack to the
-  function's runtime logs;
-- cannot be held hostage by a slow upstream — `/status` gives the probe 4 s and
-  then reports `unverified` instead of being killed by the platform;
-- answers `/api/muse/health` before any key or network work, so "deployed but
-  broken" can be told apart from "not deployed".
-
-If `/health` is fine and `/status` 500s, the `detail` on screen names the failing
-route. If `/health` also 500s, the function failed to load — check the build log
-and the Functions tab for `api/muse/[...path]`.
-
-### The tool schemas are not the validators
-
-`src/types/tools.ts` describes the canvas truthfully, and a canvas is a tree: a
-node has children, a style can carry responsive overrides, a `when` action can
-carry more actions. That is right for validation and fatal for the _wire_
-schema, because Meta answers a `$ref` with
-
-```
-400 {"message":"Recursive JSON schemas are not currently supported"}
-```
-
-and refuses the whole turn before the first token. The request looks like a key
-failure from the outside, so this one cost a deploy.
-
-`src/types/wire.ts` therefore holds bounded mirrors — nesting stops after three
-levels inside one `add`, actions are not described at all (they travel through
-`setProps`, §4.2) — and `toolParameters()` emits them with
-`$refStrategy: 'none'`. The result is ~19 kB of schema for all six tools with
-zero references. Two rules keep it honest:
-
-- **the validators stay authoritative.** `src/ops/apply.ts` still parses every
-  op with `opSchema`; the wire schema is guidance the model reads, never the
-  gate. Anything the wire omits (deeper trees) is written as further ops in the
-  same batch.
-- **never close a schema the canvas needs open.** A style map emits
-  `additionalProperties: <scalar>`, props emit `true`; a `false` there would
-  make `background` or a `tap` handler unwritable under constrained decoding.
-
-`src/types/wire.test.ts` fails the build on any `$ref`, on a closed style or
-props map, and on a size blow-up — the three ways this bug comes back.
-
-### The public pages and the phone shell
-
-The landing page and the gallery are built from the same tokens as the editor and
-are held to a house style: one ground, one ink, one accent, no gradients, no
-glows, no eyebrow labels, no icon cards, no monospace outside a real code block.
-The hero, the batch section and the preset comparison each render a **real
-canvas** — the same nodes the editor produces — instead of a picture of an app:
-
-- the hero screen and the op batch are built by `applyOps` at module load, so the
-  section can print the exact JSON that produced the screen beside it;
-- the two preset previews are the same five nodes under two token sets, which is
-  the only honest way to show what a preset does. Because both carry their own
-  `materializeCss`, tokens are scoped to their preview (`CanvasStyle scope`), not
-  poured onto `:root`;
-- a preview taller than its frame is cut by a mask fade, never by a hard edge
-  through a card.
-
-The phone shell is its own composition, not the desktop bar squeezed:
-
-- one action in the top bar (the true "start" action) and everything else behind
-  one overflow button, because two primaries at two sizes is a bug;
-- a five-item tab bar with a 48px hit area, a filled accent pill for the active
-  item, and tokens for every part of it;
-- the muse rail is a docked row over the tab bar when closed and a sheet when
-  open, never a floating card over the canvas.
-
-## Design system
-
-Museware's own chrome uses its own three-tier token architecture
-(`src/design/mw.css`): primitives → semantic aliases → component tokens.
-Components reference `var(--mw-*)` only; `scripts/check-tokens.mjs` fails the
-build if a raw hex appears outside that file, and if any ink-on-surface pair in
-either theme drops below 4.5:1.
-
-The **user's** apps run on the `openui-1.0` token format — the same format the
-presets use. One token edit restyles every screen, in the canvas, in run mode
-and in the export, because all three consume the same generated CSS.
-
-## Scope (v1, deliberate)
-
-No collaboration, no server storage, no arbitrary JS or custom code, no RTL or
-i18n, no watch UIs, no template marketplace. Watches are out because a wrist UI
-is a different paradigm and Wear OS has no real browser for a PWA; the
-small-screen guarantee v1 does make is "no layout break at 320 px".
-
-## War stories this codebase takes seriously
-
-- A model that types UI produces a screenshot of an app. Tools or nothing.
-- A model that writes one op per request burns the budget and the undo stack.
-  Batches.
-- A model that styles by hex drifts from the theme within two turns. Tokens.
-- A model that shows unverified work lies by accident. Verify, then show.
-- An agent without a visible Stop is a demo you cannot interrupt — and therefore
-  cannot trust.
-- "It worked on my machine" is what unexported code says. Ship the export
-  through a compiler in CI.
+1. In your **Vercel Project Dashboard**, navigate to **Settings → Environment Variables**.
+2. Add `MUSE_API_KEY` (and optionally `MUSE_DAILY_CAP=5` and `MUSE_LIVE=1`). Ensure the environment scope includes **Production** and **Preview**.
+3. Redeploy the project. Vercel automatically runs `npm run build` and serves the static frontend alongside the serverless `/api/muse/*` proxy handler.

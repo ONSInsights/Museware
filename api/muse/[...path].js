@@ -100,8 +100,7 @@ var DEFAULTS = {
   chat: "muse-spark-1.3",
   architect: "muse-wonder-1.0",
   contributor: "muse-spark-1.3-contributor",
-  image: "muse-image-1.0",
-  voice: "muse-voice-transcribe-1.0"
+  image: "muse-image-1.0"
 };
 function envOf(env) {
   return {
@@ -111,7 +110,6 @@ function envOf(env) {
     architect: env.MUSE_ARCHITECT_MODEL || DEFAULTS.architect,
     contributor: env.MUSE_CONTRIBUTOR_MODEL || DEFAULTS.contributor,
     image: env.MUSE_IMAGE_MODEL || DEFAULTS.image,
-    voice: env.MUSE_VOICE_MODEL || DEFAULTS.voice,
     reasoning: env.MUSE_REASONING === "1",
     live: env.MUSE_LIVE === "1"
   };
@@ -432,8 +430,7 @@ async function handleMuse(req, res, env) {
           architect: { id: cfg.architect, role: "Architect", effort: "max" },
           chat: { id: cfg.chat, role: "Chat", effort: "low" },
           contributor: { id: cfg.contributor, role: "Dev budget", effort: "xhigh" },
-          image: { id: cfg.image, role: "Image", effort: null },
-          voice: { id: cfg.voice, role: "Voice", effort: null }
+          image: { id: cfg.image, role: "Image", effort: null }
         }
       });
     }
@@ -593,26 +590,6 @@ async function handleMuse(req, res, env) {
       );
       if (!r.ok) return await upstreamError(res, r, source);
       return await pipeThrough(res, r, chargeHouse);
-    }
-    if (route === "/transcribe" && req.method === "POST") {
-      const body = await readJson(req, 14 * 1024 * 1024);
-      if (!body.audio) return sendJson(res, 400, { error: "no_audio" });
-      const bytes = Buffer.from(body.audio, "base64");
-      const form = new FormData();
-      form.append(
-        "file",
-        new Blob([bytes], { type: body.mime || "audio/webm" }),
-        "speech.webm"
-      );
-      form.append("model", cfg.voice);
-      const r = await fetch(`${apiRoot(cfg.baseUrl)}/audio/transcriptions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}` },
-        body: form,
-        signal: abort.signal
-      });
-      if (!r.ok) return await upstreamError(res, r, source);
-      return await pipeThrough(res, r, null);
     }
     return sendJson(res, 404, { error: "not_found", route });
   } catch (err) {

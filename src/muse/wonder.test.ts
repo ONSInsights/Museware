@@ -16,7 +16,6 @@ const MODELS: ModelMatrix = {
   chat: { id: 'muse-spark-1.3', role: 'Chat', effort: 'low' },
   contributor: { id: 'muse-spark-1.3-contributor', role: 'Dev', effort: 'xhigh' },
   image: { id: 'muse-image-1.0', role: 'Image', effort: null },
-  voice: { id: 'muse-voice-transcribe-1.0', role: 'Voice', effort: null },
 };
 
 function sse(text: string): Response {

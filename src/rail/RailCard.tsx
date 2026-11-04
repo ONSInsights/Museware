@@ -776,7 +776,7 @@ export function RailCard({ entry }: { entry: RailEntry }) {
         card.data.turnCard &&
         card.data.phase === 'live' &&
         (card.data.ops || 0) === 0 &&
-        !(card.data.assets && card.data.assets.length > 0)
+        !(Array.isArray(card.data.assets) && card.data.assets.length > 0)
       ) {
         return <ThinkingCard entry={entry} />;
       }

@@ -14,8 +14,8 @@ import { ProjectAppearanceControls } from '../../design/ProjectAppearanceControl
 import type { DesignTokens } from '../../types/tokens';
 
 const ROLE_ORDER: Array<
-  'builder' | 'architect' | 'chat' | 'contributor' | 'image' | 'voice'
-> = ['builder', 'architect', 'chat', 'contributor', 'image', 'voice'];
+  'builder' | 'architect' | 'chat' | 'contributor' | 'image'
+> = ['builder', 'architect', 'chat', 'contributor', 'image'];
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const replaceDoc = useProject((s) => s.replaceDoc);
@@ -58,7 +58,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           chat: status.models.chat,
           contributor: status.models.contributor,
           image: status.models.image,
-          voice: status.models.voice,
         },
         keySource: status.source,
         statusError: null,
@@ -81,7 +80,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   const runProbes = async () => {
     if (!models) return;
-    // Text roles only: image and voice bill per call, so pinging them here
+    // Text roles only: image bills per call, so pinging it here
     // would spend the visitor's money to learn something we do not need.
     await probeTextRoles(models);
     toast('Probes finished — red is honest, not scary.', 'ok');

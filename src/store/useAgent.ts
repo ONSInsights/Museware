@@ -15,7 +15,6 @@ export interface ModelMatrix {
   chat: ModelRoleInfo;
   contributor: ModelRoleInfo;
   image: ModelRoleInfo;
-  voice: ModelRoleInfo;
 }
 
 export interface ProbeResult {

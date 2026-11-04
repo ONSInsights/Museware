@@ -620,8 +620,7 @@ export function Landing() {
       </section>
 
       <p className="lp-family lp-reveal">
-        The muse family does the work: spark writes the ops and reads screenshots, wonder plans the blueprint, image draws,
-        voice listens.
+        The muse family does the work: spark writes the ops and reads screenshots, wonder plans the blueprint, image illustrates.
       </p>
 
       <section className="lp-batch">

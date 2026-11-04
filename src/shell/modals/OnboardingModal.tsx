@@ -23,7 +23,6 @@ const ROLE_LABEL: Record<string, string> = {
   architect: 'Architect',
   chat: 'Chat',
   image: 'Image',
-  voice: 'Voice',
 };
 
 export function OnboardingModal({ onClose }: { onClose: () => void }) {

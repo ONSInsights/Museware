@@ -80,7 +80,6 @@ export interface ServerStatus {
     chat: ModelRole;
     contributor: ModelRole;
     image: ModelRole;
-    voice: ModelRole;
   };
 }
 
@@ -727,7 +726,7 @@ export async function chatOnce(opts: Omit<ChatOptions, 'onText'>): Promise<strin
 }
 
 async function mediaCall<T>(
-  role: 'image' | 'voice',
+  role: 'image',
   promptChars: number,
   call: () => Promise<T>,
 ): Promise<T> {
@@ -735,7 +734,6 @@ async function mediaCall<T>(
   const agent = useAgent.getState();
   const defaults = {
     image: 'muse-image-1.0',
-    voice: 'muse-voice-transcribe-1.0',
   };
   const model = agent.models?.[role].id || defaults[role];
   let status: 'success' | 'failed' = 'success';
@@ -777,18 +775,5 @@ export async function generateImage(prompt: string, size = '1024x1024'): Promise
     if (first?.b64_json) return `data:image/png;base64,${first.b64_json}`;
     if (first?.url) return first.url;
     throw new MuseError('upstream', 'image response had no image');
-  });
-}
-
-export async function transcribe(audioBase64: string, mime: string): Promise<string> {
-  return mediaCall('voice', 0, async () => {
-    const res = await fetch('/api/muse/transcribe', {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ audio: audioBase64, mime }),
-    });
-    if (!res.ok) throw await errorFromResponse(res);
-    const json = (await res.json()) as { text?: string };
-    return json.text || '';
   });
 }
