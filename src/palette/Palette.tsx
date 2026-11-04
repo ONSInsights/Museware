@@ -5,7 +5,7 @@ import { useUi } from '../store/useUi';
 import { COMPONENT_SPECS, PALETTE_GROUPS, isContainerType, spec } from '../types/library';
 import type { ComponentType } from '../types/tree';
 import { useDrag } from '../canvas/drag';
-import { insertNodeBatch } from '../ops/screenOps';
+import { addScreenBatch, insertNodeBatch } from '../ops/screenOps';
 import { Icon } from '../canvas/Icon';
 import { findNode } from '../ops/treeUtils';
 
@@ -40,12 +40,39 @@ export function Palette() {
   }, [query]);
 
   const insert = (type: ComponentType) => {
-    if (!screen) {
-      startPrompt(`Design me a screen with a ${spec(type)?.label.toLowerCase() || type}.`);
-      toast('No screen yet — ask muse and it starts with a blueprint.', 'warn');
+    if (type === 'screen') {
+      const res = applyBatch(addScreenBatch(doc, `Screen ${doc.screens.length + 1}`), {
+        source: 'user',
+      });
+      if (res.errors.length) {
+        toast(res.errors[0].message, 'warn');
+        return;
+      }
+      const created = useProject.getState().doc.screens.slice(-1)[0];
+      if (created) {
+        useUi.getState().setActiveScreen(created.id);
+        select(null);
+      }
+      useUi.getState().setLeftFlyout(false);
+      toast('Screen added', 'ok');
       return;
     }
-    const batch = insertNodeBatch(doc, type, selectedId);
+
+    let targetDoc = doc;
+    let targetScreen = screen;
+    if (!targetScreen) {
+      const screenRes = applyBatch(addScreenBatch(doc, 'Screen 1'), { source: 'user' });
+      if (screenRes.errors.length) {
+        toast(screenRes.errors[0].message, 'warn');
+        return;
+      }
+      targetDoc = useProject.getState().doc;
+      targetScreen = targetDoc.screens.slice(-1)[0];
+      if (targetScreen) {
+        useUi.getState().setActiveScreen(targetScreen.id);
+      }
+    }
+    const batch = insertNodeBatch(targetDoc, type, selectedId);
     if ('error' in batch) {
       toast(batch.error, 'warn');
       return;

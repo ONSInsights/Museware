@@ -32,12 +32,21 @@ function describeActions(node: ComponentNode): string[] {
 
 export function buildProjectIndex(
   doc: ProjectDoc,
-  opts: { selectionId?: string | null; extra?: string[] } = {},
+  opts: {
+    selectionId?: string | null;
+    activeScreenId?: string | null;
+    extra?: string[];
+  } = {},
 ): string {
   const lines: string[] = [];
   lines.push(
     `PROJECT "${doc.name}" · kind ${doc.kind} · ${doc.screens.length} screen${doc.screens.length === 1 ? '' : 's'} · ${doc.customComponents.length} custom components`,
   );
+  if (doc.screens.length > 0) {
+    lines.push(
+      `STATUS: EXISTING USER PROJECT (${doc.screens.length} screen(s)). The user already has a working project. Assist, redesign, suggest edits, or modify existing screens and sections. Do not wipe out their project or add unwanted new screens.`,
+    );
+  }
   const stateKeys = new Set<string>();
   for (const screen of doc.screens) {
     walk(screen.root, (n) => {
@@ -54,9 +63,22 @@ export function buildProjectIndex(
   }
   lines.push('SCREENS:');
   for (const screen of doc.screens) {
+    const isActive = opts.activeScreenId
+      ? screen.id === opts.activeScreenId
+      : screen.entry || screen === doc.screens[0];
     lines.push(
-      `- ${screen.id} "${screen.name}"${screen.entry ? ' (entry)' : ''} · ${countNodes(screen.root)} nodes`,
+      `- ${screen.id} "${screen.name}"${screen.entry ? ' (entry)' : ''}${isActive ? ' (active screen currently viewed)' : ''} · ${countNodes(screen.root)} nodes`,
     );
+    if (isActive || doc.screens.length === 1) {
+      const sections = screen.root.children.map((child) => {
+        const title =
+          child.props.title || child.props.text || child.props.label || child.name || '';
+        return `${child.id} (${child.type}${title ? `: "${String(title).slice(0, 35)}"` : ''})`;
+      });
+      if (sections.length) {
+        lines.push(`  sections on active screen: ${sections.join(', ')}`);
+      }
+    }
     const ids: string[] = [];
     walk(screen.root, (n) => {
       if (ids.length < IDS_PER_SCREEN) ids.push(`${n.id}(${n.type})`);
@@ -95,7 +117,7 @@ export function buildProjectIndex(
       if (hit) {
         const node = hit as ComponentNode;
         lines.unshift(
-          `SELECTED: ${node.id} (${node.type}) props=${JSON.stringify(node.props).slice(0, 200)}`,
+          `SELECTED: ${node.id} (${node.type}) on "${screen.name}" (${screen.id}) props=${JSON.stringify(node.props).slice(0, 200)}`,
         );
         break;
       }

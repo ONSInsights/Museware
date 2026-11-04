@@ -528,7 +528,11 @@ function contextMessages(
   extraSystem: string[] = [],
 ): ChatMessage[] {
   const sheet = buildTokenSheet(doc.tokens);
-  const index = buildProjectIndex(doc, { selectionId: useUi.getState().selectedId });
+  const activeScreenId = useUi.getState().activeScreenId;
+  const index = buildProjectIndex(doc, {
+    selectionId: useUi.getState().selectedId,
+    activeScreenId,
+  });
   return [
     {
       role: 'system',
@@ -1007,7 +1011,12 @@ async function runTool(
           text: outlines.length ? outlines.join('\n') : 'Scoped node no longer exists.',
         };
       }
-      return { text: buildProjectIndex(doc, { selectionId: useUi.getState().selectedId }) };
+      return {
+        text: buildProjectIndex(doc, {
+          selectionId: useUi.getState().selectedId,
+          activeScreenId: useUi.getState().activeScreenId,
+        }),
+      };
 
     case 'set_design_tokens': {
       if (pickTurn?.protectTokens || opts.protectDesignTokens)
@@ -1850,8 +1859,20 @@ export async function runAgentTurn(
 
   try {
     const isPlanning = !before.blueprint?.text && before.screens.length === 0;
+    const activeScreenId = useUi.getState().activeScreenId;
+    const existingProjectGuidance =
+      before.screens.length > 0
+        ? `EXISTING USER PROJECT GUIDANCE:
+The user has ${before.screens.length} existing screen(s) in this project (active: "${activeScreenId || before.screens[0]?.id || 'current'}").
+- The user is actively building and designing this project. Acknowledge and work with their existing screens and sections.
+- When the user asks for suggestions, review, critique, or advice: respond directly with actionable design suggestions in prose and offer specific edits.
+- When the user asks to redesign, edit, restyle, fix, or add something to a section or screen: use edit_canvas to update existing nodes or add new elements to the current screen (${activeScreenId || before.screens[0]?.id || 'active screen'}), or use set_design_tokens for theme/color adjustments.
+- If a node is selected, target that specific node/section.
+- DO NOT propose a blueprint, do not call ask_choice, and DO NOT call addScreen unless the user explicitly requested a brand new screen.`
+        : '';
     const messages = contextMessages(before, userText, [
       ...(isPlanning ? [BLUEPRINT_PROMPT] : []),
+      ...(existingProjectGuidance ? [existingProjectGuidance] : []),
       ...(pickTurn ? [pickReceipt(pickTurn)] : []),
       ...(opts.resumeJournal ? [opts.resumeJournal] : []),
     ]);

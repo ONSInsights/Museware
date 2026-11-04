@@ -5,6 +5,7 @@ import {
   GripVertical,
   ImagePlus,
   Monitor,
+  Plus,
   Smartphone,
   Sparkles,
   Tablet,
@@ -17,6 +18,7 @@ import { CanvasStyle, NodeView } from './NodeView';
 import { findNode } from '../ops/treeUtils';
 import { stageScreenshot } from '../rail/stageScreenshot';
 import { Button } from '../components/ui';
+import { addScreenBatch } from '../ops/screenOps';
 
 const TEXTISH = new Set(['heading', 'text', 'label', 'badge', 'button', 'link']);
 
@@ -298,6 +300,23 @@ export function Canvas() {
           <div className="empty-chips">
             <Button
               variant="primary"
+              onClick={() => {
+                const res = applyBatch(addScreenBatch(doc, 'Screen 1'), { source: 'user' });
+                if (res.errors.length) toast(res.errors[0].message, 'warn');
+                else {
+                  const created = useProject.getState().doc.screens.slice(-1)[0];
+                  if (created) {
+                    setActiveScreen(created.id);
+                    select(null);
+                  }
+                  toast('Screen added', 'ok');
+                }
+              }}
+            >
+              <Plus size={13} /> Add blank screen
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() =>
                 startPrompt('Design me a landing page website for a small coffee roaster.')
               }
