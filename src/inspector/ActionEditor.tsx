@@ -11,8 +11,8 @@ const KINDS: Array<{ value: Action['type']; label: string }> = [
   { value: 'setState', label: 'Set a value' },
   { value: 'toggle', label: 'Toggle a value' },
   { value: 'toast', label: 'Show a toast' },
-  { value: 'openUrl', label: 'Open a link' },
-  ...([] as Array<{ value: Action['type']; label: string }>),
+  { value: 'openUrl', label: 'Open link / WhatsApp' },
+  { value: 'submitWebhook', label: 'Submit to Webhook / API' },
 ];
 
 const WHEN: { value: Action['type']; label: string } = { value: 'when', label: 'When…' };
@@ -28,7 +28,15 @@ function blankAction(type: Action['type'], screens: ScreenDoc[]): Action {
     case 'toast':
       return { type: 'toast', text: 'Done' };
     case 'openUrl':
-      return { type: 'openUrl', url: 'https://' };
+      return { type: 'openUrl', url: 'https://', target: '_blank' };
+    case 'submitWebhook':
+      return {
+        type: 'submitWebhook',
+        url: 'https://',
+        method: 'POST',
+        successToast: 'Submitted successfully!',
+        clearOnSuccess: true,
+      };
     case 'when':
       return { type: 'when', key: 'on', equals: true, then: [] };
     default:
@@ -311,14 +319,184 @@ function ActionArgs({
       );
     case 'openUrl':
       return (
-        <input
-          className="input mw-detail-2"
-          value={action.url}
-          aria-label="URL"
-          placeholder="https://"
-          onChange={(e) => onChange({ type: 'openUrl', url: e.target.value })}
-        />
+        <div className="mw-detail-8" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input
+            className="input mw-detail-2"
+            value={action.url}
+            aria-label="URL"
+            placeholder="https://wa.me/1234567890?text=Hi%20{name}"
+            onChange={(e) => onChange({ ...action, url: e.target.value })}
+          />
+          <div className="mw-detail-1" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <button
+              type="button"
+              className="chip"
+              onClick={() =>
+                onChange({
+                  ...action,
+                  url: 'https://wa.me/PHONE_NUMBER?text=Hi%20there,%20I%20am%20{name}:%20{message}',
+                  target: '_blank',
+                })
+              }
+            >
+              + WhatsApp Preset
+            </button>
+            <button
+              type="button"
+              className="chip"
+              onClick={() =>
+                onChange({
+                  ...action,
+                  url: 'mailto:you@example.com?subject=Inquiry%20from%20{name}&body={message}',
+                  target: '_blank',
+                })
+              }
+            >
+              + Email (mailto) Preset
+            </button>
+          </div>
+          {keys.length > 0 && (
+            <div>
+              <span className="field-hint" style={{ display: 'block', marginBottom: 2 }}>
+                Insert bound field:
+              </span>
+              <div className="mw-detail-1" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {keys.map((k) => (
+                  <button
+                    type="button"
+                    key={k}
+                    className="chip"
+                    onClick={() => {
+                      const token = `{${k}}`;
+                      onChange({
+                        ...action,
+                        url: `${action.url}${action.url.endsWith('=') || action.url.endsWith('/') || action.url.endsWith(' ') ? '' : ' '}${token}`,
+                      });
+                    }}
+                  >
+                    {`{${k}}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="field-hint" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              Target:
+              <select
+                className="select mw-detail-3"
+                style={{ width: 'auto' }}
+                value={action.target || '_blank'}
+                onChange={(e) =>
+                  onChange({ ...action, target: e.target.value as '_blank' | '_self' })
+                }
+              >
+                <option value="_blank">New tab (_blank)</option>
+                <option value="_self">Same tab (_self)</option>
+              </select>
+            </label>
+          </div>
+        </div>
       );
+    case 'submitWebhook': {
+      const isGoogleScript = /script\.google\.com/i.test(action.url);
+      const copyScriptSnippet = () => {
+        const snippet = `function doPost(e) {\n  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();\n  sheet.appendRow([new Date(), JSON.stringify(e.parameter)]);\n  return ContentService.createTextOutput("OK");\n}`;
+        navigator.clipboard?.writeText(snippet);
+        alert('Google Apps Script snippet copied to clipboard! Paste it into Extensions > Apps Script in your Google Sheet.');
+      };
+      return (
+        <div className="mw-detail-8" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="set-state-field">
+            <span>Endpoint URL</span>
+            <input
+              className="input mw-detail-2"
+              value={action.url}
+              aria-label="Webhook URL"
+              placeholder="https://script.google.com/macros/s/.../exec"
+              onChange={(e) => onChange({ ...action, url: e.target.value })}
+            />
+          </label>
+          {isGoogleScript && (
+            <div className="field-hint" style={{ color: 'var(--openui-accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>✓ Google Apps Script detected (auto no-cors POST)</span>
+              <button
+                type="button"
+                className="chip"
+                onClick={copyScriptSnippet}
+              >
+                Copy Sheet Script
+              </button>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label className="set-state-field" style={{ flex: 1 }}>
+              <span>Method</span>
+              <select
+                className="select mw-detail-3"
+                value={action.method || 'POST'}
+                onChange={(e) => onChange({ ...action, method: e.target.value as 'POST' | 'GET' })}
+              >
+                <option value="POST">POST</option>
+                <option value="GET">GET</option>
+              </select>
+            </label>
+            <label className="set-state-field" style={{ flex: 1 }}>
+              <span>CORS Mode</span>
+              <select
+                className="select mw-detail-3"
+                value={action.mode || (isGoogleScript ? 'no-cors' : 'cors')}
+                onChange={(e) => onChange({ ...action, mode: e.target.value as 'cors' | 'no-cors' })}
+              >
+                <option value="cors">Standard CORS</option>
+                <option value="no-cors">No-CORS (Google Apps Script)</option>
+              </select>
+            </label>
+          </div>
+          <label className="set-state-field">
+            <span>Success Toast</span>
+            <input
+              className="input mw-detail-5"
+              value={action.successToast ?? 'Submitted successfully!'}
+              placeholder="Submitted successfully!"
+              onChange={(e) => onChange({ ...action, successToast: e.target.value })}
+            />
+          </label>
+          <label className="set-state-field">
+            <span>Error Toast</span>
+            <input
+              className="input mw-detail-5"
+              value={action.errorToast ?? 'Submission failed.'}
+              placeholder="Submission failed."
+              onChange={(e) => onChange({ ...action, errorToast: e.target.value })}
+            />
+          </label>
+          <label className="set-state-field">
+            <span>Go to screen on success (optional)</span>
+            <select
+              className="select mw-detail-2"
+              value={action.navigateOnSuccess || ''}
+              onChange={(e) => onChange({ ...action, navigateOnSuccess: e.target.value || undefined })}
+            >
+              <option value="">(None — stay on screen)</option>
+              {screens.map((screen) => (
+                <option key={screen.id} value={screen.id}>
+                  {screen.name} ({screen.id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-hint" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={action.clearOnSuccess !== false}
+              onChange={(e) => onChange({ ...action, clearOnSuccess: e.target.checked })}
+            />
+            Clear form inputs on success
+          </label>
+        </div>
+      );
+    }
     case 'when':
       return (
         <div className="mw-detail-8">

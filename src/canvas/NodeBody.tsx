@@ -665,7 +665,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       const sample = mode === 'edit' && !rows.length;
       const items = (sample ? fallbackRows(node) : rows).slice(0, 5);
       return sampleFrame(
-        <div className={`${cls}${p.divider ? ' mw-list-divided' : ''}`} {...tapProps}>
+        <div className={`${cls}${p.divider ? ' mw-list-divided' : ''}`} data-source-url={asText(p.dataSourceUrl) || undefined} {...tapProps}>
           {items.map((r, i) => {
             const keys = Object.keys(r);
             const title = String(r.title ?? r.name ?? r[keys[0]] ?? 'Item');
@@ -728,7 +728,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
       const items = (sample ? fallbackRows(node, 3) : rows).slice(0, 10);
       const cols = columns.length ? columns : ['Name', 'Value', 'Status'];
       return sampleFrame(
-        <div className={cls} {...tapProps}>
+        <div className={cls} data-source-url={asText(p.dataSourceUrl) || undefined} {...tapProps}>
           <div className="mw-table-head">
             {cols.map((c) => (
               <span className="mw-table-cell" key={c}>
@@ -826,7 +826,7 @@ export function NodeBody({ node, doc, mode, screenId, row }: Props) {
         );
       }
       return sampleFrame(
-        <div className={cls} {...tapProps}>
+        <div className={cls} data-source-url={asText(p.dataSourceUrl) || undefined} {...tapProps}>
           <div className="mw-chart">
             {points.map((pt, i) => (
               <div

@@ -6,15 +6,26 @@ export interface RuntimeApi {
   state: Record<string, unknown>;
   screens: ScreenDoc[];
   setKey: (key: string, value: unknown) => void;
+  clearKeys?: (keys: string[]) => void;
   toast: (text: string) => void;
   navigate: (to: string) => void;
-  openUrl: (url: string) => void;
+  openUrl: (url: string, target?: '_blank' | '_self') => void;
 }
 
 export const RuntimeContext = createContext<RuntimeApi | null>(null);
 
 export function useRuntime(): RuntimeApi | null {
   return useContext(RuntimeContext);
+}
+
+/** Interpolates `{key}` tokens using the current state dictionary. URL-encodes interpolated values. */
+export function interpolateTokens(template: string, state: Record<string, unknown>): string {
+  if (!template || typeof template !== 'string') return '';
+  return template.replace(/\{([a-zA-Z0-9_.-]+)\}/g, (_, key) => {
+    const val = state[key];
+    if (val === undefined || val === null) return '';
+    return encodeURIComponent(String(val));
+  });
 }
 
 export function matchesValue(actual: unknown, expected: unknown): boolean {
@@ -46,11 +57,77 @@ export function runActions(
         api.setKey(action.key, !api.state[action.key]);
         break;
       case 'toast':
-        api.toast(action.text);
+        api.toast(interpolateTokens(action.text, api.state));
         break;
-      case 'openUrl':
-        api.openUrl(action.url);
+      case 'openUrl': {
+        const url = interpolateTokens(action.url, api.state);
+        api.openUrl(url, action.target);
         break;
+      }
+      case 'submitWebhook': {
+        const method = action.method || 'POST';
+        const url = interpolateTokens(action.url, api.state);
+        const isGoogleScript = /script\.google\.com/i.test(url);
+        const mode = action.mode || (isGoogleScript ? 'no-cors' : 'cors');
+
+        const headers: Record<string, string> = {
+          ...(action.headers || {}),
+        };
+
+        let body: BodyInit | undefined = undefined;
+        if (method === 'POST') {
+          if (mode === 'no-cors' || isGoogleScript) {
+            const params = new URLSearchParams();
+            for (const [k, v] of Object.entries(api.state)) {
+              if (v !== undefined && v !== null) {
+                params.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+              }
+            }
+            body = params.toString();
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+          } else {
+            body = JSON.stringify(api.state);
+            if (!headers['Content-Type']) {
+              headers['Content-Type'] = 'application/json';
+            }
+          }
+        }
+
+        try {
+          fetch(url, {
+            method,
+            mode,
+            headers: Object.keys(headers).length ? headers : undefined,
+            body,
+          })
+            .then((res) => {
+              if (mode === 'no-cors' || res.ok || res.type === 'opaque') {
+                if (action.successToast) api.toast(interpolateTokens(action.successToast, api.state));
+                else api.toast('Submitted successfully!');
+
+                if (action.clearOnSuccess !== false && api.clearKeys) {
+                  api.clearKeys(Object.keys(api.state));
+                }
+                if (action.navigateOnSuccess) {
+                  api.navigate(action.navigateOnSuccess);
+                }
+              } else {
+                if (action.errorToast) api.toast(interpolateTokens(action.errorToast, api.state));
+                else api.toast(`Submission failed (${res.status})`);
+              }
+            })
+            .catch((err) => {
+              console.warn('Webhook dispatch failed:', err);
+              if (action.errorToast) api.toast(interpolateTokens(action.errorToast, api.state));
+              else api.toast('Submission failed. Check network connection.');
+            });
+        } catch (err) {
+          console.warn('Webhook dispatch exception:', err);
+          if (action.errorToast) api.toast(interpolateTokens(action.errorToast, api.state));
+          else api.toast('Submission failed.');
+        }
+        break;
+      }
       case 'when': {
         const current = api.state[action.key];
         const matches =

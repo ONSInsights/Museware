@@ -79,7 +79,19 @@ const toastAction = z.object({
 });
 const openUrlAction = z.object({
   type: z.literal('openUrl'),
-  url: z.string().url().max(500),
+  url: z.string().min(1).max(2000),
+  target: z.enum(['_blank', '_self']).optional(),
+});
+const submitWebhookAction = z.object({
+  type: z.literal('submitWebhook'),
+  url: z.string().min(1).max(2000),
+  method: z.enum(['POST', 'GET']).optional(),
+  mode: z.enum(['cors', 'no-cors']).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  successToast: z.string().max(300).optional(),
+  errorToast: z.string().max(300).optional(),
+  navigateOnSuccess: z.string().max(60).optional(),
+  clearOnSuccess: z.boolean().optional(),
 });
 
 export const actionSchema: z.ZodType<Action> = z.lazy(() =>
@@ -89,6 +101,7 @@ export const actionSchema: z.ZodType<Action> = z.lazy(() =>
     toggleAction,
     toastAction,
     openUrlAction,
+    submitWebhookAction,
     z.object({
       type: z.literal('when'),
       key: stateKey,

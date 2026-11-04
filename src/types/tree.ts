@@ -116,7 +116,18 @@ export type Action =
   | { type: 'setState'; key: string; value: unknown }
   | { type: 'toggle'; key: string }
   | { type: 'toast'; text: string }
-  | { type: 'openUrl'; url: string }
+  | { type: 'openUrl'; url: string; target?: '_blank' | '_self' }
+  | {
+      type: 'submitWebhook';
+      url: string;
+      method?: 'POST' | 'GET';
+      mode?: 'cors' | 'no-cors';
+      headers?: Record<string, string>;
+      successToast?: string;
+      errorToast?: string;
+      navigateOnSuccess?: string;
+      clearOnSuccess?: boolean;
+    }
   | { type: 'when'; key: string; equals?: unknown; then: Action[] };
 
 export type EventName = 'tap' | 'change' | 'submit';

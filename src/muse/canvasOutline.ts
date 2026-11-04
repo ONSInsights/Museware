@@ -58,6 +58,7 @@ function actionsOf(node: ComponentNode): string {
       if (a.type === 'toggle') return `toggle ${a.key}`;
       if (a.type === 'toast') return 'toast';
       if (a.type === 'openUrl') return 'openUrl';
+      if (a.type === 'submitWebhook') return 'webhook';
       return `if ${a.key}`;
     });
     parts.push(`${ev}:${verbs.join(',')}`);

@@ -799,9 +799,11 @@ export function Inspector() {
                         ? `Show: ${action.text}`
                         : action.type === 'openUrl'
                           ? `Open: ${action.url}`
-                          : action.type === 'when'
-                            ? `When ${action.key}`
-                            : `${action.type}: ${action.key}`}
+                          : action.type === 'submitWebhook'
+                            ? `Submit: ${action.url}`
+                            : action.type === 'when'
+                              ? `When ${action.key}`
+                              : `${action.type}: ${action.key}`}
                   </span>
                 ))}
                 <ActionEditor

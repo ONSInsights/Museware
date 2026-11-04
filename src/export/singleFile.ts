@@ -62,6 +62,7 @@ export function buildSingleHtml(input: ProjectDoc): string {
               'preset',
               'speed',
               'interactive',
+              'dataSourceUrl',
             ].includes(key),
           ),
         ),

@@ -126,7 +126,11 @@ for (const [path, content] of Object.entries(files)) {
   mkdirSync(dirname(full), { recursive: true });
   writeFileSync(full, content);
 }
-symlinkSync(join(repo, 'node_modules'), join(OUT, 'node_modules'), 'dir');
+symlinkSync(
+  join(repo, 'node_modules'),
+  join(OUT, 'node_modules'),
+  process.platform === 'win32' ? 'junction' : 'dir',
+);
 writeFileSync(join(OUT, '.gitignore'), 'node_modules\ndist\n');
 
 const count = Object.keys(files).length;
@@ -134,14 +138,16 @@ console.log(`· wrote ${count} files to ${OUT}`);
 
 function run(label: string, bin: string, args: string[]) {
   process.stdout.write(`· ${label}… `);
+  const executable = process.platform === 'win32' && !bin.endsWith('.cmd') ? `${bin}.cmd` : bin;
   try {
-    execFileSync(bin, args, { cwd: OUT, stdio: 'pipe' });
+    execFileSync(executable, args, { cwd: OUT, stdio: 'pipe', shell: true });
     console.log('ok');
   } catch (err) {
-    const error = err as { stdout?: Buffer; stderr?: Buffer };
+    const error = err as { stdout?: Buffer; stderr?: Buffer; message?: string };
     console.log('FAILED');
     console.error(error.stdout?.toString().slice(-4000) || '');
     console.error(error.stderr?.toString().slice(-4000) || '');
+    if (error.message) console.error(error.message);
     process.exit(1);
   }
 }

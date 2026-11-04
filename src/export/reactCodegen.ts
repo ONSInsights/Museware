@@ -253,6 +253,25 @@ ${pad}</div>`;
         0,
         10,
       );
+      const liveUrl = typeof p.dataSourceUrl === 'string' ? p.dataSourceUrl.trim() : '';
+      if (liveUrl) {
+        return `${pad}<LiveCollection dataSourceUrl={${str(liveUrl)}} initialRows={${JSON.stringify(rows)}}>
+${pad}  {(liveRows) => (
+${pad}    <div className={${str(cls)}}>
+${pad}      <div className="mw-table-head">${columns.map((c) => `<span className="mw-table-cell">${jsxText(c)}</span>`).join('')}</div>
+${pad}      {liveRows.map((row, i) => (
+${pad}        <div className="mw-table-row" key={i}>
+${columns.map((c, ci) => {
+  const key = c.toLowerCase().replace(/\s+/g, '_');
+  return `${pad}          <span className="mw-table-cell">{String(row[${str(key)}] ?? row[${str(c)}] ?? row[Object.keys(row)[${ci}] ?? ''] ?? '')}</span>`;
+}).join('\n')}
+${pad}        </div>
+${pad}      ))}
+${pad}      {!liveRows.length && <div className="mw-empty">No data yet</div>}
+${pad}    </div>
+${pad}  )}
+${pad}</LiveCollection>`;
+      }
       return `${pad}<div className={${str(cls)}}>
 ${pad}  <div className="mw-table-head">${columns.map((c) => `<span className="mw-table-cell">${jsxText(c)}</span>`).join('')}</div>
 ${rows
@@ -424,7 +443,7 @@ function screenModule(doc: ProjectDoc, screen: ScreenDoc): string {
   const vars = screenLookVariables(screen.root.props);
   return `import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { armReveals } from '../reveal';
-import { useApp, TabsBlock, matchesValue } from '../runtime';
+import { useApp, TabsBlock, matchesValue, LiveCollection } from '../runtime';
 import { Icon } from '../icons';
 import { MotionCanvas, VideoContent } from '../MotionCanvas';
 
@@ -506,10 +525,20 @@ export function matchesValue(actual: unknown, expected: unknown): boolean {
   return String(actual ?? '') === String(expected ?? '');
 }
 
+export function interpolateTokens(template: string, state: Record<string, unknown>): string {
+  if (!template || typeof template !== 'string') return '';
+  return template.replace(/\\{([a-zA-Z0-9_.-]+)\\}/g, (_, key) => {
+    const val = state[key];
+    if (val === undefined || val === null) return '';
+    return encodeURIComponent(String(val));
+  });
+}
+
 export interface AppApi {
   screen: string;
   state: Record<string, unknown>;
   setKey: (key: string, value: unknown) => void;
+  clearKeys?: (keys: string[]) => void;
   navigate: (to: string) => void;
   go: (labelOrId: string) => void;
   toast: (text: string) => void;
@@ -544,6 +573,32 @@ export function useSetScreen(): (id: string) => void {
   return ctx.setScreen;
 }
 
+export function LiveCollection({
+  dataSourceUrl,
+  initialRows,
+  children,
+}: {
+  dataSourceUrl?: string;
+  initialRows: Record<string, unknown>[];
+  children: (rows: Record<string, unknown>[]) => ReactNode;
+}) {
+  const [rows, setRows] = useState(initialRows);
+  useLayoutEffect(() => {
+    if (!dataSourceUrl) return;
+    let active = true;
+    fetch(dataSourceUrl)
+      .then((r) => r.json())
+      .then((data) => {
+        if (active && Array.isArray(data) && data.length) setRows(data);
+      })
+      .catch((err) => console.warn('Live data sync skipped:', err));
+    return () => {
+      active = false;
+    };
+  }, [dataSourceUrl]);
+  return <>{children(rows)}</>;
+}
+
 export function TabsBlock({ items, children, onChange }: { items: string[]; children: ReactNode; onChange?: () => void }) {
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
@@ -568,7 +623,7 @@ export function TabsBlock({ items, children, onChange }: { items: string[]; chil
   files['src/App.tsx'] =
     `import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { enterPanel } from './reveal';
-import { AppContext, SCREENS, slug, matchesValue } from './runtime';
+import { AppContext, SCREENS, slug, matchesValue, interpolateTokens } from './runtime';
 import type { Action } from './types';
 ${doc.screens.map((s) => `import { ${pascal(s.id)}Screen } from './screens/${pascal(s.id)}';`).join('\n')}
 
@@ -593,6 +648,11 @@ export default function App() {
       screen,
       state,
       setKey: (key: string, value: unknown) => setState((s) => ({ ...s, [key]: value })),
+      clearKeys: (keys: string[]) => setState((s) => {
+        const next = { ...s };
+        for (const k of keys) delete next[k];
+        return next;
+      }),
       navigate: (to: string) => {
         api.go(to);
       },
@@ -612,8 +672,51 @@ export default function App() {
           if (a.type === 'navigate') api.navigate(a.to);
           else if (a.type === 'setState') api.setKey(a.key, a.value);
           else if (a.type === 'toggle') api.setKey(a.key, !api.state[a.key]);
-          else if (a.type === 'toast') api.toast(a.text);
-          else if (a.type === 'openUrl' && window.confirm('Open ' + a.url + '?')) window.open(a.url, '_blank');
+          else if (a.type === 'toast') api.toast(interpolateTokens(a.text, api.state));
+          else if (a.type === 'openUrl') {
+            const url = interpolateTokens(a.url, api.state);
+            window.open(url, a.target || '_blank', 'noopener,noreferrer');
+          }
+          else if (a.type === 'submitWebhook') {
+            const method = a.method || 'POST';
+            const url = interpolateTokens(a.url, api.state);
+            const isGoogle = /script\\.google\\.com/i.test(url);
+            const mode = a.mode || (isGoogle ? 'no-cors' : 'cors');
+            const headers: Record<string, string> = { ...(a.headers || {}) };
+            let body: BodyInit | undefined = undefined;
+            if (method === 'POST') {
+              if (mode === 'no-cors' || isGoogle) {
+                const params = new URLSearchParams();
+                for (const [k, v] of Object.entries(api.state)) {
+                  if (v !== undefined && v !== null) params.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+                }
+                body = params.toString();
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+              } else {
+                body = JSON.stringify(api.state);
+                if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+              }
+            }
+            try {
+              fetch(url, { method, mode, headers: Object.keys(headers).length ? headers : undefined, body })
+                .then((res) => {
+                  if (mode === 'no-cors' || res.ok || res.type === 'opaque') {
+                    api.toast(interpolateTokens(a.successToast || 'Submitted successfully!', api.state));
+                    if (a.clearOnSuccess !== false && api.clearKeys) api.clearKeys(Object.keys(api.state));
+                    if (a.navigateOnSuccess) api.navigate(a.navigateOnSuccess);
+                  } else {
+                    api.toast(interpolateTokens(a.errorToast || ('Submission failed (' + res.status + ')'), api.state));
+                  }
+                })
+                .catch((err) => {
+                  console.warn('Webhook dispatch failed:', err);
+                  api.toast(interpolateTokens(a.errorToast || 'Submission failed. Check network connection.', api.state));
+                });
+            } catch (err) {
+              console.warn('Webhook dispatch exception:', err);
+              api.toast(interpolateTokens(a.errorToast || 'Submission failed.', api.state));
+            }
+          }
           else if (a.type === 'when') {
             const current = api.state[a.key];
             const matches = a.equals === undefined ? Boolean(current) : matchesValue(current, a.equals);
@@ -654,7 +757,18 @@ export default function App() {
   | { type: 'setState'; key: string; value: unknown }
   | { type: 'toggle'; key: string }
   | { type: 'toast'; text: string }
-  | { type: 'openUrl'; url: string }
+  | { type: 'openUrl'; url: string; target?: '_blank' | '_self' }
+  | {
+      type: 'submitWebhook';
+      url: string;
+      method?: 'POST' | 'GET';
+      mode?: 'cors' | 'no-cors';
+      headers?: Record<string, string>;
+      successToast?: string;
+      errorToast?: string;
+      navigateOnSuccess?: string;
+      clearOnSuccess?: boolean;
+    }
   | { type: 'when'; key: string; equals?: unknown; then: Action[] };
 `;
 

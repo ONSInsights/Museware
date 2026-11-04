@@ -877,9 +877,10 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     container: false,
     icon: 'list',
     hint: 'Repeats one row template over mock rows. You select the list, not its rows.',
-    defaultProps: { dataKey: '', itemTemplate: null, divider: false },
+    defaultProps: { dataKey: '', itemTemplate: null, divider: false, dataSourceUrl: '' },
     props: [
       p('dataKey', 'Data key', 'dataset', 'Content', 'Which mock dataset fills the rows.'),
+      p('dataSourceUrl', 'Live sync URL', 'text', 'Content', 'Live Google Sheet JSON or REST API endpoint to hydrate on deployed sites. Studio canvas remains offline.'),
       p(
         'divider',
         'Hairlines between rows',
@@ -896,12 +897,13 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     container: false,
     icon: 'grid',
     hint: 'Columns and rows from mock data.',
-    defaultProps: { columns: ['Name', 'Value'], dataKey: '' },
+    defaultProps: { columns: ['Name', 'Value'], dataKey: '', dataSourceUrl: '' },
     props: [
       p('columns', 'Columns', 'data', 'Content', 'Header names, comma separated.', {
         required: true,
       }),
       p('dataKey', 'Data key', 'dataset', 'Content', 'Which mock dataset fills the rows.'),
+      p('dataSourceUrl', 'Live sync URL', 'text', 'Content', 'Live Google Sheet JSON or REST API endpoint to hydrate on deployed sites. Studio canvas remains offline.'),
     ],
   },
   {
@@ -925,12 +927,13 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
     container: false,
     icon: 'trophy',
     hint: 'Bars, a line or a sparkline from up to 12 points.',
-    defaultProps: { kind: 'bar', dataKey: '' },
+    defaultProps: { kind: 'bar', dataKey: '', dataSourceUrl: '' },
     props: [
       p('kind', 'Kind', 'select', 'Content', 'Bars for comparison, line for a trend.', {
         options: ['bar', 'line', 'spark'],
       }),
       p('dataKey', 'Data key', 'dataset', 'Content', 'Which mock dataset feeds the chart.'),
+      p('dataSourceUrl', 'Live sync URL', 'text', 'Content', 'Live Google Sheet JSON or REST API endpoint to hydrate on deployed sites. Studio canvas remains offline.'),
     ],
   },
 ];

@@ -6,6 +6,14 @@ type SiteAction = {
   equals?: unknown;
   to?: string;
   url?: string;
+  target?: '_blank' | '_self';
+  method?: string;
+  mode?: 'cors' | 'no-cors';
+  headers?: Record<string, string>;
+  successToast?: string;
+  errorToast?: string;
+  navigateOnSuccess?: string;
+  clearOnSuccess?: boolean;
   text?: string;
   then?: SiteAction[];
 };
@@ -108,6 +116,14 @@ export function startSite(
     state.__screen = screen.id;
     refresh();
   };
+  const interpolate = (template: string | undefined): string => {
+    if (!template || typeof template !== 'string') return '';
+    return template.replace(/\{([a-zA-Z0-9_.-]+)\}/g, (_, key) => {
+      const val = state[key];
+      if (val === undefined || val === null) return '';
+      return encodeURIComponent(String(val));
+    });
+  };
   const run = (actions: SiteAction[] | undefined, depth = 1) => {
     if (depth > 3) return;
     for (const action of actions || []) {
@@ -123,12 +139,68 @@ export function startSite(
           : matches(state[action.key], action.equals))
       )
         run(action.then, depth + 1);
-      else if (action.type === 'openUrl' && action.url && /^https:\/\//i.test(action.url))
-        window.open(action.url, '_blank', 'noopener,noreferrer');
-      else if (action.type === 'toast' && action.text) {
+      else if (action.type === 'openUrl' && action.url) {
+        const url = interpolate(action.url);
+        window.open(url, action.target || '_blank', 'noopener,noreferrer');
+      } else if (action.type === 'submitWebhook' && action.url) {
+        const method = action.method || 'POST';
+        const url = interpolate(action.url);
+        const isGoogle = /script\.google\.com/i.test(url);
+        const mode = action.mode || (isGoogle ? 'no-cors' : 'cors');
+        const headers: Record<string, string> = { ...(action.headers || {}) };
+        let body: BodyInit | undefined = undefined;
+        if (method === 'POST') {
+          if (mode === 'no-cors' || isGoogle) {
+            const params = new URLSearchParams();
+            for (const [k, v] of Object.entries(state)) {
+              if (v !== undefined && v !== null && !k.startsWith('__')) {
+                params.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+              }
+            }
+            body = params.toString();
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+          } else {
+            const payload: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(state)) {
+              if (!k.startsWith('__')) payload[k] = v;
+            }
+            body = JSON.stringify(payload);
+            if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+          }
+        }
+        try {
+          fetch(url, {
+            method,
+            mode,
+            headers: Object.keys(headers).length ? headers : undefined,
+            body,
+          })
+            .then((res) => {
+              if (mode === 'no-cors' || res.ok || res.type === 'opaque') {
+                run([{ type: 'toast', text: interpolate(action.successToast) || 'Submitted successfully!' }]);
+                if (action.clearOnSuccess !== false) {
+                  for (const k of Object.keys(state)) {
+                    if (!k.startsWith('__')) delete state[k];
+                  }
+                  refresh();
+                }
+                if (action.navigateOnSuccess) go(action.navigateOnSuccess);
+              } else {
+                run([{ type: 'toast', text: interpolate(action.errorToast) || `Submission failed (${res.status})` }]);
+              }
+            })
+            .catch((err) => {
+              console.warn('Webhook dispatch failed:', err);
+              run([{ type: 'toast', text: interpolate(action.errorToast) || 'Submission failed. Check network connection.' }]);
+            });
+        } catch (err) {
+          console.warn('Webhook dispatch exception:', err);
+          run([{ type: 'toast', text: interpolate(action.errorToast) || 'Submission failed.' }]);
+        }
+      } else if (action.type === 'toast' && action.text) {
         const toast = document.getElementById('site-toast');
         if (toast) {
-          toast.textContent = action.text;
+          toast.textContent = interpolate(action.text);
           toast.hidden = false;
           window.setTimeout(() => {
             toast.hidden = true;
@@ -239,6 +311,38 @@ export function startSite(
           preset: node.type === 'video' ? 'reel' : String(node.props.preset || 'globe'),
           speed: Number(node.props.speed) || 1,
           interactive: Boolean(node.props.interactive),
+        });
+    }
+  }
+  for (const node of data.nodes) {
+    const liveUrl = typeof node.props.dataSourceUrl === 'string' ? node.props.dataSourceUrl.trim() : '';
+    if (!liveUrl) continue;
+    for (const element of elements(node.id)) {
+      fetch(liveUrl)
+        .then((res) => res.json())
+        .then((items) => {
+          if (!Array.isArray(items) || !items.length) return;
+          if (node.type === 'table') {
+            const cols = Array.from(element.querySelectorAll('.mw-table-head .mw-table-cell')).map((c) => c.textContent?.trim() || '');
+            const existingRows = Array.from(element.querySelectorAll('.mw-table-row'));
+            existingRows.forEach((r) => r.remove());
+            items.slice(0, 30).forEach((r) => {
+              const row = document.createElement('div');
+              row.className = 'mw-table-row';
+              cols.forEach((c, ci) => {
+                const key = c.toLowerCase().replace(/\s+/g, '_');
+                const val = r[key] ?? r[c] ?? r[Object.keys(r)[ci] ?? ''] ?? '';
+                const cell = document.createElement('span');
+                cell.className = 'mw-table-cell';
+                cell.textContent = String(val);
+                row.appendChild(cell);
+              });
+              element.appendChild(row);
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('Live data sync skipped:', err);
         });
     }
   }

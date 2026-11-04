@@ -111,6 +111,14 @@ export function RunMode() {
     setState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const clearKeys = useCallback((keys: string[]) => {
+    setState((prev) => {
+      const next = { ...prev };
+      for (const k of keys) delete next[k];
+      return next;
+    });
+  }, []);
+
   const openUrl = useCallback((url: string) => {
     setPendingUrl(url);
   }, []);
@@ -121,11 +129,12 @@ export function RunMode() {
       state,
       screens: doc.screens,
       setKey,
+      clearKeys,
       toast,
       navigate,
       openUrl,
     }),
-    [doc.screens, navigate, openUrl, screen?.id, setKey, state, toast],
+    [clearKeys, doc.screens, navigate, openUrl, screen?.id, setKey, state, toast],
   );
 
   useEffect(() => {
