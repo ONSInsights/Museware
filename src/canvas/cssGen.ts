@@ -353,7 +353,14 @@ function baseDeclarations(
       d.push('display:flex', 'flex-direction:column', 'gap:8px', 'width:100%');
       break;
     case 'table':
-      d.push('display:flex', 'flex-direction:column', 'width:100%', 'font-size:13px');
+      d.push(
+        'display:flex',
+        'flex-direction:column',
+        'width:100%',
+        'font-size:13px',
+        'overflow-x:auto',
+        '-webkit-overflow-scrolling:touch',
+      );
       break;
     case 'stat':
       d.push(
@@ -514,11 +521,15 @@ export function generateCss(
       // conflicting node-base declaration so the variant can supply its look;
       // explicit node styles are always emitted afterwards at class specificity.
       if (
-        ['list', 'table', 'accordion', 'form'].includes(node.type) ||
+        ['list', 'table', 'accordion'].includes(node.type) ||
         (node.type === 'section' && /finder/i.test(`${node.id} ${node.name || ''}`))
       )
         rules.push(
           `@container mw (min-width:1024px){:where(.mw-section .${nodeClass(node.id)}){max-width:min(100%, 720px);margin-inline:auto}}`,
+        );
+      if (node.type === 'form')
+        rules.push(
+          `@container mw (min-width:1024px){:where(.mw-section .${nodeClass(node.id)}){max-width:min(100%, 540px);margin-inline:auto}}`,
         );
       const navbarVariant =
         node.type === 'navbar' ? String(node.props.variant || 'glass') : '';
@@ -619,9 +630,25 @@ export function generateCss(
       }
       if (node.type === 'row' && /stat/i.test(`${node.id} ${node.name || ''}`)) {
         const sel = `.${nodeClass(node.id)}`;
-        rules.push(`${sel}>*{flex:1 1 calc(50% - var(--gap-item))}`);
+        const childCount = node.children.length;
+        if (childCount === 3) {
+          rules.push(`${sel}>*{flex:1 1 calc(50% - var(--gap-item))}`);
+          rules.push(
+            `@container mw (min-width:600px){${sel}>*{flex:1 1 calc(33.333% - var(--gap-item));flex-basis:calc(33.333% - var(--gap-item))}}`,
+          );
+        } else {
+          rules.push(`${sel}>*{flex:1 1 calc(50% - var(--gap-item))}`);
+          rules.push(
+            `@container mw (min-width:1024px){${sel}>*{flex-basis:calc(25% - var(--gap-item))}}`,
+          );
+        }
+      }
+      if (node.type === 'table') {
+        const sel = `.${nodeClass(node.id)}`;
         rules.push(
-          `@container mw (min-width:1024px){${sel}>*{flex-basis:calc(25% - var(--gap-item))}}`,
+          `${sel} .mw-table-head,${sel} .mw-table-row{min-width:min-content}`,
+          `${sel} .mw-table-cell[data-col="year"],${sel} .mw-table-cell[data-col="status"],${sel} .mw-table-cell[data-col="date"],${sel} .mw-table-cell[data-col="id"],${sel} .mw-table-cell[data-col="qty"]{flex:0 0 68px;text-align:center}`,
+          `${sel} .mw-table-cell[data-col="project"],${sel} .mw-table-cell[data-col="title"],${sel} .mw-table-cell[data-col="name"],${sel} .mw-table-cell[data-col="stack"]{flex:2}`,
         );
       }
       if (node.type === 'grid') {

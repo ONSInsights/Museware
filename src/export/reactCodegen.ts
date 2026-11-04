@@ -258,12 +258,12 @@ ${pad}</div>`;
         return `${pad}<LiveCollection dataSourceUrl={${str(liveUrl)}} initialRows={${JSON.stringify(rows)}}>
 ${pad}  {(liveRows) => (
 ${pad}    <div className={${str(cls)}}>
-${pad}      <div className="mw-table-head">${columns.map((c) => `<span className="mw-table-cell">${jsxText(c)}</span>`).join('')}</div>
+${pad}      <div className="mw-table-head">${columns.map((c) => `<span className="mw-table-cell" data-col=${str(c.toLowerCase().trim())}>${jsxText(c)}</span>`).join('')}</div>
 ${pad}      {liveRows.map((row, i) => (
 ${pad}        <div className="mw-table-row" key={i}>
 ${columns.map((c, ci) => {
   const key = c.toLowerCase().replace(/\s+/g, '_');
-  return `${pad}          <span className="mw-table-cell">{String(row[${str(key)}] ?? row[${str(c)}] ?? row[Object.keys(row)[${ci}] ?? ''] ?? '')}</span>`;
+  return `${pad}          <span className="mw-table-cell" data-col=${str(c.toLowerCase().trim())}>{String(row[${str(key)}] ?? row[${str(c)}] ?? row[Object.keys(row)[${ci}] ?? ''] ?? '')}</span>`;
 }).join('\n')}
 ${pad}        </div>
 ${pad}      ))}
@@ -273,7 +273,7 @@ ${pad}  )}
 ${pad}</LiveCollection>`;
       }
       return `${pad}<div className={${str(cls)}}>
-${pad}  <div className="mw-table-head">${columns.map((c) => `<span className="mw-table-cell">${jsxText(c)}</span>`).join('')}</div>
+${pad}  <div className="mw-table-head">${columns.map((c) => `<span className="mw-table-cell" data-col=${str(c.toLowerCase().trim())}>${jsxText(c)}</span>`).join('')}</div>
 ${rows
   .map(
     (row) =>
@@ -281,7 +281,7 @@ ${rows
         .map((c, ci) => {
           const key = c.toLowerCase().replace(/\s+/g, '_');
           const value = row[key] ?? row[c] ?? row[Object.keys(row)[ci] ?? ''] ?? '';
-          return `<span className="mw-table-cell">${jsxText(String(value))}</span>`;
+          return `<span className="mw-table-cell" data-col=${str(c.toLowerCase().trim())}>${jsxText(String(value))}</span>`;
         })
         .join('')}</div>`,
   )
